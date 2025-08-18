@@ -56,7 +56,7 @@ koin-test-junit5 = { group = "io.insert-koin", name = "koin-test-junit5", versio
 run-paper = { id = "xyz.jpenilla.run-paper", version = "2.3.1" }
 resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.2.1" }
 shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.1.20" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.2.10" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.1.20" }
 dokka = { id = "org.jetbrains.dokka", version = "2.0.0" }
 
