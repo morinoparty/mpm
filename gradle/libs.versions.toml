@@ -12,7 +12,7 @@ junit = "5.12.2"
 mockBukkit = "3.93.2"
 commonsIo = "2.19.0"
 mockk = "1.14.2"
-kaml = "0.77.1"
+kaml = "0.94.0"
 
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
