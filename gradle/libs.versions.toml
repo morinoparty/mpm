@@ -1,7 +1,7 @@
 [versions]
 cloud = "2.1.0-SNAPSHOT"
 cloudPaper = "2.0.0-SNAPSHOT"
-paper = "1.21.5-R0.1-SNAPSHOT"
+paper = "1.21.10-R0.1-SNAPSHOT"
 mccoroutine = "2.22.0"
 koin = "4.1.1"
 coroutine = "1.10.2"
