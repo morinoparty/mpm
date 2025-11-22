@@ -1,28 +1,81 @@
-import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
     java
     alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.shadow)
-    alias(libs.plugins.run.paper)
-    alias(libs.plugins.resource.factory)
     alias(libs.plugins.dokka)
+    alias(libs.plugins.ktlint)
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
-group = "dev.nikomaru"
-version = "1.0-SNAPSHOT"
 
-repositories {
-    mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
-    maven("https://oss.sonatype.org/content/groups/public/")
-    maven("https://oss.sonatype.org/content/repositories/snapshots/")
-    maven("https://jitpack.io")
-    maven("https://plugins.gradle.org/m2/")
-    maven("https://repo.incendo.org/content/repositories/snapshots")
-    maven("https://repo.codemc.io/repository/maven-public/")
+val version: String by project
+group = "party.morino.mpm"
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+}
+
+allprojects {
+
+    apply(plugin = "java")
+    apply(plugin = "org.jetbrains.dokka")
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "org.jlleitschuh.gradle.ktlint")
+
+    repositories {
+        mavenCentral()
+        maven("https://repo.papermc.io/repository/maven-public/")
+        maven("https://oss.sonatype.org/content/groups/public/")
+        maven("https://oss.sonatype.org/content/repositories/snapshots/")
+        maven("https://jitpack.io")
+        maven("https://plugins.gradle.org/m2/")
+        maven("https://repo.codemc.io/repository/maven-public/")
+    }
+
+    kotlin {
+        jvmToolchain {
+            (this).languageVersion.set(JavaLanguageVersion.of(21))
+        }
+        jvmToolchain(21)
+    }
+
+    configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+        debug.set(true)
+        ignoreFailures.set(true)
+        filter {
+            include("app/**")
+            include("api/**")
+            exclude("**/config/**")
+        }
+    }
+
+    tasks {
+        register("hello") {
+            doLast {
+                println("I'm ${this.project.name}")
+            }
+        }
+        compileKotlin {
+            compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+            compilerOptions.javaParameters = true
+            compilerOptions.languageVersion.set(KotlinVersion.KOTLIN_2_0)
+        }
+        compileTestKotlin {
+            compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+        }
+
+        withType<JavaCompile>().configureEach {
+            options.encoding = "UTF-8"
+        }
+    }
+}
+
+dependencies {
+    dokka(project(":paper"))
+    dokka(project(":api"))
 }
 
 dokka {
@@ -34,99 +87,36 @@ dokka {
     }
 }
 
+detekt {
+    // Version of detekt that will be used. When unspecified the latest detekt
+    // version found will be used. Override to stay on the same version.
+    toolVersion = "1.23.8"
 
-dependencies {
-    compileOnly(libs.paper.api)
+    // The directories where detekt looks for source files.
+    // Defaults to `files("src/main/java", "src/test/java", "src/main/kotlin", "src/test/kotlin")`.
+    source.setFrom("api/src/main/java", "api/src/main/kotlin", "app/src/main/java", "app/src/main/kotlin")
 
-    implementation(libs.bundles.commands)
+    // Builds the AST in parallel. Rules are always executed in parallel.
+    // Can lead to speedups in larger projects. `false` by default.
+    parallel = true
 
-    implementation(libs.kotlinx.serialization.json)
-    implementation(libs.kaml)
+    // Applies the config files on top of detekt's default config file. `false` by default.
+    buildUponDefaultConfig = true
 
-    implementation(libs.bundles.coroutines)
+    // Turns on all the rules. `false` by default.
+    allRules = true
 
-    implementation(libs.bundles.ktor.client)
+    // Specifying a baseline file. All findings stored in this file in subsequent runs of detekt.
+    baseline = file("./detekt-baseline.xml")
 
-    implementation(libs.kotlin.reflect)
+    // Disables all default detekt rulesets and will only run detekt with custom rules
+    // defined in plugins passed in with `detektPlugins` configuration. `false` by default.
+    disableDefaultRuleSets = false
 
-    implementation(libs.commons.io)
-    implementation(libs.snakeyaml)
+    // Adds debug output during task execution. `false` by default.
+    debug = false
 
-    implementation(libs.koin.core)
-
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mock.bukkit)
-    testImplementation(libs.mockk)
-
-    testImplementation(libs.junit.jupiter)
-    testImplementation(libs.bundles.koin.test)
-
-    testImplementation(libs.bundles.ktor.client)
-
-    testImplementation(libs.commons.io)
-}
-
-kotlin {
-    jvmToolchain {
-        (this).languageVersion.set(JavaLanguageVersion.of(21))
-    }
-    jvmToolchain(21)
-}
-
-tasks {
-    compileKotlin {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
-        compilerOptions.javaParameters = true
-        compilerOptions.languageVersion.set(KotlinVersion.KOTLIN_2_0)
-    }
-    compileTestKotlin {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
-    }
-    build {
-        dependsOn(shadowJar)
-    }
-    withType<JavaCompile>().configureEach {
-        options.encoding = "UTF-8"
-    }
-    runServer {
-        minecraftVersion("1.21")
-        
-        val plugins = runPaper.downloadPluginsSpec {}
-        downloadPlugins{
-            downloadPlugins.from(plugins)
-        }
-    }
-    test {
-        useJUnitPlatform()
-        testLogging {
-            showStandardStreams = true
-            events("passed", "skipped", "failed")
-            exceptionFormat = TestExceptionFormat.FULL
-        }
-    }
-}
-
-sourceSets.main {
-    resourceFactory {
-        bukkitPluginYaml {
-            name = "MinecraftPluginManager"
-            version = "miencraft_plugin_version"
-            website = "https://github.com/Nlkomaru/MinecraftPluginManager"
-            main = "$group.mpm.MinecraftPluginManager"
-            apiVersion = "1.20"
-            libraries = libs.bundles.coroutines.asString()
-            softDepend = listOf()
-        }
-    }
-}
-
-fun Provider<MinimalExternalModuleDependency>.asString(): String {
-    val dependency = this.get()
-    return dependency.module.toString() + ":" + dependency.versionConstraint.toString()
-}
-
-fun Provider<ExternalModuleDependencyBundle>.asString(): List<String> {
-    return this.get().map { dependency ->
-        "${dependency.group}:${dependency.name}:${dependency.version}"
-    }
+    // If set to `true` the build does not fail when there are any issues.
+    // Defaults to `false`.
+    ignoreFailures = true
 }

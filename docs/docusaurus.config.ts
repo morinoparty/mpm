@@ -10,14 +10,17 @@ const config: Config = {
     staticDirectories: ["static"],
     trailingSlash: true,
 
-    url: "https://mpm.plugin.nikomaru.dev",
+    url: "https://mpm.plugin.morino.party",
     baseUrl: "/",
 
     organizationName: "morinoparty",
     projectName: "MinecraftPluginManager",
-
     onBrokenLinks: "throw",
-    onBrokenMarkdownLinks: "warn",
+    markdown: {
+        hooks:{
+            onBrokenMarkdownLinks: "warn",
+        }
+    },
 
     i18n: {
         defaultLocale: "ja",
@@ -32,7 +35,7 @@ const config: Config = {
                     sidebarPath: "./sidebars.ts",
                     routeBasePath: "",
                     editUrl:
-                        "https://github.com/nlkomaru/minecraftpluginmanager/tree/master/docs/",
+                        "https://github.com/morinoparty/minecraftpluginmanager/tree/master/docs/",
                 },
                 theme: {
                     customCss: "./src/css/custom.css",
@@ -62,12 +65,12 @@ const config: Config = {
             },
             items: [
                 {
-                    href: "https://github.com/nlkomaru/minecraftpluginmanager",
+                    href: "https://github.com/morinoparty/minecraftpluginmanager",
                     label: "GitHub",
                     position: "right",
                 },
                 {
-                    href: "https://github.com/nlkomaru/minecraftpluginmanager/releases",
+                    href: "https://github.com/morinoparty/minecraftpluginmanager/releases",
                     label: "Download",
                     position: "right",
                 },
@@ -113,7 +116,7 @@ const config: Config = {
                     items: [
                         {
                             label: "GitHub",
-                            href: "https://github.com/nlkomaru/minecraftpluginmanager",
+                            href: "https://github.com/morinoparty/minecraftpluginmanager",
                         },
                     ],
                 },
@@ -133,6 +136,20 @@ const config: Config = {
             darkTheme: prismThemes.dracula,
         },
     } satisfies Preset.ThemeConfig,
+    future: {
+        v4: true,
+        experimental_faster: {
+            swcJsLoader: true,
+            swcJsMinimizer: true,
+            swcHtmlMinimizer: true,
+            lightningCssMinimizer: true,
+            rspackBundler: true,
+            rspackPersistentCache: true,
+            ssgWorkerThreads: true,
+            mdxCrossCompilerCache: true,
+        },
+    },
 };
+
 
 export default config;

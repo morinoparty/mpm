@@ -1,0 +1,39 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  docs:
+    dir: docs
+    cmds:
+      - pnpm install
+      - pnpm start
+    silent: true
+  format:
+    cmds:
+      - ./gradlew clean ktlintFormat
+    silent: true
+  build:
+    cmds:
+      - ./gradlew clean build -x test
+    silent: true
+  run:
+    cmds:
+      - ./gradlew clean runServer
+    silent: true
+  dokka:
+    cmds:
+      - ./gradlew clean dokkaGenerate
+    silent: true
+  check:
+    cmds:
+      - task format
+      - task build
+    silent: false
+  test:
+    cmds:
+      - ./gradlew clean test
+    silent: true
