@@ -19,6 +19,7 @@ import org.incendo.cloud.annotations.AnnotationParser
 import org.incendo.cloud.execution.ExecutionCoordinator
 import org.incendo.cloud.kotlin.coroutines.annotations.installCoroutineSupport
 import org.incendo.cloud.paper.PaperCommandManager
+import party.morino.mpm.ui.commands.manage.InitCommand
 import party.morino.mpm.ui.commands.manage.ListCommand
 import party.morino.mpm.ui.commands.manage.ManageCommands
 import party.morino.mpm.ui.commands.repo.RepositoryCommands
@@ -51,8 +52,9 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
         with(annotationParser) {
             parse(
                 ManageCommands(),
-                ListCommand(),
-                RepositoryCommands()
+                    ListCommand(),
+                    RepositoryCommands(),
+                    InitCommand()
             )
         }
     }

@@ -14,11 +14,13 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.core.plugin.DownloaderRepository
+import party.morino.mpm.api.core.plugin.InitUseCase
 import party.morino.mpm.api.core.plugin.PluginInstallUseCase
 import party.morino.mpm.api.core.plugin.PluginListUseCase
 import party.morino.mpm.api.core.plugin.PluginRepository
 import party.morino.mpm.config.PluginDirectoryImpl
 import party.morino.mpm.core.plugin.DownloaderRepositoryImpl
+import party.morino.mpm.core.plugin.InitUseCaseImpl
 import party.morino.mpm.core.plugin.PluginInstallUseCaseImpl
 import party.morino.mpm.core.plugin.PluginListUseCaseImpl
 import party.morino.mpm.core.plugin.PluginRepositoryImpl
@@ -66,6 +68,7 @@ open class MinecraftPluginManager : JavaPlugin() {
                 single<PluginRepository> { PluginRepositoryImpl() }
 
                 // ユースケースの登録（依存性はKoinのinjectによって自動注入される）
+                single<InitUseCase> { InitUseCaseImpl() }
                 single<PluginInstallUseCase> { PluginInstallUseCaseImpl() }
                 single<PluginListUseCase> { PluginListUseCaseImpl() }
             }

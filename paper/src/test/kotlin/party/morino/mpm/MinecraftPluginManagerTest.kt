@@ -14,9 +14,12 @@ import be.seeseemelk.mockbukkit.ServerMock
 import org.junit.jupiter.api.extension.AfterEachCallback
 import org.junit.jupiter.api.extension.BeforeEachCallback
 import org.junit.jupiter.api.extension.ExtensionContext
-import org.koin.core.context.loadKoinModules
+import org.koin.core.context.GlobalContext
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import party.morino.mpm.api.config.PluginDirectory
+import party.morino.mpm.mock.config.PluginDirectoryMock
+import kotlin.jvm.java
 
 class MinecraftPluginManagerTest :
     BeforeEachCallback,
@@ -36,12 +39,47 @@ class MinecraftPluginManagerTest :
     }
 
     private fun setupKoin() {
+        // プラグインをロード（この時点でonEnable()が呼ばれてKoinが初期化される）
         plugin = MockBukkit.load(MinecraftPluginManager::class.java)
+
+        // プラグイン側で初期化されたKoinを停止
+        stopKoin()
+
+        // テスト用のモジュールを定義
         val appModule =
             module {
                 single<MinecraftPluginManager> { plugin }
                 single<ServerMock> { server }
+                single<PluginDirectory> { PluginDirectoryMock() }
+
+                // リポジトリの登録
+                single<party.morino.mpm.api.core.plugin.DownloaderRepository> {
+                    party.morino.mpm.core.plugin
+                        .DownloaderRepositoryImpl()
+                }
+                single<party.morino.mpm.api.core.plugin.PluginRepository> {
+                    party.morino.mpm.core.plugin
+                        .PluginRepositoryImpl()
+                }
+
+                // ユースケースの登録
+                single<party.morino.mpm.api.core.plugin.InitUseCase> {
+                    party.morino.mpm.core.plugin
+                        .InitUseCaseImpl()
+                }
+                single<party.morino.mpm.api.core.plugin.PluginInstallUseCase> {
+                    party.morino.mpm.core.plugin
+                        .PluginInstallUseCaseImpl()
+                }
+                single<party.morino.mpm.api.core.plugin.PluginListUseCase> {
+                    party.morino.mpm.core.plugin
+                        .PluginListUseCaseImpl()
+                }
             }
-        loadKoinModules(appModule)
+
+        // テスト用のモジュールでKoinを初期化
+        GlobalContext.startKoin {
+            modules(appModule)
+        }
     }
 }

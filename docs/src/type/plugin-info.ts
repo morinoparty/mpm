@@ -1,0 +1,1 @@
+../../../repo/src/type/plugin-info.ts

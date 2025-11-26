@@ -44,7 +44,7 @@ export const CommandLine: React.FC<CommandLineProps> = ({
             beta: "mr-12 text-orange-800", // 明るいオレンジ
             newly: "mr-12 text-blue-800", // 明るい青
             stable: "mr-12 text-green-800", // 明るい緑
-            deprecated : "mr-12 text-purple-400", // 明るい緑
+            deprecated : "mr-12 text-purple-800", // 明るい緑
         };
         return styles[status] || "";
     };

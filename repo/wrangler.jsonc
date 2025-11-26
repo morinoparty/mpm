@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mpm-repo",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-17",
+  "observability": {
+    "logs": {
+      "enabled": false,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+      "persist": true
+    }
+  },
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  }
+}

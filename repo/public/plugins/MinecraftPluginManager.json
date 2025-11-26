@@ -1,0 +1,13 @@
+{
+  "id": "MinecraftPluginManager",
+  "website": "https://mpm.plugin.morino.party",
+  "source": "https://github.com/morinoparty/MinecraftPluginManager",
+  "license": "CC0-1.0",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "minecraftpluginmanager",
+      "fileNameRegex": "MinecraftPluginManager-*\\.jar"
+    }
+  ]
+}

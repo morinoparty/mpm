@@ -19,7 +19,7 @@ interface CommandListProps {
 // JSONファイルを読み込んでコマンド一覧を表示するコンポーネント
 export const CommandList: React.FC<CommandListProps> = ({ category, section }) => {
     // JSONファイルを読み込む
-    const commandsData = require(`@site/src/data/${category}.json`) as Commands;
+    const commandsData = require(`../../data/${category}.json`) as Commands;
 
     // Zodでバリデーション
     const validatedData = commandsSchema.parse(commandsData);

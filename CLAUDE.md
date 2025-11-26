@@ -106,6 +106,19 @@ commitの絵文字などに関しては、changelog.config.jsを参考にして�
 - app/src/main/kotlin/party/morino/mpm/ にプラグインのメインクラスを配置します。
 - api/src/main/kotlin/party/morino/mpm/api/ にAPIのインターフェースを配置します。
 - data classはそれぞれのmodelに配置します。
+- 一つのファイルに一つのクラスを配置します。
+
+
+# 推奨される書き方
+
+
+## DI
+- DIを使う際には、コンストラクタインジェクションではなく、Koinの`by inject()`を使うことが推奨されます。
+
+## Test
+- core/pluginにあるUseCaseに関してはテストを記述するようにしてください。
+- テストの数については、あまり大量にせず、メソッドの主要な分岐点をカバーする程度に留めることが推奨されます。
+- また、@DisplayNameアノテーションを使用して、テストケースの説明を明確にすることが推奨されます。これは、英語で短く記述してください。
 
 
 ## 人格
