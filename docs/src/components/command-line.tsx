@@ -3,10 +3,11 @@ import {
     HoverCardContent,
     HoverCardTrigger,
 } from "@site/src/components/ui/hover-card";
-import { CircleCheckBig } from "lucide-react";
+import { CircleCheckBig, AlertCircle } from "lucide-react";
 import { Check } from "lucide-react";
 import { CircleAlert } from "lucide-react";
 import { HandHelping } from "lucide-react";
+import React from "react";
 
 // バッジのプロパティを定義
 interface CommandLineProps {
@@ -31,6 +32,7 @@ export const CommandLine: React.FC<CommandLineProps> = ({
             newly: `${commonStyle} bg-blue-500/50 dark:bg-blue-300/70`, // 青色を見やすく
             beta: `${commonStyle} bg-orange-500/50 dark:bg-orange-200/70`, // オレンジ色を見やすく
             proposal: `${commonStyle} bg-gray-500/50 dark:bg-gray-200/70`, // グレーを見やすく
+            deprecated: `${commonStyle} bg-purple-600/50 dark:bg-purple-200/70`,
         };
         // スタイルが存在する場合は返し、存在しない場合は空の文字列を返す
         return styles[status] || "";
@@ -42,6 +44,7 @@ export const CommandLine: React.FC<CommandLineProps> = ({
             beta: "mr-12 text-orange-800", // 明るいオレンジ
             newly: "mr-12 text-blue-800", // 明るい青
             stable: "mr-12 text-green-800", // 明るい緑
+            deprecated : "mr-12 text-purple-400", // 明るい緑
         };
         return styles[status] || "";
     };
@@ -53,6 +56,9 @@ export const CommandLine: React.FC<CommandLineProps> = ({
                     className={`flex items-center ${getCommandLineStyle(status)}`}
                 >
                     <div className="flex items-center ml-8">
+                        {status === "deprecated" && (
+                            <AlertCircle className={getBadgeStyle(status)} />
+                        )}{" "}
                         {status === "proposal" && (
                             <HandHelping className={getBadgeStyle(status)} />
                         )}{" "}
@@ -78,6 +84,7 @@ export const CommandLine: React.FC<CommandLineProps> = ({
                 {status === "beta" && <span>ベータ版のコマンド</span>}
                 {status === "newly" && <span>新しいコマンド</span>}
                 {status === "stable" && <span>安定版のコマンド</span>}
+                {status === "deprecated" && <span>非推奨のコマンド</span>}
             </HoverCardContent>
         </HoverCard>
     );

@@ -1,109 +1,16 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 ---
 
-import { CommandLine } from "@site/src/components/command-line";
+import { CommandList } from "@site/src/components/command-list";
 
 # 📦 リポジトリ管理コマンド
 
 プラグインのダウンロード元を管理するリポジトリファイルを作成・管理するコマンドです。
 
-## リポジトリファイル作成
+## コマンド一覧
 
-<CommandLine status="stable" command="mpm create-repo <pluginName> <url> [fileNamePattern]" />
-URLからリポジトリファイルを自動生成します。リポジトリタイプを自動判定し、`repository/<pluginName>.json`を作成します。
-
-**引数:**
-- `<pluginName>`: プラグイン名（ファイル名として使用）
-- `<url>`: プラグインのURL（GitHub, Modrinth, SpigotMC対応）
-- `[fileNamePattern]`: ファイル選択パターン（複数ファイルがある場合のみ）
-
-**対応プラットフォーム:**
-- GitHub (`https://github.com/owner/repository`)
-- Modrinth (`https://modrinth.com/plugin/project-id`)
-- SpigotMC (`https://www.spigotmc.org/resources/name.id/`)
-
-**使用例:**
-
-```bash
-# Modrinthからリポジトリファイルを作成
-/mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
-
-# GitHubから、ファイル選択パターンを指定
-/mpm create-repo EssentialsX https://github.com/EssentialsX/Essentials "EssentialsX-.*\\.jar"
-
-# SpigotMCから
-/mpm create-repo Vault https://www.spigotmc.org/resources/vault.34315/
-```
-
-**このコマンドは:**
-1. URLを解析してリポジトリタイプを判定
-2. リポジトリIDを抽出
-3. `repository/<pluginName>.json`を自動生成
-4. 次のステップを表示（`/mpm add <pluginName>`）
-
-**生成されるファイル例:**
-
-```json
-{
-    "id": "QuickShop",
-    "website": "https://modrinth.com/plugin/quickshop-hikari",
-    "repositories": [
-        {
-            "type": "modrinth",
-            "repositoryId": "quickshop-hikari"
-        }
-    ]
-}
-```
-
-## リポジトリ管理（今後実装予定）
-
-<CommandLine status="proposal" command="mpm repository list" />
-利用可能なリポジトリファイルの一覧を表示します。
-
-**使用例:**
-```bash
-/mpm repository list
-```
-
-**表示内容:**
-- リポジトリファイル名
-- プラグインID
-- リポジトリタイプ
-- URL
-
----
-
-<CommandLine status="proposal" command="mpm repository validate <pluginName>" />
-リポジトリファイルの妥当性を検証します。
-
-**使用例:**
-```bash
-/mpm repository validate QuickShop
-```
-
-**検証内容:**
-- JSON構文の正しさ
-- 必須フィールドの存在
-- リポジトリタイプの妥当性
-- URLの到達可能性
-
----
-
-<CommandLine status="proposal" command="mpm repository search <keyword>" />
-リポジトリファイル内をキーワードで検索します。
-
-**使用例:**
-```bash
-/mpm repository search shop
-```
-
-**検索対象:**
-- プラグイン名
-- リポジトリID
-- URL
-- 説明
+<CommandList category="repo" />
 
 ## ワークフロー
 

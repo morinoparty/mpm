@@ -1,0 +1,54 @@
+{
+  "commands": [
+    {
+      "command": "mpm create-repo <pluginName> <url> [fileNamePattern]",
+      "status": "stable",
+      "category": "repo",
+      "description": "URLからリポジトリファイルを自動生成します（GitHub, Modrinth, SpigotMC対応）",
+      "arguments": [
+        {
+          "name": "pluginName",
+          "required": true
+        },
+        {
+          "name": "url",
+          "required": true
+        },
+        {
+          "name": "fileNamePattern",
+          "required": false
+        }
+      ]
+    },
+    {
+      "command": "mpm repository list",
+      "status": "proposal",
+      "category": "repo",
+      "description": "利用可能なリポジトリファイルの一覧を表示します"
+    },
+    {
+      "command": "mpm repository validate <pluginName>",
+      "status": "proposal",
+      "category": "repo",
+      "description": "リポジトリファイルの妥当性を検証します",
+      "arguments": [
+        {
+          "name": "pluginName",
+          "required": true
+        }
+      ]
+    },
+    {
+      "command": "mpm repository search <keyword>",
+      "status": "proposal",
+      "category": "repo",
+      "description": "リポジトリファイル内をキーワードで検索します",
+      "arguments": [
+        {
+          "name": "keyword",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

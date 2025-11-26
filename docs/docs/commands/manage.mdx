@@ -2,252 +2,100 @@
 sidebar_position: 1
 ---
 
-import { CommandLine } from "@site/src/components/command-line";
+import { CommandList } from "@site/src/components/command-list";
 
 # 🔧 プラグイン管理コマンド
 
 プラグインのインストール、削除、一覧表示などを行うコマンドです。
 
-## インストール・追加
+## コマンド一覧
 
-<CommandLine status="stable" command="mpm add <pluginName>" />
-リポジトリファイルからプラグインを管理対象に追加します。`repository/<pluginName>.json`を読み込みます。
+インストール、アンインストール、一覧表示、更新管理に関するコマンドです。
 
-**使用例:**
+<CommandList category="manage" />
+
+## ワークフロー
+
+プラグイン管理の基本的なワークフローです。
+
+### 1. リポジトリファイルを作成
+
 ```bash
-/mpm add QuickShop
-/mpm add LuckPerms
-```
-
-事前に`repository/<pluginName>.json`ファイルが必要です。
-ファイルは手動で作成するか、`mpm create-repo`コマンドで自動生成できます。
-
----
-
-<CommandLine status="stable" command="mpm install" />
-`mpm-config.json`に記載されたすべてのプラグインをインストールします。引数なしで実行します。
-
-**使用例:**
-```bash
-# mpm addで追加したプラグインを一括インストール
-/mpm install
-```
-
-このコマンドは：
-- `mpm-config.json`に記載されたすべてのプラグインをダウンロード
-- プラグインファイルを`plugins/`ディレクトリに配置
-- `managed/`ディレクトリにメタデータを保存
-
----
-
-<CommandLine status="deprecated" command="mpm install <url> [fileNameRegex]" />
-
-**非推奨**: URLから直接プラグインをインストールする形式は削除されました。
-
-新しいワークフローを使用してください：
-```bash
-# 旧方式（削除済み）
-/mpm install https://modrinth.com/plugin/quickshop-hikari
-
-# 新方式
 /mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
+```
+
+自動的に `repository/QuickShop.json` が作成されます。
+
+### 2. プラグインを管理対象に追加
+
+```bash
 /mpm add QuickShop
+```
+
+`mpm-config.json` にプラグイン情報が追加されます。
+
+### 3. インストール
+
+```bash
 /mpm install
 ```
 
-## アンインストール・削除
+プラグインがダウンロードされ、`plugins/` ディレクトリに配置されます。
 
-<CommandLine status="stable" command="mpm uninstall <pluginName>" />
-プラグインをアンインストールします。プラグインファイルを削除し、`mpm-config.json`から設定を削除します。
+### 4. サーバーを再起動
 
-**使用例:**
 ```bash
-/mpm uninstall QuickShop
+/restart
 ```
 
-このコマンドは：
-- プラグインファイルを`plugins/`から削除
-- `mpm-config.json`から設定を削除
-- `managed/`のメタデータを削除
+プラグインが有効化されます。
 
----
+## トラブルシューティング
 
-<CommandLine status="proposal" command="mpm remove <pluginName>" />
-プラグインを管理対象から除外します。`mpm uninstall`と異なり、プラグインファイルは削除されません。
+### プラグインがインストールされない
 
-**使用例:**
+1. **リポジトリファイルを確認**
+   ```bash
+   # ファイルが存在するか確認
+   ls plugins/MinecraftPluginManager/repository/
+   ```
+
+2. **mpm-config.json を確認**
+   ```bash
+   # プラグインが追加されているか確認
+   cat plugins/MinecraftPluginManager/mpm-config.json
+   ```
+
+3. **ログを確認**
+   - サーバーログでエラーメッセージを確認してください
+
+### 管理外プラグインが削除される
+
+mpm管理下にないプラグインを保持するには：
+
 ```bash
-/mpm remove QuickShop
+# local/ ディレクトリに移動
+mv plugins/YourPlugin.jar plugins/MinecraftPluginManager/local/
 ```
 
-**用途:**
-- プラグインを手動で管理したい場合
-- 一時的にmpm管理下から外したい場合
+`local/` ディレクトリ内のプラグインは `mpm removeUnmanaged` コマンドでも削除されません。
 
----
+### インストール済みプラグインの確認
 
-<CommandLine status="proposal" command="mpm removeUnmanaged" />
-mpm管理下にないプラグインを削除します。
-
-**使用例:**
-```bash
-/mpm removeUnmanaged
-```
-
-:::warning 注意
-管理外プラグインを保持したい場合は、`plugins/MinecraftPluginManager/local/`に移動してください。
-:::
-
-## 一覧表示
-
-<CommandLine status="newly" command="mpm list [[options]]" />
-インストールされているプラグインの一覧を表示します。
-
-**オプション:**
-- `--all` すべてのプラグインを表示します（デフォルト）
-- `--enabled` 有効化されているプラグインを表示します
-- `--disabled` 無効化されているプラグインを表示します
-- `--unmanaged` 管理外のプラグインを表示します
-- `--managed` 管理下のプラグインを表示します
-
-**使用例:**
 ```bash
 # すべてのプラグインを表示
 /mpm list
 
-# 有効なプラグインのみ表示
-/mpm list --enabled
+# 管理下のプラグインのみ表示
+/mpm list --managed
 
 # 管理外のプラグインのみ表示
 /mpm list --unmanaged
 ```
 
-## 更新管理
-
-<CommandLine status="proposal" command="mpm outdated <plugin>" />
-プラグインの更新を確認します。
-
-**使用例:**
-```bash
-/mpm outdated QuickShop
-```
-
----
-
-<CommandLine status="proposal" command="mpm outdatedAll" />
-インストールされているすべてのプラグインの更新を確認します。
-
-**使用例:**
-```bash
-/mpm outdatedAll
-```
-
----
-
-<CommandLine status="proposal" command="mpm update" />
-`/mpm outdated` によって新しいバージョンがあるとされたプラグインを更新します。
-
-**使用例:**
-```bash
-/mpm update
-```
-
----
-
-<CommandLine status="proposal" command="mpm lock <plugin>" />
-プラグインをロックします。ロックをしたプラグインは、`mpm outdatedAll`で更新されません。
-
-**使用例:**
-```bash
-/mpm lock QuickShop
-```
-
-**用途:**
-- 特定バージョンを固定したい場合
-- 自動更新を防ぎたい場合
-
----
-
-<CommandLine status="proposal" command="mpm unlock <plugin>" />
-プラグインのロックを解除します。
-
-**使用例:**
-```bash
-/mpm unlock QuickShop
-```
-
-## 情報表示
-
-<CommandLine status="proposal" command="mpm info <plugin>" />
-プラグインの情報を表示します。詳細な情報（名前、バージョン、メインクラス、説明、作者、ウェブサイト、APIバージョンなど）が表示されます。
-
-**使用例:**
-```bash
-/mpm info QuickShop
-```
-
----
-
-<CommandLine status="proposal" command="mpm search <plugin>" />
-プラグインを検索します。
-
-**使用例:**
-```bash
-/mpm search QuickShop
-```
-
----
-
-<CommandLine status="proposal" command="mpm help" />
-ヘルプを表示します。
-
-**使用例:**
-```bash
-/mpm help
-```
-
----
-
-<CommandLine status="proposal" command="mpm version" />
-バージョンを表示します。
-
-**使用例:**
-```bash
-/mpm version
-```
-
-## プラグインローディング
-
-<CommandLine status="proposal" command="mpm jarinfo <file>" />
-指定したJARファイルのプラグイン情報を表示します。
-
-**使用例:**
-```bash
-/mpm jarinfo QuickShop-Hikari-6.0.0.jar
-```
-
----
-
-<CommandLine status="proposal" command="mpm load <file>" />
-指定したプラグインファイルを読み込みます。
-
-**使用例:**
-```bash
-/mpm load QuickShop-Hikari-6.0.0.jar
-```
-
----
-
-<CommandLine status="proposal" command="mpm unload <plugin>" />
-指定したプラグインをアンロードします。
-
-**使用例:**
-```bash
-/mpm unload QuickShop
-```
-
 ## 関連ドキュメント
 
+- [プラグイン操作コマンド](/commands/plugin) - プラグインの情報表示・ローディング
 - [リポジトリ管理コマンド](/commands/repo) - リポジトリファイルの作成・管理
 - [はじめに](/usage/getting-started) - 基本的な使い方
 - [プラグインを管理する](/usage/install) - 詳細なワークフロー
