@@ -3,11 +3,14 @@ import {
     HoverCardContent,
     HoverCardTrigger,
 } from "@site/src/components/ui/hover-card";
-import { CircleCheckBig, AlertCircle } from "lucide-react";
-import { Check } from "lucide-react";
-import { CircleAlert } from "lucide-react";
-import { HandHelping } from "lucide-react";
-import React from "react";
+import {
+    AlertCircle,
+    Check,
+    CircleAlert,
+    CircleCheckBig,
+    HandHelping,
+} from "lucide-react";
+import type React from "react";
 
 // バッジのプロパティを定義
 interface CommandLineProps {
@@ -44,7 +47,7 @@ export const CommandLine: React.FC<CommandLineProps> = ({
             beta: "mr-12 text-orange-800", // 明るいオレンジ
             newly: "mr-12 text-blue-800", // 明るい青
             stable: "mr-12 text-green-800", // 明るい緑
-            deprecated : "mr-12 text-purple-800", // 明るい緑
+            deprecated: "mr-12 text-purple-800", // 明るい緑
         };
         return styles[status] || "";
     };

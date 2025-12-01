@@ -15,9 +15,7 @@ module.exports = function tailwindPlugin(context, options) {
         //     };
         // },
         configurePostCss(postcssOptions) {
-            postcssOptions.plugins = [
-                require("@tailwindcss/postcss"),
-            ];
+            postcssOptions.plugins = [require("@tailwindcss/postcss")];
             return postcssOptions;
         },
     };

@@ -6,9 +6,10 @@
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
-import React from "react";
+
 import { CommandLine } from "@site/src/components/command-line";
 import type { Command } from "@site/src/type/command";
+import type React from "react";
 
 // 個別のコマンドセクションを表示するコンポーネント
 export const CommandSection: React.FC<{ command: Command }> = ({ command }) => {

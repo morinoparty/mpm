@@ -6,10 +6,11 @@
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
-import React from "react";
+
 import { CommandSection } from "@site/src/components/command-section";
-import { commandsSchema } from "@site/src/type/command";
 import type { Commands } from "@site/src/type/command";
+import { commandsSchema } from "@site/src/type/command";
+import React from "react";
 
 interface CommandListProps {
     category: "manage" | "repo";
@@ -17,7 +18,10 @@ interface CommandListProps {
 }
 
 // JSONファイルを読み込んでコマンド一覧を表示するコンポーネント
-export const CommandList: React.FC<CommandListProps> = ({ category, section }) => {
+export const CommandList: React.FC<CommandListProps> = ({
+    category,
+    section,
+}) => {
     // JSONファイルを読み込む
     const commandsData = require(`../../data/${category}.json`) as Commands;
 
@@ -26,7 +30,9 @@ export const CommandList: React.FC<CommandListProps> = ({ category, section }) =
 
     // セクションでフィルタリング（指定された場合のみ）
     const filteredCommands = section
-        ? validatedData.commands.filter((command) => command.section === section)
+        ? validatedData.commands.filter(
+              (command) => command.section === section,
+          )
         : validatedData.commands;
 
     return (
@@ -34,7 +40,9 @@ export const CommandList: React.FC<CommandListProps> = ({ category, section }) =
             {filteredCommands.map((command, index) => (
                 <React.Fragment key={index}>
                     <CommandSection command={command} />
-                    {index < filteredCommands.length - 1 && <hr className="my-8" />}
+                    {index < filteredCommands.length - 1 && (
+                        <hr className="my-8" />
+                    )}
                 </React.Fragment>
             ))}
         </div>
