@@ -1,0 +1,20 @@
+{
+  "id": "LuckPerms",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/luckperms",
+  "source": "https://github.com/lucko/LuckPerms",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "Vebnzrzj",
+      "fileNameRegex": ".*\\.jar$",
+      "versionModifier": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    },
+    {
+      "type": "spigot",
+      "id": "28140",
+      "fileNameRegex": "",
+      "versionModifier": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  ]
+}

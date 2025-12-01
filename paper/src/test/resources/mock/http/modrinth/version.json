@@ -1,0 +1,732 @@
+[{
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "j9WvAurZ",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": true,
+  "name": "[Spigot] Plasmo Voice 2.1.6",
+  "version_number": "spigot-2.1.6",
+  "changelog": "### Changes in 2.1.6\n- **Plugin now requires minimum version of Java 17 to run.** \n- Fixed \"Plasmo Voice is not installed on this server\" on Paper 1.21.7.\n- Removed debug print when chat message is sent to the player.\n- Removed \"Default language '...' doesn't exist\" check when using non \"en_us\" language.\n- Fixed \"Failed to encrypt data: VoiceServerPlayerEntity(...) has empty public key\".\n- Fixed hover / click text components events on Spigot 1.20.4.\n- Fixed entity sources on Folia [pv-addon-spectator#4](https://github.com/plasmoapp/pv-addon-spectator/issues/4).\n- Fixed `Cannot send game event asynchronously` on `Folia` with `pv-addon-sculk` [#486](https://github.com/plasmoapp/plasmo-voice/issues/468).\n- Improved vanish support by PlayerHideEntityEvent and PlayerShowEntityEvent when direct integration is not available.\n",
+  "changelog_url": null,
+  "date_published": "2025-10-01T04:50:16.510162Z",
+  "downloads": 14627,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "56665d6b6d2f787cd2bf597f62dd7039867acb6d",
+      "sha512": "de5298fb13232b5b70ac11ee5864ae60651b8f80b73d50f4270e77e793e879af20934faac1ef0dc95b691f3be29ded961b78d915bddc49883390e4b358d67bc1"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/j9WvAurZ/PlasmoVoice-Paper-2.1.6.jar",
+    "filename": "PlasmoVoice-Paper-2.1.6.jar",
+    "primary": true,
+    "size": 8645636,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }, {
+    "version_id": null,
+    "project_id": "lKEzGugV",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.3", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "aLnbX09d",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.6+60bf85a",
+  "version_number": "spigot-2.1.6+60bf85a",
+  "changelog": "### Changes in 2.1.6\n- Fixed \"Plasmo Voice is not installed on this server\" on Paper 1.21.7.\n- Removed debug print when chat message is sent to the player.\n- Removed \"Default language '...' doesn't exist\" check when using non \"en_us\" language.\n- Fixed \"Failed to encrypt data: VoiceServerPlayerEntity(...) has empty public key\".\n",
+  "changelog_url": null,
+  "date_published": "2025-07-04T13:03:30.453368Z",
+  "downloads": 26247,
+  "version_type": "beta",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "56c0938a91b5e377f9fad0774069e451252de7d2",
+      "sha512": "54205c5f31d5e7896babac5159034099b10b3581d9321ebe8ecf8e16765bd9549ba6ec77b77278a7250cad218d6dd0f7f944678da40562edd88d7bd986975970"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/aLnbX09d/PlasmoVoice-Paper-2.1.6%2B60bf85a-SNAPSHOT.jar",
+    "filename": "PlasmoVoice-Paper-2.1.6+60bf85a-SNAPSHOT.jar",
+    "primary": true,
+    "size": 8619427,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5", "1.21.6"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "9h9c3iOH",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.5",
+  "version_number": "spigot-2.1.5",
+  "changelog": "### Changes in 2.1.5\n- Fixed an issue where the audio end packet wasn't sent after reconnecting to the UDP server.\n- Fixed a deadlock caused by language loading, which could eventually break languages and other addons that use coroutines (e.g. discs addon).\n",
+  "changelog_url": null,
+  "date_published": "2025-07-01T12:23:53.894338Z",
+  "downloads": 7769,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "b4cae3450882f6b790a7331d51cd7817ad84539f",
+      "sha512": "bf7133273e1c0a3561b6bc666f7853fb63af90fdee1f3618af709cad6f4a7262012ce4d3d117d5e7dd210b5f03866f4986f2eede4a69bd10ce27f65b645ea5e1"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/9h9c3iOH/PlasmoVoice-Paper-2.1.5.jar",
+    "filename": "PlasmoVoice-Paper-2.1.5.jar",
+    "primary": true,
+    "size": 8618909,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "Lgvds0jj",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.4",
+  "version_number": "spigot-2.1.4",
+  "changelog": "### Changes in 2.1.4\n- Support 1.21.5 component changes.\n- Fixed SuperVanish `/hide` causes hidden client to disconnect.\n- Fixed game events reflections causing high CPU usage on Spigot-based servers.\n- Fixed crowdin download task blocking language resolution, causing languages not to load.\n",
+  "changelog_url": null,
+  "date_published": "2025-05-13T10:49:23.704571Z",
+  "downloads": 13249,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "6346ffa3607e772d7f35fb4b78fa342a735c7ddf",
+      "sha512": "c92ab8dce33b442afd08488a3560059e035e606ae8f93e950ac74e25e3b29837f5626dae75e7c62032f40a7640a8226a63747c6ee0df988a0d394a4025279d72"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/Lgvds0jj/PlasmoVoice-Paper-2.1.4.jar",
+    "filename": "PlasmoVoice-Paper-2.1.4.jar",
+    "primary": true,
+    "size": 8611031,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "3ta29XY1",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.3",
+  "version_number": "spigot-2.1.3",
+  "changelog": "### Changes in 2.1.3\n- Fixed an issue where Plasmo Voice failing to load would break all commands tab-completion.",
+  "changelog_url": null,
+  "date_published": "2025-03-07T13:04:47.618329Z",
+  "downloads": 15598,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "cb0a90ef46d9ef245dbca505de3234e982861513",
+      "sha512": "730d2437758a3d980f26b76b4943fe7a8e09b9b334676662bc584ab6866f376012592d0b1822b56f319aad9ad2064de20ea3d7f937389e670f85a3d1d5b4dc94"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/3ta29XY1/PlasmoVoice-Paper-2.1.3.jar",
+    "filename": "PlasmoVoice-Paper-2.1.3.jar",
+    "primary": true,
+    "size": 8403745,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "qWsrYIHL",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.2",
+  "version_number": "spigot-2.1.2",
+  "changelog": "### Alpha Notice\nThis version still requires testing, especially for backports.\nIf you encounter any issues, please report them on Discord: https://discord.gg/uueEqzwCJJ.\n\nVersions 2.0.x and 2.1.x are protocol-compatible,\nso there’s no need to worry if the server hasn't been updated to 2.1.x.\n\n### Changes in 2.1.2\n- Fixed buffer overflow when using AudioSender with delayed first frame.\n- Fixed `pv.activation.*` permission is not being updated on the client without reconnect.\n- Fixed server translations missing in kick messages. [#428](https://github.com/plasmoapp/plasmo-voice/issues/428)\n- `/vmute` without arguments now sends command usage instead of \"no permissions\" error.",
+  "changelog_url": null,
+  "date_published": "2024-12-04T07:01:56.690647Z",
+  "downloads": 15895,
+  "version_type": "alpha",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "868bf05288eb28bba39714ef7a5f2a1ffd581db68f3f980cd1da44ae9b8ea4c8c52a9ed5c8375a59bda04405519b31609aa8c09abb302694fa509c8e72bf15b5",
+      "sha1": "36a35488f0200d09b6d95f775203956f72364b0e"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/qWsrYIHL/PlasmoVoice-Paper-2.1.2.jar",
+    "filename": "PlasmoVoice-Paper-2.1.2.jar",
+    "primary": true,
+    "size": 8398054,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1", "1.21.2", "1.21.3"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "Q8fE6C5q",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.1",
+  "version_number": "spigot-2.1.1",
+  "changelog": "### Alpha Notice\nThis version still requires testing, especially for backports.\nIf you encounter any issues, please report them on Discord: https://discord.gg/uueEqzwCJJ.\n\nVersions 2.0.x and 2.1.x are protocol-compatible,\nso there’s no need to worry if the server hasn't been updated to 2.1.x.\n\n### Changes in 2.1.1\n- Attempt to fix \"Cannot measure distance between worlds\" exception, see [#422](https://github.com/plasmoapp/plasmo-voice/issues/422).",
+  "changelog_url": null,
+  "date_published": "2024-10-22T23:36:17.006598Z",
+  "downloads": 6815,
+  "version_type": "alpha",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "4bb3bf8c74008cf3573390701e907181b6b7f2a78af459b5f8f5e147e0a35d3b0c8ca86d8d7bf5d07cbe083ae9556508c300236d87a5a635fd91a55de772a09d",
+      "sha1": "54d3fee8cb16f37e1ad67d648d1c934d2dfaa89e"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/Q8fE6C5q/PlasmoVoice-Paper-2.1.1.jar",
+    "filename": "PlasmoVoice-Paper-2.1.1.jar",
+    "primary": true,
+    "size": 8398003,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.16.5", "1.17.1", "1.18.2", "1.19.2", "1.19.4", "1.20.1", "1.20.4", "1.21", "1.21.1"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "kvMzSpC9",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.1.0",
+  "version_number": "spigot-2.1.0",
+  "changelog": "### Alpha Notice\nThis version still requires testing, especially for backports.\nIf you encounter any issues, please report them on Discord: https://discord.gg/uueEqzwCJJ.\n\nVersions 2.0.x and 2.1.x are protocol-compatible,\nso there’s no need to worry if the server hasn't been updated to 2.1.x.\n\n### Main Changes\n- Backports to 1.18.2, 1.17.1, and 1.16.5.\n- New open source [Opus](https://github.com/plasmoapp/opus-jni-rust) and [RNNoise](https://github.com/plasmoapp/rnnoise-jni-rust) binaries, related to [#319](https://github.com/plasmoapp/plasmo-voice/issues/319) [#375](https://github.com/plasmoapp/plasmo-voice/issues/375) [#382](https://github.com/plasmoapp/plasmo-voice/issues/382).\n- Server now sends a request info packet to any player joining the server. This was introduced due to differences in how various mod loaders handle the mod channel list, and I just can't figure out how to make it work on Forge/NeoForge 1.20.2+.\n- Server now checks if a player has voice disabled or microphone muted before sending or receiving the audio.\n- Languages now support [MiniMessage format](https://docs.advntr.dev/minimessage/index.html).\n- ...and many more internal changes and fixes.\n\n### Breaking API Changes\nThere have been breaking changes to the API, meaning you'll need to update your addons:\n- [pv-addon-groups](https://modrinth.com/plugin/pv-addon-groups/version/1.1.0)\n- [pv-addon-sculk](https://modrinth.com/plugin/pv-addon-sculk/version/1.1.0)\n- [pv-addon-broadcast](https://modrinth.com/plugin/pv-addon-broadcast/version/1.1.0)\n- [pv-addon-spectator](https://modrinth.com/plugin/pv-addon-spectator/version/1.1.0)\n- [pv-addon-whisper](https://modrinth.com/plugin/pv-addon-whisper/version/1.1.0)\n- [pv-addon-priority](https://modrinth.com/plugin/pv-addon-priority/version/1.1.0)\n- [pv-addon-lavaplayer-lib](https://modrinth.com/plugin/pv-addon-lavaplayer-lib/version/1.1.0)\n- [pv-addon-discs](https://modrinth.com/plugin/pv-addon-discs/version/1.1.0)\n\nThe API documentation is now available: https://plasmovoice.com/docs/api.\nIt's still a work in progress, so feedback is appreciated.\nYou can provide feedback on our Discord: https://discord.gg/uueEqzwCJJ.\n",
+  "changelog_url": null,
+  "date_published": "2024-09-28T06:45:39.570674Z",
+  "downloads": 4651,
+  "version_type": "alpha",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "31724c5976edf73ba5190e05f185ee13b38affe0",
+      "sha512": "b63665db7d9bd9cf1053d3b202bd18759f59e6ce975d0dfc5f9a24eff92c3eb02e1dc767a437314839b2be3c62eb1be1317ce0834b8d200af2d340478919cb79"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/kvMzSpC9/PlasmoVoice-Paper-2.1.0.jar",
+    "filename": "PlasmoVoice-Paper-2.1.0.jar",
+    "primary": true,
+    "size": 8398145,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6", "1.21"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "oD2bUPCy",
+  "project_id": "1bZhdhsH",
+  "author_id": "eordSDCa",
+  "featured": true,
+  "name": "[Spigot] Plasmo Voice 2.0.10",
+  "version_number": "spigot-2.0.10",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2024-06-13T16:53:59.291847Z",
+  "downloads": 25214,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "036b9e7462fd24412ee0bdd411505a41362a4ffa",
+      "sha512": "d57354c7ac699173fd47b1f8ef939d3dcc7dce64c0254efce64504e785a45310eda594eecb5329a4abe56161a3cdab4b79efbccb9cc807dd236d2ab2a170dbb0"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/oD2bUPCy/PlasmoVoice-Paper-2.0.10.jar",
+    "filename": "PlasmoVoice-Paper-2.0.10.jar",
+    "primary": true,
+    "size": 5839140,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "rabHya7R",
+    "file_name": null,
+    "dependency_type": "optional"
+  }, {
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6"],
+  "loaders": ["folia", "paper"],
+  "id": "zOwrIJTG",
+  "project_id": "1bZhdhsH",
+  "author_id": "eordSDCa",
+  "featured": false,
+  "name": "[Paper] Plasmo Voice 2.0.9",
+  "version_number": "spigot-2.0.9",
+  "changelog": "- Fixed stacktrace spam on bad packets [#397](https://github.com/plasmoapp/plasmo-voice/issues/397)\n",
+  "changelog_url": null,
+  "date_published": "2024-04-30T04:26:42.634631Z",
+  "downloads": 9106,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "c2d3ac7f15e2125ae9bcf598605f34f9ecb9920e",
+      "sha512": "58d7e7ed3843d4fe3e899c4e215a5717dc463e74a1c443712303bc48c77f8469e84e183f29eee335abed3478340b788c267a9cbb27556a491095fad3d9db0cd5"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/zOwrIJTG/PlasmoVoice-Paper-2.0.9.jar",
+    "filename": "PlasmoVoice-Paper-2.0.9.jar",
+    "primary": true,
+    "size": 5839069,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "rabHya7R",
+    "file_name": null,
+    "dependency_type": "optional"
+  }, {
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "TEM54tQl",
+  "project_id": "1bZhdhsH",
+  "author_id": "eordSDCa",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.8",
+  "version_number": "spigot-2.0.8",
+  "changelog": "- [Paper] SuperVanish/PremiumVanish integration with show and hide events\n",
+  "changelog_url": null,
+  "date_published": "2024-01-13T06:42:21.401334Z",
+  "downloads": 17620,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "b150285de9b06c0e48a9a6ee087913417dd2f75c1e68f995ae96daeab0ba3a2f9bb9a26a205b0efa85defcaaf7a89a49131057871b1a831689bffc4f5d287ede",
+      "sha1": "a7761fb61eca296b9c6e6c43ed49ee456345ea52"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/TEM54tQl/PlasmoVoice-Paper-2.0.8.jar",
+    "filename": "PlasmoVoice-Paper-2.0.8.jar",
+    "primary": true,
+    "size": 5837520,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4", "1.20", "1.20.1", "1.20.2"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "OIjkhEsd",
+  "project_id": "1bZhdhsH",
+  "author_id": "eordSDCa",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.7",
+  "version_number": "spigot-2.0.7",
+  "changelog": "- Fix vanish support [#358](https://github.com/plasmoapp/plasmo-voice/issues/358)\n- Fix memory leak when unloading worlds\n",
+  "changelog_url": null,
+  "date_published": "2023-10-11T03:37:39.251336Z",
+  "downloads": 11406,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "d3f724eeee98cea9ad21e6264e70b940a4976667",
+      "sha512": "57ba680b3acf7ae7dd75a789bcc5f6230df37c201ac170fd6d7055fc6d554a514ed1d6516db2f4fc8c85fa74310ce02aa11f582c9b40eb84c7858faff62a3ad6"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/OIjkhEsd/PlasmoVoice-Paper-2.0.7.jar",
+    "filename": "PlasmoVoice-Paper-2.0.7.jar",
+    "primary": true,
+    "size": 5835952,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4", "1.20", "1.20.1"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "MM2JOE1S",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.6",
+  "version_number": "spigot-2.0.6",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2023-06-28T22:20:45.511719Z",
+  "downloads": 4715,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "c2bfdc3c3efb17b0d3f7db7003a540e5c9fe9b24fae14d8ee8bd950bb4518d9fd72a36c6d62245e3e5ac447fd594fe9200eaec75d0ba1b9764a5d9461427d49f",
+      "sha1": "55d1d95934324e94ee962e2c190457e333f7014f"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/MM2JOE1S/PlasmoVoice-Paper-2.0.6.jar",
+    "filename": "PlasmoVoice-Paper-2.0.6.jar",
+    "primary": true,
+    "size": 5833698,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4", "1.20"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "DFmOr3rj",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.5",
+  "version_number": "spigot-2.0.5",
+  "changelog": "- minor bug fixes\n- relocate ustats to fix crash on fabric\n",
+  "changelog_url": null,
+  "date_published": "2023-06-08T21:23:07.569245Z",
+  "downloads": 4585,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "00cd5c38d1ca1d2f09e8db4960e899853c2e8e01",
+      "sha512": "cc3514d7a6cf6eba858b4b26cf49777415dcaba56c9d2309f279ae3fc5a2ff221732a3c8a76a638e305e91283bd9a5a029d7484339db363399449a8b46cda779"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/DFmOr3rj/PlasmoVoice-Paper-2.0.5.jar",
+    "filename": "PlasmoVoice-Paper-2.0.5.jar",
+    "primary": true,
+    "size": 5833850,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "JPt7aPf1",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.4",
+  "version_number": "spigot-2.0.4",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2023-06-08T16:45:52.881893Z",
+  "downloads": 279,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "74cc37aa64fa04464cb699c0474f97c3b6bdc9fff16385963dfcf1f3eb108e87209218f35bceed5e159cd8b094cbc504291084e373e1811a435bd923be3da590",
+      "sha1": "de24e61725160149d3b7d8ca112d3c8247ef61e4"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/JPt7aPf1/PlasmoVoice-Paper-2.0.4.jar",
+    "filename": "PlasmoVoice-Paper-2.0.4.jar",
+    "primary": true,
+    "size": 5833849,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "U7rI0E7V",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.3",
+  "version_number": "spigot-2.0.3",
+  "changelog": "- option to disable crowdin translations in config\n- option to disable check for updates in config\n- kotlin was relocated to avoid conflicts with another plugins. Because some addons use kotlin from Plasmo Voice, they will be broken and you should update them:\n  - [pv-addons-lavaplayer-lib](https://modrinth.com/plugin/pv-addon-lavaplayer-lib/version/1.0.3)\n  - [pv-addons-discs](https://modrinth.com/plugin/pv-addon-discs/version/1.0.1)\n  - [pv-addons-groups](https://modrinth.com/plugin/pv-addon-groups/version/1.0.3)\n",
+  "changelog_url": null,
+  "date_published": "2023-04-07T03:45:33.088258Z",
+  "downloads": 3000,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "c2ac1d7c7ffd36a134cf97f52e989da3320fc790a77a30171c32448e3a61afeca4f819c7273559056dffda64716c27f08acb949d1816b4869412ad4f43ea65eb",
+      "sha1": "21fdc7d9f76fdb0f7a43f102f8dbb5246f6960c6"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/U7rI0E7V/PlasmoVoice-Paper-2.0.3.jar",
+    "filename": "PlasmoVoice-Paper-2.0.3.jar",
+    "primary": true,
+    "size": 5814383,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "J600GaTC",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.2",
+  "version_number": "spigot-2.0.2",
+  "changelog": "- fixed an exception on server language loading (java.lang.Exception: Can't load language resource)\n",
+  "changelog_url": null,
+  "date_published": "2023-04-03T09:39:14.381718Z",
+  "downloads": 598,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "6cea9b356f88fb708e6df911c004fddfe217ee1be07629aecec1e81eb300e7aaf9358e3ce0e0ec703aa13ec0177772ade7b0b4e12eb5693ad5ad5c5dbbfb9955",
+      "sha1": "0bc07acc0278231c93f2f3e5430aa84b7ebd00c3"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/J600GaTC/PlasmoVoice-Paper-2.0.2.jar",
+    "filename": "PlasmoVoice-Paper-2.0.2.jar",
+    "primary": true,
+    "size": 6131326,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["folia", "paper", "spigot"],
+  "id": "Bgs7gwLr",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.1",
+  "version_number": "spigot-2.0.1",
+  "changelog": "- fixed bug when Plasmo Voice worked after first join, but didn't after reconnect\n- fixed bug when missing translations keys are not falling back to default language\n",
+  "changelog_url": null,
+  "date_published": "2023-04-03T04:21:40.264042Z",
+  "downloads": 181,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "1453762a2ba786a4875be92eec40a17e77b8892b",
+      "sha512": "9e0dad0aa277aea0152002dfc86ac18ea6da18856b8b737abb74f9fb911144e70de1539f2708af277e70c8d54ddc6ff2b445ad718c2b2c1befee3921cd423c93"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/Bgs7gwLr/PlasmoVoice-Paper-2.0.1.jar",
+    "filename": "PlasmoVoice-Paper-2.0.1.jar",
+    "primary": true,
+    "size": 6132539,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["paper", "spigot"],
+  "id": "YocEt1O2",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.0",
+  "version_number": "spigot-2.0.0",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2023-04-01T12:21:56.086699Z",
+  "downloads": 2132,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha512": "b3a4ed010132cad57308a1614fb2d343dbc28f73b5cfc814482edffe9174298459753181b1c50fd5212da0f672d70cbebb40a380f02e17f74d530221f799ca21",
+      "sha1": "3cc1059f555bc319970909904fa82de40460a202"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/YocEt1O2/PlasmoVoice-Paper-2.0.0.jar",
+    "filename": "PlasmoVoice-Paper-2.0.0.jar",
+    "primary": true,
+    "size": 6128796,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["paper", "spigot"],
+  "id": "uCqZ19sJ",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.0+122abb5",
+  "version_number": "spigot-2.0.0+122abb5",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2023-04-01T01:15:44.747015Z",
+  "downloads": 114,
+  "version_type": "alpha",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "e020e8d0b7be8fbd7f09366b0cee186a3a0eac55",
+      "sha512": "c41baf68bfdf46fb85648cd2122b4f12cf96135b5046a3ec6ed44063fdefd98695e65e852b915cba52dc4d4f4d35a694c6ef44e6887d94262c44544c665b74d2"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/uCqZ19sJ/PlasmoVoice-Paper-2.0.0%2B122abb5.jar",
+    "filename": "PlasmoVoice-Paper-2.0.0+122abb5.jar",
+    "primary": true,
+    "size": 6128771,
+    "file_type": null
+  }],
+  "dependencies": [{
+    "version_id": null,
+    "project_id": "Vebnzrzj",
+    "file_name": null,
+    "dependency_type": "optional"
+  }]
+}, {
+  "game_versions": ["1.19.2", "1.19.3", "1.19.4"],
+  "loaders": ["paper", "spigot"],
+  "id": "ajcLfNb6",
+  "project_id": "1bZhdhsH",
+  "author_id": "7K2sAXSq",
+  "featured": false,
+  "name": "[Spigot] Plasmo Voice 2.0.0+2a71733",
+  "version_number": "spigot-2.0.0+2a71733",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2023-04-01T00:33:28.788135Z",
+  "downloads": 130,
+  "version_type": "alpha",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "128ca2197cf98394e47347fdf6930307f9b0562b",
+      "sha512": "5929af325a947870f57dd0fb6345639dadf9fcfe924262127f847a658b642734a6b5681553b4fe13d0931d92db302ce369091ce46aa62e9eb57af31e0940f8d7"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/ajcLfNb6/PlasmoVoice-Paper-2.0.0%2B2a71733.jar",
+    "filename": "PlasmoVoice-Paper-2.0.0+2a71733.jar",
+    "primary": true,
+    "size": 6058712,
+    "file_type": null
+  }],
+  "dependencies": []
+}, {
+  "game_versions": ["1.16.4", "1.16.5", "1.17", "1.17.1", "1.18", "1.18.1", "1.18.2", "1.19", "1.19.1", "1.19.2"],
+  "loaders": ["bukkit", "paper", "purpur", "spigot"],
+  "id": "NtkK86vk",
+  "project_id": "1bZhdhsH",
+  "author_id": "eordSDCa",
+  "featured": false,
+  "name": "[Spigot 1.16.x - 1.19.x] Plasmo Voice ",
+  "version_number": "spigot-1.16.x-1.19.x-1.0.11",
+  "changelog": "",
+  "changelog_url": null,
+  "date_published": "2022-08-14T21:14:28.388704Z",
+  "downloads": 22291,
+  "version_type": "release",
+  "status": "listed",
+  "requested_status": null,
+  "files": [{
+    "hashes": {
+      "sha1": "2da3e6c9ea37605c8e21b5dc6d9efbe3db6e0741",
+      "sha512": "e349601279f44a55ce4a42fed0a8c0f11f0f8a722742551522b40506dce1e0dbd6bf099a5e2f22b97f5ece60e679711f11602e2f216ab2d083d5136a7714a98c"
+    },
+    "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/1.0.11/plasmovoice-server-1.0.11.jar",
+    "filename": "plasmovoice-server-1.0.11.jar",
+    "primary": true,
+    "size": 111567,
+    "file_type": null
+  }],
+  "dependencies": []
+}]

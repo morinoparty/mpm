@@ -1,0 +1,106 @@
+---
+sidebar_position: 3
+---
+
+import { CommandList } from "@site/src/components/command-list";
+
+# 📦 リポジトリ管理コマンド
+
+プラグインのダウンロード元を管理するリポジトリファイルを作成・管理するコマンドです。
+
+## コマンド一覧
+
+<CommandList category="repo" />
+
+## ワークフロー
+
+リポジトリファイルを使った基本的なワークフロー：
+
+### 1. リポジトリファイルを作成
+
+```bash
+/mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
+```
+
+または、手動でJSONファイルを作成：
+
+```json
+{
+    "id": "QuickShop",
+    "website": "https://modrinth.com/plugin/quickshop-hikari",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "repositoryId": "quickshop-hikari"
+        }
+    ]
+}
+```
+
+### 2. プラグインを追加
+
+```bash
+/mpm add QuickShop
+```
+
+### 3. インストール
+
+```bash
+/mpm install
+```
+
+## トラブルシューティング
+
+### リポジトリファイルの作成に失敗する
+
+1. **URLが正しいか確認**
+   ```bash
+   # 対応しているURL形式
+   https://modrinth.com/plugin/{project-id}
+   https://github.com/{owner}/{repository}
+   https://www.spigotmc.org/resources/{name}.{id}/
+   ```
+
+2. **プラグイン名が有効か確認**
+   - 英数字とアンダースコア、ハイフンのみ使用可能
+
+3. **同名ファイルが存在しないか確認**
+   ```bash
+   # 既存ファイルを削除してから再作成
+   rm plugins/MinecraftPluginManager/repository/QuickShop.json
+   /mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
+   ```
+
+### ファイル選択パターンが機能しない
+
+1. **正規表現の構文を確認**
+   ```bash
+   # 正しい例
+   "EssentialsX-.*\\.jar"
+   "QuickShop-Hikari-[0-9\\.]+\\.jar"
+
+   # エスケープを忘れないように
+   "\\.jar" ではなく ".*\\.jar"
+   ```
+
+2. **パターンをシンプルにしてテスト**
+   ```bash
+   # まずシンプルなパターンから
+   /mpm create-repo Test https://github.com/owner/repo ".*\\.jar"
+   ```
+
+### リポジトリファイルが見つからない
+
+```bash
+# ディレクトリ構造を確認
+ls plugins/MinecraftPluginManager/repository/
+
+# ファイル名がプラグインIDと一致しているか確認
+cat plugins/MinecraftPluginManager/repository/QuickShop.json
+```
+
+## 関連ドキュメント
+
+- [プラグイン管理コマンド](/commands/manage) - プラグインのインストール・削除
+- [リポジトリファイル形式](/format/repository) - ファイル形式の詳細
+- [はじめに](/usage/getting-started) - 基本的な使い方

@@ -1,0 +1,300 @@
+# 🔒 mpm-lock.yaml - ロックファイル
+
+## 概要
+
+`mpm-lock.yaml`は、MinecraftPluginManagerのロックファイルです。
+npmの`package-lock.json`に相当し、実際にインストールされたプラグインの正確なバージョンとダウンロード情報を記録します。
+
+:::warning 自動生成ファイル
+このファイルは`mpm install`や`mpm add`コマンドによって自動的に生成・更新されます。
+手動で編集する必要はありません。
+:::
+
+## ファイルの配置
+
+```
+your-server/
+├── mpm.json          ← プロジェクト設定ファイル
+├── mpm-lock.yaml     ← このファイル（自動生成）
+├── plugins/
+│   └── mpm/
+│       └── metadata/ ← 個別プラグインの詳細情報
+└── ...
+```
+
+## 基本構造
+
+```yaml title="mpm-lock.yaml"
+# ロックファイルのバージョン
+lockfileVersion: "1.0"
+
+# 生成日時（ISO 8601形式）
+generatedAt: "2025-01-15T10:30:00Z"
+
+# インストールされたプラグイン
+plugins:
+  LuckPerms:
+    version:
+      raw: "v5.4.102"
+      normalized: "5.4.102"
+    download:
+      url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
+      downloadId: "v5.4.102"
+      fileName: "LuckPerms-Bukkit-5.4.102.jar"
+      sha256: "abc123def456..."
+    repository:
+      type: github
+      id: LuckPerms/LuckPerms
+    installedAt: "2025-01-15T10:30:00Z"
+
+  Vault:
+    version:
+      raw: "1.7.3"
+      normalized: "1.7.3"
+    download:
+      url: "https://api.spiget.org/v2/resources/34315/versions/283178/download"
+      downloadId: "283178"
+      fileName: "Vault.jar"
+      sha256: "def456ghi789..."
+    repository:
+      type: spigot
+      id: "34315"
+    installedAt: "2025-01-15T10:30:00Z"
+```
+
+## フィールド詳細
+
+### lockfileVersion
+
+ロックファイルのバージョンを表します。将来的な互換性のために使用されます。
+
+```yaml
+lockfileVersion: "1.0"
+```
+
+### generatedAt
+
+ロックファイルが生成された日時をISO 8601形式で記録します。
+
+```yaml
+generatedAt: "2025-01-15T10:30:00Z"
+```
+
+### plugins
+
+インストールされた各プラグインの詳細情報を記録します。
+
+#### version
+
+プラグインのバージョン情報を記録します。
+
+##### raw
+
+リポジトリから取得した生のバージョン文字列です。
+リポジトリによって形式が異なります。
+
+```yaml
+version:
+  raw: "v5.4.102"  # GitHub: vプレフィックス付き
+  # または
+  raw: "1.0.0"     # Spigot: プレーンなバージョン
+  # または
+  raw: "release-2.0"  # 独自の命名規則
+```
+
+##### normalized
+
+正規化されたバージョン文字列です。
+バージョン比較やソートに使用できる形式に変換されます。
+
+```yaml
+version:
+  raw: "v5.4.102"
+  normalized: "5.4.102"  # vプレフィックスを除去
+```
+
+#### download
+
+ダウンロード情報を記録します。
+
+##### url
+
+実際にプラグインをダウンロードしたURLです。
+
+```yaml
+download:
+  url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
+```
+
+##### downloadId
+
+ダウンロードに使用したIDです。リポジトリ固有の識別子が記録されます。
+
+| リポジトリ | downloadId の例 | 説明 |
+|----------|----------------|------|
+| GitHub   | `v5.4.102` または `123456` | リリースタグまたはアセットID |
+| Spigot   | `283178` | バージョンID |
+| Modrinth | `abc123` | バージョンID |
+| Hangar   | `xyz789` | バージョンID |
+
+```yaml
+download:
+  downloadId: "v5.4.102"
+```
+
+##### fileName
+
+ダウンロードされたファイル名です。
+
+```yaml
+download:
+  fileName: "LuckPerms-Bukkit-5.4.102.jar"
+```
+
+##### sha256
+
+ダウンロードしたファイルのSHA-256ハッシュ値です。
+ファイルの整合性チェックに使用されます。
+
+```yaml
+download:
+  sha256: "abc123def456789..."
+```
+
+#### repository
+
+プラグインの取得元リポジトリ情報です。
+`mpm.json`の`repository`フィールドと同じ形式です。
+
+```yaml
+repository:
+  type: github
+  id: LuckPerms/LuckPerms
+```
+
+#### installedAt
+
+プラグインがインストールされた日時をISO 8601形式で記録します。
+
+```yaml
+installedAt: "2025-01-15T10:30:00Z"
+```
+
+## 完全な例
+
+```yaml title="mpm-lock.yaml"
+# ロックファイルのバージョン
+lockfileVersion: "1.0"
+
+# 生成日時
+generatedAt: "2025-01-15T10:30:00Z"
+
+# インストールされたプラグイン
+plugins:
+  # GitHub からインストール
+  LuckPerms:
+    version:
+      raw: "v5.4.102"
+      normalized: "5.4.102"
+    download:
+      url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
+      downloadId: "v5.4.102"
+      fileName: "LuckPerms-Bukkit-5.4.102.jar"
+      sha256: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    repository:
+      type: github
+      id: LuckPerms/LuckPerms
+    installedAt: "2025-01-15T10:30:00Z"
+
+  # Spigot からインストール
+  Vault:
+    version:
+      raw: "1.7.3"
+      normalized: "1.7.3"
+    download:
+      url: "https://api.spiget.org/v2/resources/34315/versions/283178/download"
+      downloadId: "283178"
+      fileName: "Vault.jar"
+      sha256: "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+    repository:
+      type: spigot
+      id: "34315"
+    installedAt: "2025-01-15T10:30:00Z"
+
+  # Modrinth からインストール
+  VoiceChat:
+    version:
+      raw: "2.5.0"
+      normalized: "2.5.0"
+    download:
+      url: "https://cdn.modrinth.com/data/plasmo-voice/versions/abc123/plasmo-voice-2.5.0.jar"
+      downloadId: "abc123"
+      fileName: "plasmo-voice-2.5.0.jar"
+      sha256: "fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321"
+    repository:
+      type: modrinth
+      id: plasmo-voice
+    installedAt: "2025-01-15T10:32:00Z"
+
+  # GitHub (EssentialsX)
+  EssentialsX:
+    version:
+      raw: "2.20.1"
+      normalized: "2.20.1"
+    download:
+      url: "https://github.com/EssentialsX/Essentials/releases/download/2.20.1/EssentialsX-2.20.1.jar"
+      downloadId: "2.20.1"
+      fileName: "EssentialsX-2.20.1.jar"
+      sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    repository:
+      type: github
+      id: EssentialsX/Essentials
+    installedAt: "2025-01-15T10:35:00Z"
+```
+
+## 用途
+
+### 再現可能なインストール
+
+`mpm-lock.yaml`があることで、別の環境で全く同じバージョンのプラグインをインストールできます。
+
+```bash
+# 他の環境で同じプラグインをインストール
+mpm install
+```
+
+### バージョンの固定
+
+`mpm.json`で`version: latest`を指定している場合でも、`mpm-lock.yaml`に記録された
+正確なバージョンが使用されます。
+
+明示的に更新する場合は、`mpm update`コマンドを使用します。
+
+```bash
+# 最新バージョンに更新
+mpm update LuckPerms
+```
+
+### 整合性チェック
+
+SHA-256ハッシュ値により、ダウンロードしたファイルが改ざんされていないか確認できます。
+
+## mpm.json との関係
+
+| ファイル | 役割 | 編集方法 |
+|---------|------|----------|
+| mpm.json | プラグインの依存関係を宣言 | 手動編集 |
+| mpm-lock.yaml | 実際にインストールされたバージョンを記録 | 自動生成 |
+
+```
+mpm.json (version: latest)
+    ↓ mpm install
+mpm-lock.yaml (version: 5.4.102)
+    ↓ mpm update
+mpm-lock.yaml (version: 5.4.103)
+```
+
+## 関連ファイル
+
+- [mpm.json](/format/mpm-config) - プロジェクト設定ファイル
+- [metadata/*.yaml](/format/managed) - 個別プラグインの詳細情報

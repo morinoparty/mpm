@@ -1,0 +1,67 @@
+{
+    "game_versions": [
+        "1.16.5",
+        "1.17.1",
+        "1.18.2",
+        "1.19.2",
+        "1.19.4",
+        "1.20.1",
+        "1.20.4",
+        "1.21",
+        "1.21.1",
+        "1.21.2",
+        "1.21.3",
+        "1.21.4",
+        "1.21.5",
+        "1.21.6",
+        "1.21.7",
+        "1.21.8",
+        "1.21.9",
+        "1.21.10"
+    ],
+    "loaders": [
+        "folia",
+        "paper",
+        "spigot"
+    ],
+    "id": "j9WvAurZ",
+    "project_id": "1bZhdhsH",
+    "author_id": "7K2sAXSq",
+    "featured": true,
+    "name": "[Spigot] Plasmo Voice 2.1.6",
+    "version_number": "spigot-2.1.6",
+    "changelog": "### Changes in 2.1.6\n- **Plugin now requires minimum version of Java 17 to run.** \n- Fixed \"Plasmo Voice is not installed on this server\" on Paper 1.21.7.\n- Removed debug print when chat message is sent to the player.\n- Removed \"Default language '...' doesn't exist\" check when using non \"en_us\" language.\n- Fixed \"Failed to encrypt data: VoiceServerPlayerEntity(...) has empty public key\".\n- Fixed hover / click text components events on Spigot 1.20.4.\n- Fixed entity sources on Folia [pv-addon-spectator#4](https://github.com/plasmoapp/pv-addon-spectator/issues/4).\n- Fixed `Cannot send game event asynchronously` on `Folia` with `pv-addon-sculk` [#486](https://github.com/plasmoapp/plasmo-voice/issues/468).\n- Improved vanish support by PlayerHideEntityEvent and PlayerShowEntityEvent when direct integration is not available.\n",
+    "changelog_url": null,
+    "date_published": "2025-10-01T04:50:16.510162Z",
+    "downloads": 14629,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+        {
+            "hashes": {
+                "sha1": "56665d6b6d2f787cd2bf597f62dd7039867acb6d",
+                "sha512": "de5298fb13232b5b70ac11ee5864ae60651b8f80b73d50f4270e77e793e879af20934faac1ef0dc95b691f3be29ded961b78d915bddc49883390e4b358d67bc1"
+            },
+            "url": "https://cdn.modrinth.com/data/1bZhdhsH/versions/j9WvAurZ/PlasmoVoice-Paper-2.1.6.jar",
+            "filename": "PlasmoVoice-Paper-2.1.6.jar",
+            "primary": true,
+            "size": 8645636,
+            "file_type": null
+        }
+    ],
+    "dependencies": [
+        {
+            "version_id": null,
+            "project_id": "Vebnzrzj",
+            "file_name": null,
+            "dependency_type": "optional"
+        },
+        {
+            "version_id": null,
+            "project_id": "lKEzGugV",
+            "file_name": null,
+            "dependency_type": "optional"
+        }
+    ]
+}

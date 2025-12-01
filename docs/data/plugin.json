@@ -1,0 +1,83 @@
+{
+    "commands": [
+        {
+            "command": "mpm info <plugin>",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "情報表示",
+            "description": "プラグインの詳細情報を表示します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm search <plugin>",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "情報表示",
+            "description": "プラグインを検索します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm help",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "情報表示",
+            "description": "ヘルプを表示します"
+        },
+        {
+            "command": "mpm version",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "情報表示",
+            "description": "バージョンを表示します"
+        },
+        {
+            "command": "mpm jarinfo <file>",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "プラグインローディング",
+            "description": "JARファイルのプラグイン情報を表示します",
+            "arguments": [
+                {
+                    "name": "file",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm load <file>",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "プラグインローディング",
+            "description": "プラグインファイルを読み込みます",
+            "arguments": [
+                {
+                    "name": "file",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm unload <plugin>",
+            "status": "proposal",
+            "category": "plugin",
+            "section": "プラグインローディング",
+            "description": "プラグインをアンロードします",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        }
+    ]
+}

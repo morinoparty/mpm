@@ -51,9 +51,8 @@ dependencies {
 
     // Test dependencies
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mock.bukkit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.junit.jupiter)
+
+    testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.koin.test)
     testImplementation(libs.bundles.ktor.client)
     testImplementation(libs.commons.io)
@@ -67,7 +66,7 @@ tasks {
         options.encoding = "UTF-8"
     }
     runServer {
-        minecraftVersion("1.21")
+        minecraftVersion("1.21.10")
 
         val plugins = runPaper.downloadPluginsSpec {}
         downloadPlugins {

@@ -1,0 +1,101 @@
+---
+sidebar_position: 1
+---
+
+import { CommandList } from "@site/src/components/command-list";
+
+# 🔧 プラグイン管理コマンド
+
+プラグインのインストール、削除、一覧表示などを行うコマンドです。
+
+## コマンド一覧
+
+インストール、アンインストール、一覧表示、更新管理に関するコマンドです。
+
+<CommandList category="manage" />
+
+## ワークフロー
+
+プラグイン管理の基本的なワークフローです。
+
+### 1. リポジトリファイルを作成
+
+```bash
+/mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
+```
+
+自動的に `repository/QuickShop.json` が作成されます。
+
+### 2. プラグインを管理対象に追加
+
+```bash
+/mpm add QuickShop
+```
+
+`mpm-config.json` にプラグイン情報が追加されます。
+
+### 3. インストール
+
+```bash
+/mpm install
+```
+
+プラグインがダウンロードされ、`plugins/` ディレクトリに配置されます。
+
+### 4. サーバーを再起動
+
+```bash
+/restart
+```
+
+プラグインが有効化されます。
+
+## トラブルシューティング
+
+### プラグインがインストールされない
+
+1. **リポジトリファイルを確認**
+   ```bash
+   # ファイルが存在するか確認
+   ls plugins/MinecraftPluginManager/repository/
+   ```
+
+2. **mpm-config.json を確認**
+   ```bash
+   # プラグインが追加されているか確認
+   cat plugins/MinecraftPluginManager/mpm-config.json
+   ```
+
+3. **ログを確認**
+   - サーバーログでエラーメッセージを確認してください
+
+### 管理外プラグインが削除される
+
+mpm管理下にないプラグインを保持するには：
+
+```bash
+# local/ ディレクトリに移動
+mv plugins/YourPlugin.jar plugins/MinecraftPluginManager/local/
+```
+
+`local/` ディレクトリ内のプラグインは `mpm removeUnmanaged` コマンドでも削除されません。
+
+### インストール済みプラグインの確認
+
+```bash
+# すべてのプラグインを表示
+/mpm list
+
+# 管理下のプラグインのみ表示
+/mpm list --managed
+
+# 管理外のプラグインのみ表示
+/mpm list --unmanaged
+```
+
+## 関連ドキュメント
+
+- [プラグイン操作コマンド](/commands/plugin) - プラグインの情報表示・ローディング
+- [リポジトリ管理コマンド](/commands/repo) - リポジトリファイルの作成・管理
+- [はじめに](/usage/getting-started) - 基本的な使い方
+- [プラグインを管理する](/usage/install) - 詳細なワークフロー

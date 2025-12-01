@@ -21,8 +21,9 @@ import java.io.File
 
 /**
  * SpigotMCからプラグインをダウンロードするクラス
+ * テストのためにopenクラスとして定義
  */
-class SpigotDownloader : AbstractPluginDownloader() {
+open class SpigotDownloader : AbstractPluginDownloader() {
     /**
      * リポジトリタイプの判定
      * @param url リポジトリURL
@@ -76,17 +77,19 @@ class SpigotDownloader : AbstractPluginDownloader() {
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン
-     * @param number 未使用パラメータ（SpigotMCでは使用しない）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（SpigotMCでは使用しない）
      * @return ダウンロードしたファイル
      */
     override suspend fun downloadByVersion(
         urlData: UrlData,
         version: VersionData,
-        number: Int?
+        fileNamePattern: String?
     ): File? {
         urlData as UrlData.SpigotMcUrlData
         val details = getDetails(urlData)
-        val downloadUrl = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions/${version.downloadId}/download"
+        val downloadUrl =
+            "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions/" +
+                "${version.downloadId}/download"
         val fileName = "${details.name}-${version.version}.jar"
         return downloadFile(downloadUrl, fileName)
     }
@@ -94,15 +97,15 @@ class SpigotDownloader : AbstractPluginDownloader() {
     /**
      * リポジトリURLからプラグインをダウンロード
      * @param url リポジトリURL
-     * @param number 未使用パラメータ（SpigotMCでは使用しない）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（SpigotMCでは使用しない）
      * @return ダウンロードしたファイル
      */
     override suspend fun downloadLatest(
         url: String,
-        number: Int?
+        fileNamePattern: String?
     ): File? {
         val urlData = getUrlData(url) ?: throw Exception("無効なSpigotMC URL: $url")
         val latestVersion = getLatestVersion(urlData)
-        return downloadByVersion(urlData, latestVersion, number)
+        return downloadByVersion(urlData, latestVersion, fileNamePattern)
     }
 }

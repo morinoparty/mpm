@@ -41,23 +41,23 @@ interface PluginDownloader {
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン
-     * @param number アセット番号（オプション）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
     suspend fun downloadByVersion(
         urlData: UrlData,
         version: VersionData,
-        number: Int? = null
+        fileNamePattern: String? = null
     ): File?
 
     /**
      * リポジトリURLからプラグインをダウンロード
      * @param url リポジトリURL
-     * @param number アセット番号（オプション）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
     suspend fun downloadLatest(
         url: String,
-        number: Int? = null
+        fileNamePattern: String? = null
     ): File?
 }

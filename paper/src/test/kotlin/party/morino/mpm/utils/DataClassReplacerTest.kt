@@ -17,10 +17,10 @@ import party.morino.mpm.api.utils.DataClassReplacer.replaceTemplate
 class DataClassReplacerTest : KoinTest {
     @Test
     fun replace() {
-        val data = "Hello, <name>! You are <age> years old."
+        val data = "Hello, <name>! You are <age> years old. Your job is <work.name> with a salary of <work.salary>."
         val person = Person("Nikomaru", 18)
         val replaced = data.replaceTemplate(person)
-        assertEquals("Hello, Nikomaru! You are 18 years old.", replaced)
+        assertEquals("Hello, Nikomaru! You are 18 years old. Your job is Programmer with a salary of 100000.", replaced)
     }
 }
 

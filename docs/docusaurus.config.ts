@@ -17,9 +17,9 @@ const config: Config = {
     projectName: "MinecraftPluginManager",
     onBrokenLinks: "throw",
     markdown: {
-        hooks:{
+        hooks: {
             onBrokenMarkdownLinks: "warn",
-        }
+        },
     },
 
     i18n: {
@@ -121,7 +121,8 @@ const config: Config = {
                     ],
                 },
             ],
-            copyright: `No right reserved. This docs under CC0. Built with Docusaurus.`,
+            copyright:
+                "No right reserved. This docs under CC0. Built with Docusaurus.",
         },
         prism: {
             additionalLanguages: [
@@ -150,6 +151,5 @@ const config: Config = {
         },
     },
 };
-
 
 export default config;

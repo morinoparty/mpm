@@ -38,7 +38,12 @@ class MinecraftPluginManagerLoader : PluginLoader {
             RemoteRepository.Builder("paper", "default", "https://repo.papermc.io/repository/maven-public/").build()
         )
         resolver.addRepository(
-            RemoteRepository.Builder("maven-central", "default", "https://repo1.maven.org/maven2/").build()
+            RemoteRepository
+                .Builder(
+                    "maven-central",
+                    "default",
+                    MavenLibraryResolver.MAVEN_CENTRAL_DEFAULT_MIRROR
+                ).build()
         )
 
         // クラスパスに追加

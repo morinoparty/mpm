@@ -1,0 +1,314 @@
+# 📦 レポジトリファイルについて
+
+レポジトリファイルは、プラグインのダウンロード元を管理するための設定ファイルです。
+各プラグインは複数のリポジトリからダウンロードできるように設定できます。
+
+## ディレクトリ構造
+
+リポジトリファイルは`repository/`ディレクトリに配置します：
+
+```
+plugins/MinecraftPluginManager/
+├── repository/           # リポジトリファイル
+│   ├── QuickShop.json
+│   ├── LuckPerms.json
+│   ├── Vault.json
+│   └── EssentialsX.json
+├── managed/              # インストール済みプラグインのメタデータ
+├── mpm-config.json       # プラグイン管理設定
+└── mpm-lock.json         # バージョンロック情報
+```
+
+### ファイル命名規則
+
+- ファイル名: `<プラグインID>.json`
+- 例: `QuickShop.json`, `LuckPerms.json`
+- ファイル名は`id`フィールドと一致させることを推奨
+
+## 基本構造
+
+```json
+{
+    "id": "LuckPerms",
+    "website": "https://luckperms.net/",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "luckperms",
+            "fileNameRegex": "luckperms-.*\\.jar"
+        }
+    ]
+}
+```
+
+## リポジトリタイプ
+
+MinecraftPluginManagerは以下のリポジトリタイプをサポートしています：
+
+### 🟣 Modrinth
+
+ModrinthはMinecraftのMod/Pluginを配布するプラットフォームです。
+
+```jsonc
+{
+    "type": "modrinth",
+    "id": "plasmo-voice", // プロジェクトIDまたはslug
+    "fileNameRegex": ".*Paper.*\\.jar" // 複数ファイルがある場合の選択パターン
+}
+```
+
+- **URL形式**: `https://modrinth.com/{plugin|mod|datapack|shader}/{id}`
+- **API**: Modrinth API v2を使用
+- **複数ファイル対応**: `fileNameRegex`で特定のファイルを選択可能
+- **自動フィルタリング**: Paper/Spigot対応バージョンのみを自動的に取得
+
+### 🐙 GitHub
+
+GitHubのReleasesからプラグインをダウンロードします。
+
+```jsonc
+{
+    "type": "github",
+    "id": "owner/repository",
+    "fileNameRegex": ".*\\.jar" // 複数アセットがある場合の選択パターン
+}
+```
+
+- **URL形式**: `https://github.com/{owner}/{repository}`
+- **複数ファイル対応**: `fileNameRegex`で特定のアセットを選択可能
+
+### 🔵 SpigotMC
+
+SpigotMCリソースからプラグインをダウンロードします。
+
+```jsonc
+{
+    "type": "spigotmc",
+    "id": "12345" // リソースID
+}
+```
+
+- **URL形式**: `https://www.spigotmc.org/resources/{resource-name}.{id}`
+- **API**: Spiget API v2を使用
+
+## フィールド説明
+
+### 必須フィールド
+
+- **type**: リポジトリタイプ（`modrinth`, `github`, `spigotmc`, `hangar`）
+- **id**: リポジトリ固有のID
+  - GitHub: `owner/repository`
+  - SpigotMC: リソースID
+  - Modrinth: プロジェクトIDまたはslug
+
+### オプショナルフィールド
+
+- **fileNameRegex**: 複数ファイルがある場合に、どのファイルをダウンロードするかを指定する正規表現
+  - 指定しない場合、GitHubでは最初のアセット、Modrinthではprimaryファイルを選択
+  - 例: `".*Paper.*\\.jar"` → ファイル名に"Paper"を含む.jarファイルを選択
+  - 現在サポート済み
+
+- **versionModifier**: バージョン番号の正規表現パターン
+  - セマンティックバージョニングなど、特定のバージョンフォーマットを強制する場合に使用
+  - 例: `"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"` （セマンティックバージョニング）
+  - データ構造としてサポート済み、機能実装は今後予定
+
+- **downloadUrl**: ダウンロードURLのテンプレート
+  - カスタムダウンロードURLを指定する場合に使用
+  - プレースホルダー: `{versionId}`, `{version}`, `{fileName}`
+  - 例: `"https://api.modrinth.com/v2/project/luckperms/version/{versionId}/file"`
+  - データ構造としてサポート済み、機能実装は今後予定
+
+- **fileNameTemplate**: ダウンロード後のファイル名テンプレート
+  - ダウンロードしたファイルをリネームする場合に使用
+  - プレースホルダー: `<version>`, `<version.major>`, `<version.minor>`, `<version.patch>`
+  - 例: `"luckperms-<version>.jar"` → `"luckperms-5.4.97.jar"`
+  - データ構造としてサポート済み、機能実装は今後予定
+
+## 使用例
+
+### Modrinthからのダウンロード
+
+```jsonc
+{
+    "id": "QuickShop",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "quickshop-hikari",
+            "fileNameRegex": "QuickShop-Hikari.*\\.jar"
+        }
+    ]
+}
+```
+
+### GitHubからのダウンロード（複数ファイル選択）
+
+```jsonc
+{
+    "id": "EssentialsX",
+    "repositories": [
+        {
+            "type": "github",
+            "id": "EssentialsX/Essentials",
+            "fileNameRegex": "EssentialsX-[0-9\\.]+\\.jar"
+        }
+    ]
+}
+```
+
+## ワークフローとの連携
+
+### 1. リポジトリファイルを作成するコマンド
+
+`/mpm create-repo`コマンドでURLからリポジトリファイルを自動生成：
+
+```bash
+/mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
+```
+
+このコマンドは：
+- URLからリポジトリタイプを自動判定（GitHub、Modrinth、SpigotMC）
+- `repository/QuickShop.json`を自動生成
+- プラグインIDと作成パスを表示
+
+**結果:**
+```json
+{
+    "id": "QuickShop",
+    "website": "https://modrinth.com/plugin/quickshop-hikari",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "quickshop-hikari"
+        }
+    ]
+}
+```
+
+### オプション: ファイル選択パターンを指定
+
+複数ファイルがある場合、`fileNameRegex`を指定：
+
+```bash
+/mpm create-repo EssentialsX https://github.com/EssentialsX/Essentials "EssentialsX-.*\\.jar"
+```
+
+### 2. プラグインを追加
+
+```bash
+/mpm add QuickShop
+```
+
+このコマンドは：
+- `repository/QuickShop.json`を読み込む
+- プラグイン情報を検証
+- `mpm-config.json`に設定を追加
+
+### 3. プラグインをインストール
+
+```bash
+/mpm install
+```
+
+このコマンドは：
+- `mpm-config.json`を読み込む
+- 各プラグインのリポジトリ設定に基づいてダウンロード
+- `managed/`ディレクトリにメタデータを保存
+
+## ベストプラクティス
+
+### リポジトリファイルの管理
+
+**推奨: バージョン管理システムで管理**
+
+```bash
+git add plugins/MinecraftPluginManager/repository/
+git commit -m "Add QuickShop repository configuration"
+```
+
+**メリット:**
+- チーム間で設定を共有
+- 変更履歴を追跡
+- 環境の再現性向上
+
+### ファイル名の統一
+
+プラグインIDとファイル名を一致させることで管理が容易になります：
+
+```
+✅ 良い例:
+repository/QuickShop.json → { "id": "QuickShop" }
+repository/LuckPerms.json → { "id": "LuckPerms" }
+
+❌ 悪い例:
+repository/quickshop_plugin.json → { "id": "QuickShop" }
+```
+
+### 複数リポジトリの順序
+
+優先度の高いリポジトリを先に記載：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "luckperms"
+        },
+        {
+            "type": "github",
+            "id": "LuckPerms/LuckPerms"
+        }
+    ]
+}
+```
+
+最初のリポジトリ（Modrinth）からのダウンロードに失敗した場合、次のリポジトリ（GitHub）を試行します。
+
+## トラブルシューティング
+
+### create-repoコマンドが失敗する
+
+1. **URLが正しいか確認**
+   ```bash
+   # 対応しているURL形式
+   https://modrinth.com/plugin/{project-id}
+   https://github.com/{owner}/{repository}
+   https://www.spigotmc.org/resources/{name}.{id}
+   ```
+
+2. **プラグイン名が有効か確認**
+   - 英数字とアンダースコア、ハイフンのみ使用可能
+
+### リポジトリファイルが見つからない
+
+```bash
+# ディレクトリ構造を確認
+plugins/MinecraftPluginManager/repository/QuickShop.json
+
+# ファイル名がプラグインIDと一致しているか確認
+```
+
+### ダウンロードが失敗する
+
+1. **リポジトリIDを確認**
+   - Modrinth: プロジェクトページのURLから確認
+   - GitHub: `owner/repository`形式
+   - SpigotMC: リソースIDを確認
+
+2. **fileNameRegexを確認**
+   - 正規表現が正しいか確認
+   - エスケープが必要な文字（`.`, `[`, `]`など）に注意
+   - テスト時は簡潔なパターンから始める（例: `.*\\.jar`）
+
+3. **ネットワーク接続を確認**
+   - APIエンドポイントにアクセス可能か確認
+   - ファイアウォール設定を確認
+
+## 関連ドキュメント
+
+- [プラグインを管理する](/usage/install) - 基本的な使い方
+- [はじめに](/usage/getting-started) - クイックスタートガイド
+- [プラグイン管理コマンド](/commands/manage) - コマンドリファレンス
+- [リポジトリ管理コマンド](/commands/repo) - リポジトリコマンドリファレンス

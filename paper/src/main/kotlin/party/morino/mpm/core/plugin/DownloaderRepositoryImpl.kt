@@ -17,6 +17,7 @@ import party.morino.mpm.api.model.repository.RepositoryType
 import party.morino.mpm.api.model.repository.UrlData
 import party.morino.mpm.api.model.repository.VersionData
 import party.morino.mpm.infrastructure.github.GithubDownloader
+import party.morino.mpm.infrastructure.modrinth.ModrinthDownloader
 import party.morino.mpm.infrastructure.spigot.SpigotDownloader
 import java.io.File
 
@@ -95,6 +96,9 @@ class DownloaderRepositoryImpl :
             is UrlData.SpigotMcUrlData -> {
                 SpigotDownloader().getLatestVersion(urlData)
             }
+            is UrlData.ModrinthUrlData -> {
+                ModrinthDownloader().getLatestVersion(urlData)
+            }
             else -> {
                 // 他のリポジトリタイプの実装
                 VersionData("unknown", "unknown")
@@ -105,20 +109,23 @@ class DownloaderRepositoryImpl :
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン
-     * @param number ダウンロードする番号（複数ファイルがある場合）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル、失敗時はnull
      */
     override suspend fun downloadByVersion(
         urlData: UrlData,
         version: VersionData,
-        number: Int?
+        fileNamePattern: String?
     ): File? =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                GithubDownloader().downloadByVersion(urlData, version, number)
+                GithubDownloader().downloadByVersion(urlData, version, fileNamePattern)
             }
             is UrlData.SpigotMcUrlData -> {
-                SpigotDownloader().downloadByVersion(urlData, version)
+                SpigotDownloader().downloadByVersion(urlData, version, fileNamePattern)
+            }
+            is UrlData.ModrinthUrlData -> {
+                ModrinthDownloader().downloadByVersion(urlData, version, fileNamePattern)
             }
             else -> {
                 // 他のリポジトリタイプの実装
@@ -129,12 +136,12 @@ class DownloaderRepositoryImpl :
     /**
      * URLからプラグインをダウンロード
      * @param url ダウンロード元URL
-     * @param number ダウンロードする番号（複数ファイルがある場合）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル、失敗時はnull
      */
     override suspend fun downloadLatest(
         url: String,
-        number: Int?
+        fileNamePattern: String?
     ): File? {
         val type = getRepositoryType(url) ?: return null
         val urlData = getUrlData(url) ?: return null
@@ -143,14 +150,14 @@ class DownloaderRepositoryImpl :
             RepositoryType.GITHUB -> {
                 val downloader = GithubDownloader()
                 val latest = downloader.getLatestVersion(urlData as UrlData.GithubUrlData)
-                downloader.downloadByVersion(urlData, latest, number)
+                downloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
             RepositoryType.SPIGOTMC -> {
                 // SpigotMCのダウンロード実装
                 val downloader = SpigotDownloader()
                 val latest = downloader.getLatestVersion(urlData as UrlData.SpigotMcUrlData)
-                downloader.downloadByVersion(urlData, latest)
+                downloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
             RepositoryType.HANGER -> {
@@ -160,7 +167,9 @@ class DownloaderRepositoryImpl :
 
             RepositoryType.MODRINTH -> {
                 // Modrinthのダウンロード実装
-                null
+                val downloader = ModrinthDownloader()
+                val latest = downloader.getLatestVersion(urlData as UrlData.ModrinthUrlData)
+                downloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
         }
     }

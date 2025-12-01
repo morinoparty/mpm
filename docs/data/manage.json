@@ -1,0 +1,146 @@
+{
+    "commands": [
+        {
+            "command": "mpm add <pluginName>",
+            "status": "stable",
+            "category": "manage",
+            "section": "インストール・追加",
+            "description": "リポジトリファイルからプラグインを管理対象に追加します",
+            "arguments": [
+                {
+                    "name": "pluginName",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm install",
+            "status": "stable",
+            "category": "manage",
+            "section": "インストール・追加",
+            "description": "`mpm-config.json`に記載されたすべてのプラグインをインストールします"
+        },
+        {
+            "command": "mpm install <url> [fileNameRegex]",
+            "status": "deprecated",
+            "category": "manage",
+            "section": "インストール・追加",
+            "description": "URLから直接プラグインをインストールする形式は削除されました"
+        },
+        {
+            "command": "mpm uninstall <pluginName>",
+            "status": "stable",
+            "category": "manage",
+            "section": "アンインストール・削除",
+            "description": "プラグインをアンインストールします",
+            "arguments": [
+                {
+                    "name": "pluginName",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm remove <pluginName>",
+            "status": "proposal",
+            "category": "manage",
+            "section": "アンインストール・削除",
+            "description": "プラグインを管理対象から除外します（ファイルは削除されません）",
+            "arguments": [
+                {
+                    "name": "pluginName",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm removeUnmanaged",
+            "status": "proposal",
+            "category": "manage",
+            "section": "アンインストール・削除",
+            "description": "mpm管理下にないプラグインを削除します"
+        },
+        {
+            "command": "mpm list [[options]]",
+            "status": "newly",
+            "category": "manage",
+            "section": "一覧表示",
+            "description": "インストールされているプラグインの一覧を表示します",
+            "arguments": [
+                {
+                    "name": "--all",
+                    "required": false
+                },
+                {
+                    "name": "--enabled",
+                    "required": false
+                },
+                {
+                    "name": "--disabled",
+                    "required": false
+                },
+                {
+                    "name": "--unmanaged",
+                    "required": false
+                },
+                {
+                    "name": "--managed",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "command": "mpm outdated <plugin>",
+            "status": "proposal",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "プラグインの更新を確認します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm outdatedAll",
+            "status": "proposal",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "すべてのプラグインの更新を確認します"
+        },
+        {
+            "command": "mpm update",
+            "status": "proposal",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "新しいバージョンがあるプラグインを更新します"
+        },
+        {
+            "command": "mpm lock <plugin>",
+            "status": "proposal",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "プラグインをロックして自動更新を防ぎます",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm unlock <plugin>",
+            "status": "proposal",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "プラグインのロックを解除します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        }
+    ]
+}

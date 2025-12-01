@@ -1,0 +1,220 @@
+---
+sidebar_position: 1
+---
+
+# 📦 プラグインを管理する
+
+MinecraftPluginManagerでは、リポジトリファイルベースの管理方式を採用しています。
+これにより、プラグインの設定を再利用可能な形で管理し、チーム間で共有することができます。
+
+## 基本的なワークフロー
+
+### 1. リポジトリファイルを作成する
+
+まず、`repository/`ディレクトリにプラグインのリポジトリ設定ファイルを作成します。
+
+```
+plugins/MinecraftPluginManager/repository/QuickShop.json
+```
+
+**QuickShop.json:**
+```json
+{
+    "id": "QuickShop",
+    "website": "https://www.spigotmc.org/resources/quickshop-hikari.100125/",
+    "source": "https://github.com/Ghost-chu/QuickShop-Hikari",
+    "license": "GPL-3.0",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "quickshop-hikari",
+            "fileNameRegex": "QuickShop-Hikari.*\\.jar"
+        }
+    ]
+}
+```
+
+### 2. プラグインを追加する
+
+リポジトリファイルを作成したら、`mpm add`コマンドでプラグインを管理対象に追加します。
+
+```bash
+/mpm add QuickShop
+```
+
+このコマンドは：
+- `repository/QuickShop.json`を読み込む
+- プラグインの設定を`mpm-config.json`に追加
+- 依存関係をチェック
+
+### 3. プラグインをインストールする
+
+追加されたプラグインは、`mpm install`コマンドで一括インストールできます。
+
+```bash
+/mpm install
+```
+
+このコマンドは：
+- `mpm-config.json`に記載されたすべてのプラグインをダウンロード
+- 最新バージョンを自動的に取得
+- プラグインディレクトリに配置
+
+## 複数のプラグインを管理する
+
+### リポジトリファイルを複数作成する
+
+```
+repository/
+├── QuickShop.json
+├── LuckPerms.json
+├── Vault.json
+└── EssentialsX.json
+```
+
+### 一括で追加する
+
+```bash
+/mpm add QuickShop
+/mpm add LuckPerms
+/mpm add Vault
+/mpm add EssentialsX
+```
+
+### すべてインストールする
+
+```bash
+/mpm install
+```
+
+これにより、追加されたすべてのプラグインが自動的にインストールされます。
+
+## プラグインをアンインストールする
+
+```bash
+/mpm uninstall QuickShop
+```
+
+このコマンドは：
+- プラグインファイルを削除
+- `mpm-config.json`から設定を削除
+- 管理対象から除外
+
+:::tip
+リポジトリファイルは削除されないので、後で再度`mpm add`で追加できます。
+:::
+
+## リポジトリファイルの詳細
+
+リポジトリファイルの詳細な仕様については、[レポジトリファイル形式](/format/repository)を参照してください。
+
+主なフィールド：
+- **id**: プラグインの識別子
+- **repositories**: ダウンロード元のリポジトリ設定の配列
+  - **type**: リポジトリタイプ（`modrinth`, `github`, `spigotmc`, `hangar`）
+  - **id**: リポジトリ固有のID
+  - **fileNameRegex**: 複数ファイルがある場合の選択パターン（オプション）
+
+## よくあるパターン
+
+### GitHub Releasesからインストール
+
+```json
+{
+    "id": "EssentialsX",
+    "repositories": [
+        {
+            "type": "github",
+            "id": "EssentialsX/Essentials",
+            "fileNameRegex": "EssentialsX-[0-9\\.]+\\.jar"
+        }
+    ]
+}
+```
+
+### Modrinthからインストール
+
+```json
+{
+    "id": "PlasmoVoice",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "plasmo-voice",
+            "fileNameRegex": ".*Paper.*\\.jar"
+        }
+    ]
+}
+```
+
+### SpigotMCからインストール
+
+```json
+{
+    "id": "Vault",
+    "repositories": [
+        {
+            "type": "spigotmc",
+            "id": "34315"
+        }
+    ]
+}
+```
+
+### 複数のリポジトリをフォールバック
+
+1つのプラグインに複数のダウンロード元を指定できます：
+
+```json
+{
+    "id": "LuckPerms",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "luckperms"
+        },
+        {
+            "type": "github",
+            "id": "LuckPerms/LuckPerms",
+            "fileNameRegex": "LuckPerms-Bukkit.*\\.jar"
+        }
+    ]
+}
+```
+
+最初のリポジトリからのダウンロードに失敗した場合、次のリポジトリを試行します。
+
+## チーム間での共有
+
+リポジトリファイルはJSONファイルなので、Gitなどのバージョン管理システムで管理できます：
+
+```bash
+# リポジトリディレクトリをGitに追加
+git add plugins/MinecraftPluginManager/repository/
+git commit -m "Add plugin repository configurations"
+git push
+```
+
+チームメンバーは：
+1. リポジトリをclone
+2. `mpm add`で各プラグインを追加
+3. `mpm install`で一括インストール
+
+これにより、サーバー環境の統一が簡単になります。
+
+## 旧形式との互換性
+
+:::info
+以前の`mpm install <url>`形式も引き続きサポートされています。
+ただし、新しいワークフローの使用を推奨します。
+:::
+
+旧形式:
+```bash
+/mpm install https://modrinth.com/plugin/quickshop-hikari
+```
+
+新形式:
+1. `repository/QuickShop.json`を作成
+2. `/mpm add QuickShop`で追加
+3. `/mpm install`でインストール

@@ -44,23 +44,23 @@ interface DownloaderRepository {
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン
-     * @param number ダウンロードする数（複数ファイルがある場合）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
     suspend fun downloadByVersion(
         urlData: UrlData,
         version: VersionData,
-        number: Int?
+        fileNamePattern: String?
     ): File?
 
     /**
      * リポジトリURLからプラグインをダウンロード
      * @param url リポジトリURL
-     * @param number ダウンロードする数（複数ファイルがある場合）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
     suspend fun downloadLatest(
         url: String,
-        number: Int?
+        fileNamePattern: String?
     ): File?
 }

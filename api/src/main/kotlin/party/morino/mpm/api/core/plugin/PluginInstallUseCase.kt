@@ -16,17 +16,6 @@ import java.io.File
  */
 interface PluginInstallUseCase {
     /**
-     * リポジトリURLからプラグインをインストール
-     * @param repositoryUrl リポジトリURL
-     * @param number ダウンロードする数（複数ファイルがある場合）
-     * @return インストールに成功した場合はtrue
-     */
-    suspend fun installPlugin(
-        repositoryUrl: String,
-        number: Int?
-    ): Boolean
-
-    /**
      * ファイルからプラグインをインストール
      * @param file プラグインファイル
      * @return インストールに成功した場合はtrue

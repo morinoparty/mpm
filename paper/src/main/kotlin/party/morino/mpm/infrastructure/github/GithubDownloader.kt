@@ -21,8 +21,9 @@ import java.time.LocalDateTime
 
 /**
  * GitHubからプラグインをダウンロードするクラス
+ * テストのためにopenクラスとして定義
  */
-class GithubDownloader : AbstractPluginDownloader() {
+open class GithubDownloader : AbstractPluginDownloader() {
     /**
      * リポジトリタイプの判定
      * @param url リポジトリURL
@@ -66,27 +67,41 @@ class GithubDownloader : AbstractPluginDownloader() {
      * 指定バージョンのプラグインをダウンロード
      * @param urlData GitHubのURL情報
      * @param version バージョン名
-     * @param number アセット番号（複数アセットがある場合）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（複数アセットがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
     override suspend fun downloadByVersion(
         urlData: UrlData,
         version: VersionData,
-        number: Int?
+        fileNamePattern: String?
     ): File? {
         urlData as UrlData.GithubUrlData
-        val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases/${version.downloadId}/assets"
+        val url =
+            "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases/" +
+                "${version.downloadId}/assets"
         val response = getRequest(url, "application/vnd.github+json")
-        val responseJson = json.parseToJsonElement(response).jsonObject
-        val assets = responseJson["assets"]?.jsonArray ?: return null
+        // assetsエンドポイントは直接JsonArrayを返す
+        val assets = json.parseToJsonElement(response).jsonArray
 
         if (assets.isEmpty()) {
             throw Exception("このリリースにはアセットがありません")
         }
 
-        //
-        val assetIndex = (number ?: 1).coerceIn(1, assets.size) - 1
-        val asset = assets[assetIndex].jsonObject
+        // パターンが指定されていない場合は最初のアセットを選択
+        val asset =
+            if (fileNamePattern == null) {
+                assets[0].jsonObject
+            } else {
+                // パターンにマッチするアセットを検索
+                val regex = Regex(fileNamePattern)
+                val matchingAsset =
+                    assets.firstOrNull { assetElement ->
+                        val assetName = assetElement.jsonObject["name"]?.jsonPrimitive?.content ?: ""
+                        regex.matches(assetName)
+                    }
+                matchingAsset?.jsonObject
+                    ?: throw Exception("パターン '$fileNamePattern' にマッチするアセットが見つかりません")
+            }
 
         val downloadUrl =
             asset["browser_download_url"]?.jsonPrimitive?.content
@@ -99,15 +114,15 @@ class GithubDownloader : AbstractPluginDownloader() {
     /**
      * リポジトリURLからプラグインをダウンロード
      * @param url リポジトリURL
-     * @param number アセット番号（オプション）
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
     override suspend fun downloadLatest(
         url: String,
-        number: Int?
+        fileNamePattern: String?
     ): File? {
         val urlData = getUrlData(url) ?: throw Exception("無効なGitHub URL: $url")
         val latestVersion = getLatestVersion(urlData)
-        return downloadByVersion(urlData, latestVersion, number)
+        return downloadByVersion(urlData, latestVersion, fileNamePattern)
     }
 }

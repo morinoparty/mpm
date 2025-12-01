@@ -1,0 +1,391 @@
+# 📋 metadata/*.yaml - プラグインメタデータファイル
+
+## 概要
+
+`plugins/mpm/metadata/*.yaml`は、個別プラグインの詳細情報を保存するファイルです。
+各プラグインに1つのファイルが作成され、プラグイン自体の情報とMPMによる管理情報の両方が記録されます。
+
+:::info 自動生成と管理
+このファイルは`mpm install`コマンドによって自動的に生成されます。
+一部のフィールドは手動で編集することもできますが、基本的には自動管理されます。
+:::
+
+## ファイルの配置
+
+```
+your-server/
+├── plugins/
+│   ├── LuckPerms-Bukkit-5.4.102.jar
+│   ├── Vault.jar
+│   └── mpm/
+│       ├── mpm.json
+│       ├── mpm-lock.yaml
+│       ├── repository/
+│       └── metadata/
+│           ├── LuckPerms.yaml     ← プラグインごとのメタデータ
+│           ├── Vault.yaml          ← プラグインごとのメタデータ
+│           └── EssentialsX.yaml   ← プラグインごとのメタデータ
+└── ...
+```
+
+## 基本構造
+
+```yaml title="plugins/mpm/metadata/LuckPerms.yaml"
+# プラグイン基本情報（plugin.ymlまたはpaper-plugin.ymlから抽出）
+pluginInfo:
+  name: "LuckPerms"
+  version: "5.4.102"
+  main: "me.lucko.luckperms.bukkit.LuckPermsBukkitPlugin"
+  description: "A permissions plugin for Minecraft servers"
+  apiVersion: "1.13"
+  author: "Luck"
+  website: "https://luckperms.net"
+
+# MPMによる管理情報
+mpmInfo:
+  repository:
+    type: github
+    id: LuckPerms/LuckPerms
+
+  version:
+    current:
+      raw: "v5.4.102"
+      normalized: "5.4.102"
+    latest:
+      raw: "v5.4.102"
+      normalized: "5.4.102"
+    lastChecked: "2025-01-15T10:30:00Z"
+
+  download:
+    url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
+    downloadId: "v5.4.102"
+    fileName: "LuckPerms-Bukkit-5.4.102.jar"
+    sha256: "abc123def456..."
+
+  settings:
+    lock: false
+    autoUpdate: false
+
+  history:
+    - version: "5.4.102"
+      installedAt: "2025-01-15T10:30:00Z"
+      action: "install"
+```
+
+## フィールド詳細
+
+### pluginInfo
+
+プラグインJARファイルの`plugin.yml`または`paper-plugin.yml`から抽出された情報です。
+
+:::note Bukkitプラグインとの違い
+Bukkitプラグインの場合は`BukkitPluginData`、Paperプラグインの場合は`PaperPluginData`として記録されます。
+:::
+
+#### Bukkitプラグインの場合
+
+```yaml
+pluginInfo:
+  name: "Vault"
+  version: "1.7.3"
+  main: "net.milkbowl.vault.Vault"
+  description: "Vault is a Permissions & Economy API"
+  apiVersion: "1.13"
+  author: "Sleaker"
+  website: "https://www.spigotmc.org/resources/vault.34315/"
+```
+
+#### Paperプラグインの場合
+
+```yaml
+pluginInfo:
+  name: "ModernPlugin"
+  version: "1.0.0"
+  main: "com.example.ModernPlugin"
+  description: "A modern Paper plugin"
+  apiVersion: "1.20"
+  bootstrapper: "com.example.ModernPluginBootstrap"
+  loader: "com.example.ModernPluginLoader"
+  author: "ExampleAuthor"
+  website: "https://example.com"
+```
+
+### mpmInfo
+
+MPMによる管理情報です。
+
+#### repository
+
+プラグインの取得元リポジトリ情報です。
+`mpm.json`の`repository`フィールドと同じ形式です。
+
+```yaml
+mpmInfo:
+  repository:
+    type: github
+    id: LuckPerms/LuckPerms
+```
+
+#### version
+
+バージョン管理情報です。
+
+##### current
+
+現在インストールされているバージョン情報です。
+
+```yaml
+version:
+  current:
+    raw: "v5.4.102"          # リポジトリから取得した生のバージョン
+    normalized: "5.4.102"     # 正規化されたバージョン
+```
+
+##### latest
+
+最後にチェックした時点での最新バージョン情報です（キャッシュ）。
+
+```yaml
+version:
+  latest:
+    raw: "v5.4.103"
+    normalized: "5.4.103"
+```
+
+##### lastChecked
+
+最後にバージョンチェックを行った日時（ISO 8601形式）です。
+
+```yaml
+version:
+  lastChecked: "2025-01-15T10:30:00Z"
+```
+
+#### download
+
+ダウンロード情報です。`mpm-lock.yaml`の`download`フィールドと同じ形式です。
+
+```yaml
+mpmInfo:
+  download:
+    url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
+    downloadId: "v5.4.102"
+    fileName: "LuckPerms-Bukkit-5.4.102.jar"
+    sha256: "abc123def456..."
+```
+
+#### settings
+
+プラグイン固有の設定です。`mpm.json`の`settings`フィールドと同じ形式です。
+
+```yaml
+mpmInfo:
+  settings:
+    lock: false          # バージョンロック
+    autoUpdate: false    # 自動更新
+    downloadUrl: null    # カスタムダウンロードURL（オプション）
+    fileName: null       # カスタムファイル名（オプション）
+```
+
+#### history
+
+プラグインのインストール・更新履歴です。
+
+```yaml
+mpmInfo:
+  history:
+    - version: "5.4.102"
+      installedAt: "2025-01-15T10:30:00Z"
+      action: "install"
+    - version: "5.4.101"
+      installedAt: "2025-01-10T09:00:00Z"
+      action: "update"
+    - version: "5.4.100"
+      installedAt: "2025-01-05T08:00:00Z"
+      action: "rollback"
+```
+
+| action | 説明 |
+|--------|------|
+| install | 新規インストール |
+| update | バージョン更新 |
+| rollback | ロールバック |
+
+## 完全な例
+
+### GitHubからインストールしたプラグイン
+
+```yaml title="plugins/mpm/metadata/LuckPerms.yaml"
+# プラグイン基本情報
+pluginInfo:
+  name: "LuckPerms"
+  version: "5.4.102"
+  main: "me.lucko.luckperms.bukkit.LuckPermsBukkitPlugin"
+  description: "A permissions plugin for Minecraft servers"
+  apiVersion: "1.13"
+  author: "Luck"
+  website: "https://luckperms.net"
+
+# MPMによる管理情報
+mpmInfo:
+  # リポジトリ情報
+  repository:
+    type: github
+    id: LuckPerms/LuckPerms
+
+  # バージョン情報
+  version:
+    current:
+      raw: "v5.4.102"
+      normalized: "5.4.102"
+    latest:
+      raw: "v5.4.103"
+      normalized: "5.4.103"
+    lastChecked: "2025-01-15T10:30:00Z"
+
+  # ダウンロード情報
+  download:
+    url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
+    downloadId: "v5.4.102"
+    fileName: "LuckPerms-Bukkit-5.4.102.jar"
+    sha256: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+  # 設定
+  settings:
+    lock: false
+    autoUpdate: false
+
+  # インストール履歴
+  history:
+    - version: "5.4.102"
+      installedAt: "2025-01-15T10:30:00Z"
+      action: "install"
+```
+
+### Spigotからインストールしたプラグイン
+
+```yaml title="plugins/mpm/metadata/Vault.yaml"
+# プラグイン基本情報
+pluginInfo:
+  name: "Vault"
+  version: "1.7.3"
+  main: "net.milkbowl.vault.Vault"
+  description: "Vault is a Permissions & Economy API"
+  apiVersion: "1.13"
+  author: "Sleaker"
+  website: "https://www.spigotmc.org/resources/vault.34315/"
+
+# MPMによる管理情報
+mpmInfo:
+  # リポジトリ情報
+  repository:
+    type: spigot
+    id: "34315"
+
+  # バージョン情報
+  version:
+    current:
+      raw: "1.7.3"
+      normalized: "1.7.3"
+    latest:
+      raw: "1.7.3"
+      normalized: "1.7.3"
+    lastChecked: "2025-01-15T10:30:00Z"
+
+  # ダウンロード情報
+  download:
+    url: "https://api.spiget.org/v2/resources/34315/versions/283178/download"
+    downloadId: "283178"
+    fileName: "Vault.jar"
+    sha256: "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+
+  # 設定
+  settings:
+    lock: true  # バージョンを固定
+    autoUpdate: false
+
+  # インストール履歴
+  history:
+    - version: "1.7.3"
+      installedAt: "2025-01-15T10:30:00Z"
+      action: "install"
+```
+
+## 3つのファイルの関係
+
+| ファイル | 役割 | 対象 |
+|---------|------|------|
+| mpm.json | プラグインの依存関係を宣言 | プロジェクト全体 |
+| mpm-lock.yaml | インストールされたバージョンを記録 | プロジェクト全体 |
+| metadata/*.yaml | プラグインの詳細情報を保存 | 個別プラグイン |
+
+```
+mpm.json
+  ↓ mpm install
+mpm-lock.yaml + metadata/LuckPerms.yaml
+  ↓ プラグインJARからplugin.ymlを抽出
+metadata/LuckPerms.yaml (pluginInfo更新)
+```
+
+## サポートされているリポジトリ
+
+当プラグインでは、以下のリポジトリからのプラグインのインストールをサポートしています。
+
+### GitHub
+
+```yaml
+mpmInfo:
+  repository:
+    type: github
+    id: owner/repository  # owner/repo 形式
+```
+
+### Spigot
+
+```yaml
+mpmInfo:
+  repository:
+    type: spigot
+    id: "34315"  # リソースID
+```
+
+### Modrinth
+
+```yaml
+mpmInfo:
+  repository:
+    type: modrinth
+    id: plasmo-voice  # プロジェクトID
+```
+
+### Hangar
+
+```yaml
+mpmInfo:
+  repository:
+    type: hangar
+    id: Plan  # プロジェクトID
+```
+
+### Jenkins
+
+```yaml
+mpmInfo:
+  repository:
+    type: jenkins
+    id: https://ci.example.com/job/custom-plugin  # ジョブURL
+```
+
+### Local
+
+```yaml
+mpmInfo:
+  repository:
+    type: local
+    id: /path/to/plugin.jar  # ファイルパス
+```
+
+## 関連ファイル
+
+- [mpm.json](/format/mpm-config) - プロジェクト設定ファイル
+- [mpm-lock.yaml](/format/mpm-lock) - ロックファイル

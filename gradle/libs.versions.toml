@@ -8,7 +8,7 @@ coroutine = "1.10.2"
 serialization = "1.9.0"
 reflect = "2.1.20"
 ktor = "3.3.3"
-junit = "6.0.1"
+junit = "6.1.0-M1"
 mockBukkit = "3.93.2"
 commonsIo = "2.21.0"
 mockk = "1.14.6"
@@ -49,7 +49,9 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 mock-bukkit = { group = "com.github.seeseemelk", name = "MockBukkit-v1.20", version.ref = "mockBukkit" }
+
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit" }
 
 koin-test = { group = "io.insert-koin", name = "koin-test", version.ref = "koin" }
 koin-test-junit5 = { group = "io.insert-koin", name = "koin-test-junit5", version.ref = "koin" }
@@ -58,11 +60,11 @@ arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
 arrow-fx-coroutines = { module = "io.arrow-kt:arrow-fx-coroutines", version.ref = "arrow" }
 
 [plugins]
-run-paper = { id = "xyz.jpenilla.run-paper", version = "2.3.1" }
+run-paper = { id = "xyz.jpenilla.run-paper", version = "3.0.2" }
 resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.2.1" }
-shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.1.20" }
-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.1.20" }
+shadow = { id = "com.gradleup.shadow", version = "9.2.2" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.2.0" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.2.0" }
 dokka = { id = "org.jetbrains.dokka", version = "2.1.0" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
 
@@ -71,4 +73,5 @@ ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
 commands = ["cloud", "cloudPaper", "cloud-annotations", "cloud-kotlin-coroutines-annotations"]
 coroutines = ["mccoroutine-bukkit-api", "mccoroutine-bukkit-core" , "kotlinx-coroutines-core"]
 ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-mock", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json"]
+junit = ["junit-jupiter", "junit-platform-launcher", "kotlinx-coroutines-test", "mockk", "mock-bukkit"]
 koin-test = ["koin-test", "koin-test-junit5"]

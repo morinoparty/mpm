@@ -27,8 +27,8 @@ import java.io.File
  * 共通の機能を提供する
  */
 abstract class AbstractPluginDownloader : PluginDownloader {
-    // HTTP クライアント
-    protected var httpClient =
+    // HTTP クライアント（テストのためにopenかつ変更可能）
+    protected open var httpClient: HttpClient =
         HttpClient(CIO) {
             install(HttpTimeout) {
                 requestTimeoutMillis = 60000

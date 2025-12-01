@@ -23,6 +23,12 @@ data class MpmConfig(
     // プロジェクトのバージョン
     val version: String = "1.0.0",
 
+    // リポジトリソースのリスト（優先順位順：先頭から順に検索）
+    val repositories: List<RepositorySourceConfig> =
+        listOf(
+            RepositorySourceConfig.Local()
+        ),
+
     // プラグインの依存関係（プラグイン名 -> バージョン文字列 または "unmanaged"）
     val plugins: Map<String, String> = emptyMap(),
 

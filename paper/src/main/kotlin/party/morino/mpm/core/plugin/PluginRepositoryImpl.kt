@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.core.plugin.PluginRepository
 import party.morino.mpm.api.model.plugin.PluginData
 import java.io.File
@@ -31,6 +32,7 @@ class PluginRepositoryImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val plugin: JavaPlugin by inject()
+    private val pluginDirectory: PluginDirectory by inject()
 
     // JSONシリアライザー
     private val json =
@@ -39,17 +41,13 @@ class PluginRepositoryImpl :
             ignoreUnknownKeys = true
         }
 
-    // プラグインデータを保存するディレクトリ
-    private val pluginsDir = plugin.dataFolder.parentFile
+    // プラグインデータを保存するディレクトリ（DIから取得）
+    private val pluginsDir: File
+        get() = pluginDirectory.getPluginsDirectory()
 
-    // プラグインのメタデータを保存するディレクトリ
-    private val metadataDir = File(plugin.dataFolder, "metadata")
-
-    init {
-        // 必要なディレクトリを作成
-        pluginsDir.mkdirs()
-        metadataDir.mkdirs()
-    }
+    // プラグインのメタデータを保存するディレクトリ（DIから取得）
+    private val metadataDir: File
+        get() = pluginDirectory.getRepositoryDirectory()
 
     /**
      * 指定された名前のプラグインを取得

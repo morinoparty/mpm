@@ -1,0 +1,249 @@
+# 📦 mpm.json - プロジェクト設定ファイル
+
+## 概要
+
+`mpm.json`は、MinecraftPluginManagerのプロジェクト設定ファイルです。
+npmの`package.json`に相当し、プロジェクトで使用するプラグインの依存関係を宣言的に管理します。
+
+## ファイルの配置
+
+```
+your-server/
+├── mpm.json          ← このファイル
+├── mpm-lock.yaml     ← 自動生成されるロックファイル
+├── plugins/
+│   └── mpm/
+│       └── metadata/ ← 個別プラグインの詳細情報
+└── ...
+```
+
+## 基本構造
+
+```jsonc title="mpm-config.json"
+{
+    "name": "main-server",               // プロジェクト名
+    "version": "1.0.0",                  // プロジェクトのバージョン
+    "repositories": [                    // リポジトリソース（優先順位順）
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://example.com/repository/",
+            "headers": {
+                "Authorization": "Bearer token"
+            }
+        }
+    ],
+    "plugins": {
+        "LuckPerms": "5.4.97",          // プラグイン依存関係
+        "Vault": "unmanaged"
+    },
+    "settings": {
+        "autoUpdate": false,             // グローバル設定
+        "tempDir": "temp"
+    }
+}
+```
+
+## フィールド詳細
+
+### repositories（リポジトリソース）
+
+プラグインのリポジトリファイルを取得するソースを定義します。
+複数のソースを優先順位順（配列の先頭から）に指定できます。
+
+#### ローカルソース
+
+ローカルファイルシステムからリポジトリファイルを取得します。
+
+```json
+{
+    "type": "local",
+    "path": "repository"
+}
+```
+
+- **type**: `"local"` を指定
+- **path**: リポジトリディレクトリのパス（mpm/配下の相対パス）
+
+**デフォルト値:**
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        }
+    ]
+}
+```
+
+#### リモートソース（将来実装予定）
+
+リモートURLからリポジトリファイルを取得します。
+
+```json
+{
+    "type": "remote",
+    "url": "https://example.com/repository/",
+    "headers": {
+        "Authorization": "Bearer your-token",
+        "Custom-Header": "value"
+    }
+}
+```
+
+- **type**: `"remote"` を指定
+- **url**: リポジトリのベースURL
+- **headers**: HTTPリクエストに追加するヘッダー（オプション）
+
+:::info
+リモートソースは現在実装中です。将来のバージョンでサポート予定です。
+:::
+
+#### 複数ソースの動作
+
+複数のリポジトリソースを指定した場合、**優先順位順**（配列の先頭から）に検索します：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://official-repo.example.com/"
+        },
+        {
+            "type": "remote",
+            "url": "https://community-repo.example.com/"
+        }
+    ]
+}
+```
+
+**動作:**
+1. ローカルのリポジトリファイルを検索
+2. 見つからなければ、公式リモートリポジトリを検索
+3. それでも見つからなければ、コミュニティリポジトリを検索
+
+### plugins（プラグイン依存関係）
+
+プロジェクトで使用するプラグインを定義します。
+
+```json
+{
+    "plugins": {
+        "LuckPerms": "5.4.97",
+        "Vault": "latest",
+        "EssentialsX": "unmanaged"
+    }
+}
+```
+
+- **キー**: プラグイン名
+- **値**: バージョン文字列または`"unmanaged"`
+
+### settings（グローバル設定）
+
+プロジェクト全体の設定を定義します。
+
+```json
+{
+    "settings": {
+        "autoUpdate": false,
+        "tempDir": "temp"
+    }
+}
+```
+
+- **autoUpdate**: 自動更新を有効にするか（デフォルト: `false`）
+- **tempDir**: 一時ファイルの保存ディレクトリ（デフォルト: `"temp"`）
+
+## 使用例
+
+### シンプルな構成
+
+ローカルリポジトリのみを使用する基本的な構成：
+
+```json
+{
+    "name": "my-server",
+    "version": "1.0.0",
+    "plugins": {
+        "LuckPerms": "latest",
+        "Vault": "latest"
+    }
+}
+```
+
+デフォルトでローカルリポジトリ（`repository/`）が使用されます。
+
+### 複数リポジトリソースの構成
+
+ローカルとリモートを併用する構成：
+
+```json
+{
+    "name": "production-server",
+    "version": "2.0.0",
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://plugins.example.com/repository/"
+        }
+    ],
+    "plugins": {
+        "LuckPerms": "5.4.97",
+        "CustomPlugin": "1.0.0"
+    }
+}
+```
+
+**動作:**
+- `LuckPerms`は まずローカルで検索、なければリモートから取得
+- `CustomPlugin`も同様に優先順位順に検索
+
+### チーム共有用の構成
+
+チームでリポジトリを共有する場合：
+
+```json
+{
+    "name": "team-server",
+    "version": "1.0.0",
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://team-repo.internal/plugins/",
+            "headers": {
+                "Authorization": "Bearer ${REPO_TOKEN}"
+            }
+        }
+    ],
+    "plugins": {
+        "LuckPerms": "latest",
+        "TeamPlugin": "latest"
+    },
+    "settings": {
+        "autoUpdate": true
+    }
+}
+```
+
+## 関連ファイル
+
+- [mpm-lock.yaml](/format/mpm-lock) - ロックファイル（自動生成）
+- [metadata/*.yaml](/format/managed) - 個別プラグインの詳細情報
