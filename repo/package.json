@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "cf-typegen": "wrangler types --env-interface CloudflareBindings"
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "gen-list": "tsx scripts/gen-list.ts",
+    "prepare": "pnpm run gen-list"
   },
   "keywords": [],
   "author": "",
@@ -19,5 +21,9 @@
     "hono-openapi": "^1.1.1",
     "wrangler": "^4.50.0",
     "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.21.0"
   }
 }

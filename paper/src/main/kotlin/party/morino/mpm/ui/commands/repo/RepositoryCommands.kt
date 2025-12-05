@@ -9,8 +9,9 @@
 
 package party.morino.mpm.ui.commands.repo
 
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
@@ -19,8 +20,9 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.core.plugin.DownloaderRepository
-import party.morino.mpm.api.repository.RepositoryConfig
-import party.morino.mpm.api.repository.RepositoryFile
+import party.morino.mpm.api.core.repository.PluginRepositorySourceManager
+import party.morino.mpm.api.core.repository.RepositoryConfig
+import party.morino.mpm.api.core.repository.RepositoryFile
 import java.io.File
 
 /**
@@ -34,6 +36,7 @@ class RepositoryCommands : KoinComponent {
     // KoinによるDI
     private val downloaderRepository: DownloaderRepository by inject()
     private val pluginDirectory: PluginDirectory by inject()
+    private val repositorySourceManager: PluginRepositorySourceManager by inject()
 
     // JSONシリアライザー（整形済み）
     private val json =
@@ -135,5 +138,65 @@ class RepositoryCommands : KoinComponent {
         } catch (e: Exception) {
             sender.sendMessage("リポジトリファイルの作成に失敗しました: ${e.message}")
         }
+    }
+
+    /**
+     * 利用可能なリポジトリファイルの一覧を表示するコマンド
+     * @param sender コマンド送信者
+     */
+    @Command("repository list")
+    suspend fun listRepositories(sender: CommandSender) {
+        // すべてのリポジトリソースから利用可能なプラグインを収集
+        val allPlugins = repositorySourceManager.getAvailablePlugins().toMutableSet()
+        val sourceInfo = mutableListOf<Pair<String, List<String>>>()
+
+        for (source in repositorySourceManager.getRepositorySources()) {
+            try {
+                if (source.isAvailable()) {
+                    val plugins = source.getAvailablePlugins()
+                    sourceInfo.add(
+                        source.getSourceType() to plugins
+                    )
+                }
+            } catch (e: Exception) {
+                // エラーが発生した場合はスキップ
+                continue
+            }
+        }
+
+        // 結果を表示
+        if (allPlugins.isEmpty()) {
+            sender.sendMessage(
+                Component.text("利用可能なリポジトリファイルが見つかりませんでした。", NamedTextColor.YELLOW)
+            )
+            sender.sendMessage(
+                Component.text("'mpm create-repo' コマンドでリポジトリファイルを作成できます。", NamedTextColor.GRAY)
+            )
+            return
+        }
+
+        // ヘッダー
+        sender.sendMessage(
+            Component.text("利用可能なリポジトリ一覧 (合計: ${allPlugins.size})", NamedTextColor.GREEN)
+        )
+
+        // ソースごとに表示
+        for ((sourceType, plugins) in sourceInfo) {
+            if (plugins.isNotEmpty()) {
+                sender.sendMessage(
+                    Component.text("[$sourceType] ${plugins.size}個", NamedTextColor.AQUA)
+                )
+                plugins.sorted().forEach { pluginName ->
+                    sender.sendMessage(
+                        Component.text("  - $pluginName", NamedTextColor.WHITE)
+                    )
+                }
+            }
+        }
+
+        // フッター
+        sender.sendMessage(
+            Component.text("プラグインを追加するには: /mpm add <pluginName>", NamedTextColor.GRAY)
+        )
     }
 }

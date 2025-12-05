@@ -77,4 +77,19 @@ object MockDataLoader {
          */
         fun getVersionDetail(): String = loadMockData("mock/http/modrinth/version-detail.json")
     }
+
+    /**
+     * Repository関連のmockデータを読み込む
+     */
+    object Repository {
+        /**
+         * /index.json のレスポンスを取得（プラグイン一覧）
+         */
+        fun getIndex(): String = loadMockData("mock/http/repository/index.json")
+
+        /**
+         * /luckperms.json のレスポンスを取得（リポジトリファイル）
+         */
+        fun getLuckPermsRepository(): String = loadMockData("mock/http/repository/luckperms.json")
+    }
 }

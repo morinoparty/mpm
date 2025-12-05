@@ -1,0 +1,14 @@
+{
+  "id": "luckperms",
+  "website": "https://luckperms.net",
+  "source": "https://github.com/LuckPerms/LuckPerms",
+  "license": "MIT",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "luckperms",
+      "versionModifier": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "fileNameRegex": ".*\\.jar$"
+    }
+  ]
+}

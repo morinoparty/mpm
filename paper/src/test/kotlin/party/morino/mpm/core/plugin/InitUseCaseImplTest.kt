@@ -10,6 +10,7 @@
 package party.morino.mpm.core.plugin
 
 import kotlinx.serialization.json.Json
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -23,7 +24,6 @@ import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.core.plugin.InitUseCase
 import java.io.File
-import org.junit.jupiter.api.AfterEach
 
 @ExtendWith(MinecraftPluginManagerTest::class)
 @DisplayName("InitUseCaseImplのテスト")

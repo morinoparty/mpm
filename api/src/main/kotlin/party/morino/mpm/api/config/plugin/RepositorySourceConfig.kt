@@ -9,6 +9,7 @@
 
 package party.morino.mpm.api.config.plugin
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -22,6 +23,7 @@ sealed class RepositorySourceConfig {
      * @property path リポジトリディレクトリのパス（mpm/配下の相対パス）
      */
     @Serializable
+    @SerialName("local")
     data class Local(
         val path: String = "repository"
     ) : RepositorySourceConfig()
@@ -32,16 +34,9 @@ sealed class RepositorySourceConfig {
      * @property headers リクエストに追加するHTTPヘッダー（オプション）
      */
     @Serializable
+    @SerialName("remote")
     data class Remote(
         val url: String,
         val headers: Map<String, String> = emptyMap()
     ) : RepositorySourceConfig()
-}
-
-/**
- * リポジトリソースのタイプ
- */
-enum class RepositorySourceType {
-    LOCAL,
-    REMOTE
 }

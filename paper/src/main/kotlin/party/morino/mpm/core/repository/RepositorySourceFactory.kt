@@ -7,10 +7,12 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.repository
+package party.morino.mpm.core.repository
 
 import party.morino.mpm.api.config.plugin.RepositorySourceConfig
-import party.morino.mpm.api.repository.PluginRepositorySource
+import party.morino.mpm.api.core.repository.PluginRepositorySource
+import party.morino.mpm.api.core.repository.PluginRepositorySourceManager
+import party.morino.mpm.api.core.repository.RepositoryFile
 import java.io.File
 
 /**
@@ -53,18 +55,18 @@ object RepositorySourceFactory {
 }
 
 /**
- * リポジトリソースマネージャー
+ * リポジトリソースマネージャーの実装
  * 複数のリポジトリソースを優先順位順に管理する
  */
 class RepositorySourceManager(
     private val sources: List<PluginRepositorySource>
-) {
+) : PluginRepositorySourceManager {
     /**
      * 利用可能なすべてのプラグインの一覧を取得
      * 複数のソースから重複を除いて返す
      * @return プラグイン名のリスト
      */
-    suspend fun getAvailablePlugins(): List<String> {
+    override suspend fun getAvailablePlugins(): List<String> {
         // すべてのソースから利用可能なプラグインを取得
         val allPlugins = mutableSetOf<String>()
 
@@ -89,7 +91,7 @@ class RepositorySourceManager(
      * @param pluginName プラグイン名
      * @return リポジトリファイルの内容、見つからない場合はnull
      */
-    suspend fun getRepositoryFile(pluginName: String): RepositoryFileResult? {
+    override suspend fun getRepositoryFile(pluginName: String): RepositoryFile? {
         // 優先順位順にソースを検索
         for (source in sources) {
             try {
@@ -99,11 +101,7 @@ class RepositorySourceManager(
 
                 val file = source.getRepositoryFile(pluginName)
                 if (file != null) {
-                    // 見つかった場合、ソース情報とともに返す
-                    return RepositoryFileResult(
-                        file = file,
-                        source = source
-                    )
+                    return file
                 }
             } catch (e: Exception) {
                 // エラーが発生した場合は次のソースを試す
@@ -116,10 +114,16 @@ class RepositorySourceManager(
     }
 
     /**
+     * すべてのリポジトリソースを取得
+     * @return リポジトリソースのリスト
+     */
+    override fun getRepositorySources(): List<PluginRepositorySource> = sources
+
+    /**
      * 利用可能なソースの一覧を取得
      * @return 利用可能なソースのリスト
      */
-    suspend fun getAvailableSources(): List<party.morino.mpm.api.repository.PluginRepositorySource> =
+    override suspend fun getAvailableSources(): List<PluginRepositorySource> =
         sources.filter {
             try {
                 it.isAvailable()
@@ -135,6 +139,6 @@ class RepositorySourceManager(
  * @property source ファイルを提供したソース
  */
 data class RepositoryFileResult(
-    val file: party.morino.mpm.api.repository.RepositoryFile,
-    val source: party.morino.mpm.api.repository.PluginRepositorySource
+    val file: RepositoryFile,
+    val source: PluginRepositorySource
 )

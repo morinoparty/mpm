@@ -5,18 +5,20 @@ import {
     resolver, validator,
 } from "hono-openapi";
 import { z } from "zod";
-import {PluginInfo, PluginInfoSchema} from "./type/plugin-info";
+import { PluginInfoSchema} from "./type/plugin-info";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone.js";
 import utc from "dayjs/plugin/utc.js";
-import list from "../public/_list.json"
-
+import list from "../public/paper/_list.json"
+import { trimTrailingSlash } from "hono/trailing-slash";
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 import openAPIRouter from "./open-api";
 
 const app = new Hono();
+
+app.use(trimTrailingSlash());
 
 openAPIRouter.get(
     "/openapi",
@@ -31,8 +33,9 @@ openAPIRouter.get(
     }),
 );
 
+
 app.get(
-    "/list",
+    "/paper/list",
     async (c) => {
         return c.json(list);
     },
@@ -55,7 +58,7 @@ const requestSchema = z.object({
 });
 
 app.get(
-    "/plugins/:pluginId",
+    "/paper/plugins/:pluginId",
     validator("param", requestSchema),
     async (c) => {
         const pluginId = c.req.param("pluginId");

@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.api.repository
+package party.morino.mpm.api.core.repository
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -87,8 +87,8 @@ data class RepositoryFile(
  *   例: "luckperms-.*\\.jar" → "luckperms-"で始まる.jarファイルを選択
  * @property fileNameTemplate ダウンロード後のファイル名テンプレート（オプション）
  *   ダウンロードしたファイルをリネームする場合に使用
- *   プレースホルダー: <version>, <version.major>, <version.minor>, <version.patch>
- *   例: "luckperms-<version>.jar" → "luckperms-5.4.97.jar"
+ *   プレースホルダー: ex) <mpmInfo.version.current.raw>, <mpmInfo.version.latest.normalized> <pluginInfo.name>など
+ *   例: "<mpmInfo.version.current.raw>-<mpmInfo.version.latest.normalized>.jar" → "luckperms-5.4.97.jar"
  */
 @Serializable
 data class RepositoryConfig(

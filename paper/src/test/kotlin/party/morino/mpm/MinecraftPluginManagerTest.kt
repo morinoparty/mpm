@@ -19,7 +19,6 @@ import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.mock.config.PluginDirectoryMock
-import kotlin.jvm.java
 
 class MinecraftPluginManagerTest :
     BeforeEachCallback,

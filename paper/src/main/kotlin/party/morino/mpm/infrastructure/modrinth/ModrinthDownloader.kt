@@ -67,9 +67,10 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
     override suspend fun getLatestVersion(urlData: UrlData): VersionData {
         urlData as UrlData.ModrinthUrlData
         // Modrinthのバージョン一覧APIを呼び出す
-        // loaders=["paper", "spigot"]でフィルタリングする
-        val url =
-            "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=[\"paper\", \"spigot\"]"
+        // loaders=["paper","spigot"]でフィルタリングする
+        // URLエンコードが必要な特殊文字を含むため、手動でエンコード
+        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
+        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
         val response = getRequest(url, "application/json")
         val versions = json.decodeFromString<List<ModrinthVersion>>(response)
 

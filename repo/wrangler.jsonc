@@ -1,18 +1,24 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mpm-repo",
-  "main": "src/index.ts",
-  "compatibility_date": "2025-10-17",
-  "observability": {
-    "logs": {
-      "enabled": false,
-      "head_sampling_rate": 1,
-      "invocation_logs": true,
-      "persist": true
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "mpm-repo",
+    "main": "src/index.ts",
+    "compatibility_date": "2025-10-17",
+    "observability": {
+        "logs": {
+            "enabled": false,
+            "head_sampling_rate": 1,
+            "invocation_logs": true,
+            "persist": true
+        }
+    },
+    "routes": [
+        {
+            "pattern": "repo.mpm.nikomaru.dev",
+            "custom_domain": true
+        }
+    ],
+    "assets": {
+        "directory": "./public",
+        "binding": "ASSETS"
     }
-  },
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  }
 }

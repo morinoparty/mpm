@@ -7,13 +7,13 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.repository
+package party.morino.mpm.core.repository
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import party.morino.mpm.api.repository.PluginRepositorySource
-import party.morino.mpm.api.repository.RepositoryFile
+import party.morino.mpm.api.core.repository.PluginRepositorySource
+import party.morino.mpm.api.core.repository.RepositoryFile
 import java.io.File
 
 /**
