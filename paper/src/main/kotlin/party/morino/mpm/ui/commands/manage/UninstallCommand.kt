@@ -9,8 +9,6 @@
 
 package party.morino.mpm.ui.commands.manage
 
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
@@ -44,18 +42,12 @@ class UninstallCommand : KoinComponent {
         uninstallPluginUseCase.uninstallPlugin(pluginName).fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             {
-                sender.sendMessage(
-                    Component.text("プラグイン '$pluginName' をアンインストールしました。", NamedTextColor.GREEN)
-                )
-                sender.sendMessage(
-                    Component.text("変更を反映するには、サーバーを再起動してください。", NamedTextColor.GRAY)
-                )
+                sender.sendRichMessage("<green>プラグイン '$pluginName' をアンインストールしました。</green>")
+                sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
             }
         )
     }

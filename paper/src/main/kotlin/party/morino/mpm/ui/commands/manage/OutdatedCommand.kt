@@ -9,8 +9,6 @@
 
 package party.morino.mpm.ui.commands.manage
 
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
@@ -41,39 +39,24 @@ class OutdatedCommand : KoinComponent {
         sender: CommandSender,
         @Argument("plugin") plugin: String
     ) {
-        sender.sendMessage(
-            Component.text("プラグイン '$plugin' の更新を確認しています...", NamedTextColor.GRAY)
-        )
+        sender.sendRichMessage("<gray>プラグイン '$plugin' の更新を確認しています...</gray>")
 
         // ユースケースを実行
         checkOutdatedUseCase.checkOutdated(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             { outdatedInfo ->
                 if (outdatedInfo.needsUpdate) {
-                    sender.sendMessage(
-                        Component.text("プラグイン '${outdatedInfo.pluginName}' の更新があります:", NamedTextColor.YELLOW)
-                    )
-                    sender.sendMessage(
-                        Component.text("  現在: ${outdatedInfo.currentVersion}", NamedTextColor.WHITE)
-                    )
-                    sender.sendMessage(
-                        Component.text("  最新: ${outdatedInfo.latestVersion}", NamedTextColor.GREEN)
-                    )
-                    sender.sendMessage(
-                        Component.text("更新するには 'mpm update' を実行してください。", NamedTextColor.GRAY)
-                    )
+                    sender.sendRichMessage("<yellow>プラグイン '${outdatedInfo.pluginName}' の更新があります:</yellow>")
+                    sender.sendRichMessage("  現在: ${outdatedInfo.currentVersion}")
+                    sender.sendRichMessage("<green>  最新: ${outdatedInfo.latestVersion}</green>")
+                    sender.sendRichMessage("<gray>更新するには 'mpm update' を実行してください。</gray>")
                 } else {
-                    sender.sendMessage(
-                        Component.text(
-                            "プラグイン '${outdatedInfo.pluginName}' は最新です (${outdatedInfo.currentVersion})",
-                            NamedTextColor.GREEN
-                        )
+                    sender.sendRichMessage(
+                        "<green>プラグイン '${outdatedInfo.pluginName}' は最新です (${outdatedInfo.currentVersion})</green>"
                     )
                 }
             }
@@ -86,17 +69,13 @@ class OutdatedCommand : KoinComponent {
      */
     @Command("outdatedAll")
     suspend fun outdatedAll(sender: CommandSender) {
-        sender.sendMessage(
-            Component.text("すべてのプラグインの更新を確認しています...", NamedTextColor.GRAY)
-        )
+        sender.sendRichMessage("<gray>すべてのプラグインの更新を確認しています...</gray>")
 
         // ユースケースを実行
         checkOutdatedUseCase.checkAllOutdated().fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             { outdatedInfoList ->
@@ -104,24 +83,15 @@ class OutdatedCommand : KoinComponent {
                 val needsUpdateList = outdatedInfoList.filter { it.needsUpdate }
 
                 if (needsUpdateList.isEmpty()) {
-                    sender.sendMessage(
-                        Component.text("すべてのプラグインは最新です。", NamedTextColor.GREEN)
-                    )
+                    sender.sendRichMessage("<green>すべてのプラグインは最新です。</green>")
                 } else {
-                    sender.sendMessage(
-                        Component.text("以下のプラグインに更新があります:", NamedTextColor.YELLOW)
-                    )
+                    sender.sendRichMessage("<yellow>以下のプラグインに更新があります:</yellow>")
                     needsUpdateList.forEach { outdatedInfo ->
-                        sender.sendMessage(
-                            Component.text(
-                                "  - ${outdatedInfo.pluginName}: ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion}",
-                                NamedTextColor.WHITE
-                            )
+                        sender.sendRichMessage(
+                            "  - ${outdatedInfo.pluginName}: ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion}"
                         )
                     }
-                    sender.sendMessage(
-                        Component.text("更新するには 'mpm update' を実行してください。", NamedTextColor.GRAY)
-                    )
+                    sender.sendRichMessage("<gray>更新するには 'mpm update' を実行してください。</gray>")
                 }
             }
         )

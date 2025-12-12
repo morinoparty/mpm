@@ -9,8 +9,6 @@
 
 package party.morino.mpm.ui.commands.manage
 
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
@@ -35,24 +33,18 @@ class UpdateCommand : KoinComponent {
      */
     @Command("update")
     suspend fun update(sender: CommandSender) {
-        sender.sendMessage(
-            Component.text("プラグインの更新を確認しています...", NamedTextColor.GRAY)
-        )
+        sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
 
         // ユースケースを実行
         updatePluginUseCase.updatePlugins().fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             { updateResults ->
                 if (updateResults.isEmpty()) {
-                    sender.sendMessage(
-                        Component.text("更新対象のプラグインはありませんでした。", NamedTextColor.YELLOW)
-                    )
+                    sender.sendRichMessage("<yellow>更新対象のプラグインはありませんでした。</yellow>")
                 } else {
                     // 成功と失敗を分ける
                     val successResults = updateResults.filter { it.success }
@@ -60,34 +52,23 @@ class UpdateCommand : KoinComponent {
 
                     // 成功した更新を表示
                     if (successResults.isNotEmpty()) {
-                        sender.sendMessage(
-                            Component.text("以下のプラグインを更新しました:", NamedTextColor.GREEN)
-                        )
+                        sender.sendRichMessage("<green>以下のプラグインを更新しました:</green>")
                         successResults.forEach { result ->
-                            sender.sendMessage(
-                                Component.text(
-                                    "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}",
-                                    NamedTextColor.WHITE
-                                )
+                            sender.sendRichMessage(
+                                "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}"
                             )
                         }
                     }
 
                     // 失敗した更新を表示
                     if (failedResults.isNotEmpty()) {
-                        sender.sendMessage(
-                            Component.text("以下のプラグインの更新に失敗しました:", NamedTextColor.RED)
-                        )
+                        sender.sendRichMessage("<red>以下のプラグインの更新に失敗しました:</red>")
                         failedResults.forEach { result ->
-                            sender.sendMessage(
-                                Component.text("  ✗ ${result.pluginName}: ${result.errorMessage}", NamedTextColor.WHITE)
-                            )
+                            sender.sendRichMessage("  ✗ ${result.pluginName}: ${result.errorMessage}")
                         }
                     }
 
-                    sender.sendMessage(
-                        Component.text("変更を反映するには、サーバーを再起動してください。", NamedTextColor.GRAY)
-                    )
+                    sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
                 }
             }
         )

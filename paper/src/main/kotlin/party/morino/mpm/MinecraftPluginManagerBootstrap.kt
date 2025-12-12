@@ -38,8 +38,8 @@ import party.morino.mpm.utils.CommandSenderMapper
  */
 @Suppress("unused")
 class MinecraftPluginManagerBootstrap : PluginBootstrap {
-
-    private val commands = listOf(
+    private val commands =
+        listOf(
             AddCommand(),
             InitCommand(),
             InstallCommand(),
@@ -50,9 +50,8 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
             UninstallCommand(),
             UpdateCommand(),
             VersionsCommand(),
-            RepositoryCommands(),
-
-            )
+            RepositoryCommands()
+        )
 
     /**
      * プラグインのブートストラップ処理を行うメソッド
@@ -62,10 +61,10 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
     override fun bootstrap(context: BootstrapContext) {
         // コマンドマネージャーのインスタンスを作成
         val commandManager: CommandManager<CommandSender> =
-                PaperCommandManager
-                        .builder(CommandSenderMapper())
-                        .executionCoordinator(ExecutionCoordinator.asyncCoordinator()) // 非同期実行コーディネーターを設定
-                        .buildBootstrapped(context) // ブートストラップされたコマンドマネージャーを構築
+            PaperCommandManager
+                .builder(CommandSenderMapper())
+                .executionCoordinator(ExecutionCoordinator.asyncCoordinator()) // 非同期実行コーディネーターを設定
+                .buildBootstrapped(context) // ブートストラップされたコマンドマネージャーを構築
 
         // アノテーションパーサーのインスタンスを作成
         val annotationParser = AnnotationParser(commandManager, CommandSender::class.java)
@@ -74,7 +73,7 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
         // コマンドの登録
         with(annotationParser) {
             parse(
-                    commands
+                commands
             )
         }
     }

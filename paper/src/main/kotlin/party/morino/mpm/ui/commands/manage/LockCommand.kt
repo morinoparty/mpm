@@ -9,8 +9,6 @@
 
 package party.morino.mpm.ui.commands.manage
 
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
@@ -47,18 +45,12 @@ class LockCommand : KoinComponent {
         lockPluginUseCase.lockPlugin(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             {
-                sender.sendMessage(
-                    Component.text("プラグイン '$plugin' をロックしました。", NamedTextColor.GREEN)
-                )
-                sender.sendMessage(
-                    Component.text("このプラグインは自動更新されません。", NamedTextColor.GRAY)
-                )
+                sender.sendRichMessage("<green>プラグイン '$plugin' をロックしました。</green>")
+                sender.sendRichMessage("<gray>このプラグインは自動更新されません。</gray>")
             }
         )
     }
@@ -77,18 +69,12 @@ class LockCommand : KoinComponent {
         unlockPluginUseCase.unlockPlugin(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             {
-                sender.sendMessage(
-                    Component.text("プラグイン '$plugin' のロックを解除しました。", NamedTextColor.GREEN)
-                )
-                sender.sendMessage(
-                    Component.text("このプラグインは自動更新の対象になります。", NamedTextColor.GRAY)
-                )
+                sender.sendRichMessage("<green>プラグイン '$plugin' のロックを解除しました。</green>")
+                sender.sendRichMessage("<gray>このプラグインは自動更新の対象になります。</gray>")
             }
         )
     }

@@ -50,9 +50,10 @@ class UnlockPluginUseCaseImpl :
         // ロックフラグを解除
         val updatedMetadata =
             metadata.copy(
-                mpmInfo = metadata.mpmInfo.copy(
-                    settings = metadata.mpmInfo.settings.copy(lock = false)
-                )
+                mpmInfo =
+                    metadata.mpmInfo.copy(
+                        settings = metadata.mpmInfo.settings.copy(lock = false)
+                    )
             )
 
         // メタデータを保存
