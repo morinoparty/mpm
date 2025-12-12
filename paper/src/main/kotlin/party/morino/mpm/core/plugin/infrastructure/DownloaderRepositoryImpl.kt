@@ -17,9 +17,9 @@ import party.morino.mpm.api.model.repository.RepositoryType
 import party.morino.mpm.api.model.repository.UrlData
 import party.morino.mpm.api.model.repository.VersionData
 import party.morino.mpm.infrastructure.github.GithubDownloader
+import party.morino.mpm.infrastructure.modrinth.ModrinthDownloader
 import party.morino.mpm.infrastructure.spigot.SpigotDownloader
 import java.io.File
-import party.morino.mpm.infrastructure.modrinth.ModrinthDownloader
 
 /**
  * DownloaderRepositoryの実装クラス

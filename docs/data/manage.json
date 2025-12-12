@@ -42,7 +42,7 @@
         },
         {
             "command": "mpm remove <pluginName>",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "アンインストール・削除",
             "description": "プラグインを管理対象から除外します（ファイルは削除されません）",
@@ -55,7 +55,7 @@
         },
         {
             "command": "mpm removeUnmanaged",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "アンインストール・削除",
             "description": "mpm管理下にないプラグインを削除します"
@@ -91,7 +91,7 @@
         },
         {
             "command": "mpm outdated <plugin>",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "更新管理",
             "description": "プラグインの更新を確認します",
@@ -104,21 +104,21 @@
         },
         {
             "command": "mpm outdatedAll",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "更新管理",
             "description": "すべてのプラグインの更新を確認します"
         },
         {
             "command": "mpm update",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "更新管理",
             "description": "新しいバージョンがあるプラグインを更新します"
         },
         {
             "command": "mpm lock <plugin>",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "更新管理",
             "description": "プラグインをロックして自動更新を防ぎます",
@@ -131,7 +131,7 @@
         },
         {
             "command": "mpm unlock <plugin>",
-            "status": "proposal",
+            "status": "newly",
             "category": "manage",
             "section": "更新管理",
             "description": "プラグインのロックを解除します",
