@@ -63,7 +63,7 @@ jobs:
           # baseUrlを一時的に変更
           sed -i 's#baseUrl: "/"#baseUrl: "/mpm/${{ env.COMMIT_SHORT_SHA }}/docs/"#g' docusaurus.config.ts
           # urlを一時的に変更
-          sed -i 's#url: "https://mpm.plugin.morino.party"#url: "https://mp-ci.nikomaru.dev#g' docusaurus.config.ts
+          sed -i 's#url: "https://mpm.plugin.morino.party"#url: "https://mp-ci.nikomaru.dev"#g' docusaurus.config.ts
 
       - name: Install docs dependencies
         working-directory: docs
