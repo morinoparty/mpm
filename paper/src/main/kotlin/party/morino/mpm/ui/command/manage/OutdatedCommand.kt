@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -15,7 +15,8 @@ import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.CheckOutdatedUseCase
+import party.morino.mpm.api.core.plugin.PluginInfoManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 
 /**
  * プラグイン更新確認コマンドのコントローラー
@@ -27,22 +28,23 @@ import party.morino.mpm.api.core.plugin.CheckOutdatedUseCase
 @Permission("mpm.command")
 class OutdatedCommand : KoinComponent {
     // Koinによる依存性注入
-    private val checkOutdatedUseCase: CheckOutdatedUseCase by inject()
+    private val infoManager: PluginInfoManager by inject()
 
     /**
      * 指定されたプラグインの更新を確認するコマンド
      * @param sender コマンド送信者
-     * @param plugin プラグイン名
+     * @param plugin インストール済みプラグイン
      */
     @Command("outdated <plugin>")
     suspend fun outdated(
         sender: CommandSender,
-        @Argument("plugin") plugin: String
+        @Argument("plugin") plugin: InstalledPlugin
     ) {
-        sender.sendRichMessage("<gray>プラグイン '$plugin' の更新を確認しています...</gray>")
+        val pluginName = plugin.pluginId
+        sender.sendRichMessage("<gray>プラグイン '$pluginName' の更新を確認しています...</gray>")
 
-        // ユースケースを実行
-        checkOutdatedUseCase.checkOutdated(plugin).fold(
+        // PluginInfoManagerを実行
+        infoManager.checkOutdated(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")
@@ -71,8 +73,8 @@ class OutdatedCommand : KoinComponent {
     suspend fun outdatedAll(sender: CommandSender) {
         sender.sendRichMessage("<gray>すべてのプラグインの更新を確認しています...</gray>")
 
-        // ユースケースを実行
-        checkOutdatedUseCase.checkAllOutdated().fold(
+        // PluginInfoManagerを実行
+        infoManager.checkAllOutdated().fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")

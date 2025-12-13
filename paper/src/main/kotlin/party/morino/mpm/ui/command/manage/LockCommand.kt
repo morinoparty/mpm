@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -15,8 +15,8 @@ import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.LockPluginUseCase
-import party.morino.mpm.api.core.plugin.UnlockPluginUseCase
+import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 
 /**
  * プラグインロック/アンロックコマンドのコントローラー
@@ -28,28 +28,28 @@ import party.morino.mpm.api.core.plugin.UnlockPluginUseCase
 @Permission("mpm.command")
 class LockCommand : KoinComponent {
     // Koinによる依存性注入
-    private val lockPluginUseCase: LockPluginUseCase by inject()
-    private val unlockPluginUseCase: UnlockPluginUseCase by inject()
+    private val updateManager: PluginUpdateManager by inject()
 
     /**
      * プラグインをロックするコマンド
      * @param sender コマンド送信者
-     * @param plugin プラグイン名
+     * @param plugin インストール済みプラグイン
      */
     @Command("lock <plugin>")
     suspend fun lock(
         sender: CommandSender,
-        @Argument("plugin") plugin: String
+        @Argument("plugin") plugin: InstalledPlugin
     ) {
-        // ユースケースを実行
-        lockPluginUseCase.lockPlugin(plugin).fold(
+        val pluginName = plugin.pluginId
+        // PluginUpdateManagerを実行
+        updateManager.lock(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$plugin' をロックしました。</green>")
+                sender.sendRichMessage("<green>プラグイン '$pluginName' をロックしました。</green>")
                 sender.sendRichMessage("<gray>このプラグインは自動更新されません。</gray>")
             }
         )
@@ -58,22 +58,23 @@ class LockCommand : KoinComponent {
     /**
      * プラグインのロックを解除するコマンド
      * @param sender コマンド送信者
-     * @param plugin プラグイン名
+     * @param plugin インストール済みプラグイン
      */
     @Command("unlock <plugin>")
     suspend fun unlock(
         sender: CommandSender,
-        @Argument("plugin") plugin: String
+        @Argument("plugin") plugin: InstalledPlugin
     ) {
-        // ユースケースを実行
-        unlockPluginUseCase.unlockPlugin(plugin).fold(
+        val pluginName = plugin.pluginId
+        // PluginUpdateManagerを実行
+        updateManager.unlock(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$plugin' のロックを解除しました。</green>")
+                sender.sendRichMessage("<green>プラグイン '$pluginName' のロックを解除しました。</green>")
                 sender.sendRichMessage("<gray>このプラグインは自動更新の対象になります。</gray>")
             }
         )

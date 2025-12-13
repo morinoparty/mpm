@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -15,8 +15,8 @@ import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.RemovePluginUseCase
-import party.morino.mpm.api.core.plugin.RemoveUnmanagedUseCase
+import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 
 /**
  * プラグイン削除コマンドのコントローラー
@@ -27,21 +27,21 @@ import party.morino.mpm.api.core.plugin.RemoveUnmanagedUseCase
 @Permission("mpm.command")
 class RemoveCommand : KoinComponent {
     // Koinによる依存性注入
-    private val removePluginUseCase: RemovePluginUseCase by inject()
-    private val removeUnmanagedUseCase: RemoveUnmanagedUseCase by inject()
+    private val lifecycleManager: PluginLifecycleManager by inject()
 
     /**
      * プラグインを管理対象から除外するコマンド
      * @param sender コマンド送信者
-     * @param pluginName プラグイン名
+     * @param plugin インストール済みプラグイン
      */
     @Command("remove <pluginName>")
     suspend fun remove(
         sender: CommandSender,
-        @Argument("pluginName") pluginName: String
+        @Argument("pluginName") plugin: InstalledPlugin
     ) {
-        // ユースケースを実行
-        removePluginUseCase.removePlugin(pluginName).fold(
+        val pluginName = plugin.pluginId
+        // PluginLifecycleManagerを実行
+        lifecycleManager.remove(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")
@@ -63,8 +63,8 @@ class RemoveCommand : KoinComponent {
     suspend fun removeUnmanaged(sender: CommandSender) {
         sender.sendRichMessage("<gray>管理外のプラグインを検索しています...</gray>")
 
-        // ユースケースを実行
-        removeUnmanagedUseCase.removeUnmanaged().fold(
+        // PluginLifecycleManagerを実行
+        lifecycleManager.removeUnmanaged().fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")

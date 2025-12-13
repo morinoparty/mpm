@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -16,7 +16,8 @@ import org.incendo.cloud.annotations.Flag
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginVersionsUseCase
+import party.morino.mpm.api.core.plugin.PluginInfoManager
+import party.morino.mpm.api.model.plugin.RepositoryPlugin
 
 /**
  * プラグインバージョン一覧表示コマンドのコントローラー
@@ -27,24 +28,25 @@ import party.morino.mpm.api.core.plugin.PluginVersionsUseCase
 @Permission("mpm.command")
 class VersionsCommand : KoinComponent {
     // Koinによる依存性注入
-    private val pluginVersionsUseCase: PluginVersionsUseCase by inject()
+    private val infoManager: PluginInfoManager by inject()
 
     /**
      * 指定されたプラグインの利用可能なバージョン一覧を表示するコマンド
      * @param sender コマンド送信者
-     * @param plugin プラグイン名
+     * @param plugin リポジトリプラグイン
      * @param limit 表示するバージョンの最大数（デフォルト: 20）
      */
     @Command("versions <plugin>")
     suspend fun versions(
         sender: CommandSender,
-        @Argument("plugin") plugin: String,
+        @Argument("plugin") plugin: RepositoryPlugin,
         @Flag("limit") limit: Int = 20
     ) {
-        sender.sendRichMessage("<gray>プラグイン '$plugin' のバージョン一覧を取得しています...</gray>")
+        val pluginName = plugin.pluginId
+        sender.sendRichMessage("<gray>プラグイン '$pluginName' のバージョン一覧を取得しています...</gray>")
 
-        // ユースケースを実行
-        pluginVersionsUseCase.getVersions(plugin).fold(
+        // PluginInfoManagerを実行
+        infoManager.getVersions(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")

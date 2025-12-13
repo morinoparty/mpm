@@ -13,40 +13,22 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.core.plugin.AddPluginUseCase
-import party.morino.mpm.api.core.plugin.BulkInstallUseCase
-import party.morino.mpm.api.core.plugin.CheckOutdatedUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
-import party.morino.mpm.api.core.plugin.InitUseCase
-import party.morino.mpm.api.core.plugin.LockPluginUseCase
-import party.morino.mpm.api.core.plugin.PluginInstallUseCase
-import party.morino.mpm.api.core.plugin.PluginListUseCase
+import party.morino.mpm.api.core.plugin.PluginInfoManager
+import party.morino.mpm.api.core.plugin.PluginLifecycleManager
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
 import party.morino.mpm.api.core.plugin.PluginRepository
-import party.morino.mpm.api.core.plugin.PluginVersionsUseCase
-import party.morino.mpm.api.core.plugin.RemovePluginUseCase
-import party.morino.mpm.api.core.plugin.RemoveUnmanagedUseCase
-import party.morino.mpm.api.core.plugin.UninstallPluginUseCase
-import party.morino.mpm.api.core.plugin.UnlockPluginUseCase
-import party.morino.mpm.api.core.plugin.UpdatePluginUseCase
+import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import party.morino.mpm.api.core.plugin.ProjectManager
 import party.morino.mpm.api.core.repository.PluginRepositorySourceManager
 import party.morino.mpm.config.PluginDirectoryImpl
+import party.morino.mpm.core.plugin.PluginInfoManagerImpl
+import party.morino.mpm.core.plugin.PluginLifecycleManagerImpl
+import party.morino.mpm.core.plugin.PluginUpdateManagerImpl
+import party.morino.mpm.core.plugin.ProjectManagerImpl
 import party.morino.mpm.core.plugin.infrastructure.DownloaderRepositoryImpl
 import party.morino.mpm.core.plugin.infrastructure.PluginMetadataManagerImpl
 import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
-import party.morino.mpm.core.plugin.usecase.AddPluginUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.BulkInstallUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.CheckOutdatedUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.InitUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.LockPluginUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.PluginInstallUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.PluginListUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.PluginVersionsUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.RemovePluginUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.RemoveUnmanagedUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.UninstallPluginUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.UnlockPluginUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.UpdatePluginUseCaseImpl
 import party.morino.mpm.core.repository.RepositorySourceManagerFactory
 
 /**
@@ -98,20 +80,11 @@ open class MinecraftPluginManager : JavaPlugin() {
                 // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
 
-                // ユースケースの登録（依存性はKoinのinjectによって自動注入される）
-                single<InitUseCase> { InitUseCaseImpl() }
-                single<AddPluginUseCase> { AddPluginUseCaseImpl() }
-                single<UninstallPluginUseCase> { UninstallPluginUseCaseImpl() }
-                single<PluginInstallUseCase> { PluginInstallUseCaseImpl() }
-                single<PluginListUseCase> { PluginListUseCaseImpl() }
-                single<BulkInstallUseCase> { BulkInstallUseCaseImpl() }
-                single<RemovePluginUseCase> { RemovePluginUseCaseImpl() }
-                single<RemoveUnmanagedUseCase> { RemoveUnmanagedUseCaseImpl() }
-                single<CheckOutdatedUseCase> { CheckOutdatedUseCaseImpl() }
-                single<UpdatePluginUseCase> { UpdatePluginUseCaseImpl() }
-                single<LockPluginUseCase> { LockPluginUseCaseImpl() }
-                single<UnlockPluginUseCase> { UnlockPluginUseCaseImpl() }
-                single<PluginVersionsUseCase> { PluginVersionsUseCaseImpl() }
+                // ドメイン単位のManagerの登録（Facadeパターンで関連UseCaseをまとめる）
+                single<PluginLifecycleManager> { PluginLifecycleManagerImpl() }
+                single<PluginInfoManager> { PluginInfoManagerImpl() }
+                single<PluginUpdateManager> { PluginUpdateManagerImpl() }
+                single<ProjectManager> { ProjectManagerImpl() }
             }
 
         // Koinの開始（すでに開始されている場合は何もしない）

@@ -7,14 +7,14 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.UpdatePluginUseCase
+import party.morino.mpm.api.core.plugin.PluginUpdateManager
 
 /**
  * プラグイン更新コマンドのコントローラー
@@ -25,7 +25,7 @@ import party.morino.mpm.api.core.plugin.UpdatePluginUseCase
 @Permission("mpm.command")
 class UpdateCommand : KoinComponent {
     // Koinによる依存性注入
-    private val updatePluginUseCase: UpdatePluginUseCase by inject()
+    private val updateManager: PluginUpdateManager by inject()
 
     /**
      * 新しいバージョンがあるプラグインを更新するコマンド
@@ -35,8 +35,8 @@ class UpdateCommand : KoinComponent {
     suspend fun update(sender: CommandSender) {
         sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
 
-        // ユースケースを実行
-        updatePluginUseCase.updatePlugins().fold(
+        // PluginUpdateManagerを実行
+        updateManager.update().fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")

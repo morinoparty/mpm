@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -16,7 +16,7 @@ import org.incendo.cloud.annotations.Flag
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.InitUseCase
+import party.morino.mpm.api.core.plugin.ProjectManager
 
 /**
  * プロジェクト初期化コマンドのコントローラー
@@ -27,7 +27,7 @@ import party.morino.mpm.api.core.plugin.InitUseCase
 @Permission("mpm.command")
 class InitCommand : KoinComponent {
     // KoinによるDI
-    private val initUseCase: InitUseCase by inject()
+    private val projectManager: ProjectManager by inject()
 
     /**
      * プロジェクトを初期化し、mpm.jsonを生成するコマンド
@@ -54,8 +54,8 @@ class InitCommand : KoinComponent {
 
         sender.sendMessage("プロジェクトを初期化しています...")
 
-        // InitUseCaseを実行
-        initUseCase.initialize(name, overwrite).fold(
+        // ProjectManagerを実行
+        projectManager.initialize(name, overwrite).fold(
             // エラーの場合
             { errorMessage ->
                 sender.sendMessage("❌ エラー: $errorMessage")

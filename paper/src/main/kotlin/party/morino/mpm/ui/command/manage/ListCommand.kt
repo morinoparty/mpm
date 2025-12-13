@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Command
@@ -15,7 +15,7 @@ import org.incendo.cloud.annotations.Flag
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginListUseCase
+import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.model.plugin.PluginData
 
 /**
@@ -25,7 +25,7 @@ import party.morino.mpm.api.model.plugin.PluginData
 @Permission("mpm.command")
 class ListCommand : KoinComponent {
     // KoinによるDI
-    private val pluginListUseCase: PluginListUseCase by inject()
+    private val infoManager: PluginInfoManager by inject()
 
     /**
      * 管理下のプラグインリストを表示するコマンド
@@ -49,19 +49,19 @@ class ListCommand : KoinComponent {
         sender.sendRichMessage("===== プラグイン一覧 =====")
 
         if (shouldShowAll || showEnabled) {
-            val enabledPlugins = pluginListUseCase.getEnabledPlugins()
+            val enabledPlugins = infoManager.getEnabledPlugins()
             sender.sendRichMessage("--- 有効なプラグイン (${enabledPlugins.size}) ---")
             displayPlugins(sender, enabledPlugins)
         }
 
         if (shouldShowAll || showDisabled) {
-            val disabledPlugins = pluginListUseCase.getDisabledPlugins()
+            val disabledPlugins = infoManager.getDisabledPlugins()
             sender.sendRichMessage("--- 無効なプラグイン (${disabledPlugins.size}) ---")
             displayPlugins(sender, disabledPlugins)
         }
 
         if (shouldShowAll || showUnmanaged) {
-            val unmanagedPlugins = pluginListUseCase.getUnmanagedPlugins()
+            val unmanagedPlugins = infoManager.getUnmanagedPlugins()
             sender.sendRichMessage("--- 管理されていないプラグイン (${unmanagedPlugins.size}) ---")
             unmanagedPlugins.forEach { sender.sendMessage(" - $it") }
         }

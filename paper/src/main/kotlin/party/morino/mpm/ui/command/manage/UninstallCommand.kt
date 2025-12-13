@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -15,7 +15,8 @@ import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.UninstallPluginUseCase
+import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 
 /**
  * プラグインアンインストールコマンドのコントローラー
@@ -26,20 +27,21 @@ import party.morino.mpm.api.core.plugin.UninstallPluginUseCase
 @Permission("mpm.command")
 class UninstallCommand : KoinComponent {
     // KoinによるDI
-    private val uninstallPluginUseCase: UninstallPluginUseCase by inject()
+    private val lifecycleManager: PluginLifecycleManager by inject()
 
     /**
      * プラグインをアンインストールするコマンド
      * @param sender コマンド送信者
-     * @param pluginName プラグイン名
+     * @param plugin インストール済みプラグイン
      */
     @Command("uninstall <pluginName>")
     suspend fun uninstall(
         sender: CommandSender,
-        @Argument("pluginName") pluginName: String
+        @Argument("pluginName") plugin: InstalledPlugin
     ) {
-        // ユースケースを実行
-        uninstallPluginUseCase.uninstallPlugin(pluginName).fold(
+        val pluginName = plugin.pluginId
+        // PluginLifecycleManagerを実行
+        lifecycleManager.uninstall(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage</red>")

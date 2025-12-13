@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.repo
+package party.morino.mpm.ui.command.repo
 
 import kotlinx.serialization.json.Json
 import org.bukkit.command.CommandSender

@@ -7,14 +7,14 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.BulkInstallUseCase
+import party.morino.mpm.api.core.plugin.PluginUpdateManager
 
 /**
  * 一括インストールコマンドのコントローラー
@@ -25,7 +25,7 @@ import party.morino.mpm.api.core.plugin.BulkInstallUseCase
 @Permission("mpm.command")
 class InstallCommand : KoinComponent {
     // KoinによるDI
-    private val bulkInstallUseCase: BulkInstallUseCase by inject()
+    private val updateManager: PluginUpdateManager by inject()
 
     /**
      * mpm.jsonに定義されたプラグインを一括インストールするコマンド
@@ -35,8 +35,8 @@ class InstallCommand : KoinComponent {
     suspend fun install(sender: CommandSender) {
         sender.sendRichMessage("<gray>mpm.jsonを読み込んでいます...")
 
-        // ユースケースを実行
-        bulkInstallUseCase.installAll().fold(
+        // PluginUpdateManagerを実行
+        updateManager.installAll().fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage")
