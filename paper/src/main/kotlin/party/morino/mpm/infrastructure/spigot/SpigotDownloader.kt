@@ -110,6 +110,27 @@ open class SpigotDownloader : AbstractPluginDownloader() {
     }
 
     /**
+     * すべてのバージョンを取得
+     * @param urlData SpigotMCのURL情報
+     * @return バージョンリスト（新しい順）
+     */
+    override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
+        urlData as UrlData.SpigotMcUrlData
+        // 全バージョンを取得（size制限なし、降順ソート）
+        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-name"
+        val response = getRequest(url, "application/json")
+        val versions = json.parseToJsonElement(response).jsonArray
+
+        // バージョン情報のリストに変換
+        return versions.map { versionElement ->
+            val versionJson = versionElement.jsonObject
+            val version = versionJson["name"]?.jsonPrimitive?.content ?: "unknown"
+            val id = versionJson["id"]?.jsonPrimitive?.content ?: "unknown"
+            VersionData(downloadId = id, version = version)
+        }
+    }
+
+    /**
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン

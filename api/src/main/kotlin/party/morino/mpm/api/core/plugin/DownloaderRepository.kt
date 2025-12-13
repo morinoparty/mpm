@@ -52,6 +52,13 @@ interface DownloaderRepository {
     ): VersionData
 
     /**
+     * すべてのバージョンを取得
+     * @param urlData URLデータ
+     * @return バージョンリスト（新しい順）
+     */
+    suspend fun getAllVersions(urlData: UrlData): List<VersionData>
+
+    /**
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン

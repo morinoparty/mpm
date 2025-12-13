@@ -90,6 +90,27 @@ open class GithubDownloader : AbstractPluginDownloader() {
     }
 
     /**
+     * すべてのバージョンを取得
+     * @param urlData GitHubのURL情報
+     * @return バージョンリスト（新しい順）
+     */
+    override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
+        urlData as UrlData.GithubUrlData
+        // すべてのリリースを取得
+        val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases"
+        val response = getRequest(url, "application/vnd.github+json")
+        val releases = json.parseToJsonElement(response).jsonArray
+
+        // 各リリースからバージョン情報を抽出
+        return releases.map { releaseElement ->
+            val releaseJson = releaseElement.jsonObject
+            val id = releaseJson["id"]?.jsonPrimitive?.content ?: "unknown"
+            val tagName = releaseJson["tag_name"]?.jsonPrimitive?.content ?: "unknown"
+            VersionData(downloadId = id, version = tagName)
+        }
+    }
+
+    /**
      * 指定バージョンのプラグインをダウンロード
      * @param urlData GitHubのURL情報
      * @param version バージョン名

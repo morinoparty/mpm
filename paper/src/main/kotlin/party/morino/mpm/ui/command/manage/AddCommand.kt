@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
@@ -15,8 +15,8 @@ import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.AddPluginUseCase
-import party.morino.mpm.api.core.plugin.PluginInstallUseCase
+import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.model.plugin.RepositoryPlugin
 
 /**
  * プラグイン追加コマンドのコントローラー
@@ -27,23 +27,23 @@ import party.morino.mpm.api.core.plugin.PluginInstallUseCase
 @Permission("mpm.command")
 class AddCommand : KoinComponent {
     // KoinによるDI
-    private val addPluginUseCase: AddPluginUseCase by inject()
-    private val pluginInstallUseCase: PluginInstallUseCase by inject()
+    private val lifecycleManager: PluginLifecycleManager by inject()
 
     /**
      * プラグインを管理対象に追加するコマンド
      * @param sender コマンド送信者
-     * @param pluginName プラグイン名
+     * @param plugin プラグイン名
      */
     @Command("add <pluginName>")
     suspend fun add(
         sender: CommandSender,
-        @Argument("pluginName") pluginName: String
+        @Argument("pluginName") plugin: RepositoryPlugin
     ) {
+        val pluginName = plugin.pluginId
         sender.sendRichMessage("<gray>プラグイン '$pluginName' の情報を取得しています...")
 
-        // ユースケースを実行
-        addPluginUseCase.addPlugin(pluginName).fold(
+        // PluginLifecycleManagerを実行
+        lifecycleManager.add(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage")
@@ -53,7 +53,7 @@ class AddCommand : KoinComponent {
                 sender.sendRichMessage("<green>プラグイン '$pluginName' の情報を追加しました。")
                 sender.sendRichMessage("<gray>プラグイン '$pluginName' をインストールしています...")
 
-                pluginInstallUseCase.installPlugin(pluginName).fold(
+                lifecycleManager.install(plugin).fold(
                     { errorMessage ->
                         sender.sendRichMessage("<red>$errorMessage")
                     },

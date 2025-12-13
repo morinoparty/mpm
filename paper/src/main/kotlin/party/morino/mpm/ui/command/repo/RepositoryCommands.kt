@@ -7,11 +7,9 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.repo
+package party.morino.mpm.ui.command.repo
 
 import kotlinx.serialization.json.Json
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
@@ -157,7 +155,7 @@ class RepositoryCommands : KoinComponent {
                 if (source.isAvailable()) {
                     val plugins = source.getAvailablePlugins()
                     sourceInfo.add(
-                        source.getSourceType() to plugins
+                        source.getIdentifier() to plugins
                     )
                 }
             } catch (e: Exception) {
@@ -168,37 +166,25 @@ class RepositoryCommands : KoinComponent {
 
         // 結果を表示
         if (allPlugins.isEmpty()) {
-            sender.sendMessage(
-                Component.text("利用可能なリポジトリファイルが見つかりませんでした。", NamedTextColor.YELLOW)
-            )
-            sender.sendMessage(
-                Component.text("'mpm create-repo' コマンドでリポジトリファイルを作成できます。", NamedTextColor.GRAY)
-            )
+            sender.sendRichMessage("<yellow>利用可能なリポジトリファイルが見つかりませんでした。")
+            sender.sendRichMessage("<gray>'mpm create-repo' コマンドでリポジトリファイルを作成できます。")
             return
         }
 
         // ヘッダー
-        sender.sendMessage(
-            Component.text("利用可能なリポジトリ一覧 (合計: ${allPlugins.size})", NamedTextColor.GREEN)
-        )
+        sender.sendRichMessage("<green>利用可能なリポジトリ一覧 (合計: ${allPlugins.size})")
 
         // ソースごとに表示
         for ((sourceType, plugins) in sourceInfo) {
             if (plugins.isNotEmpty()) {
-                sender.sendMessage(
-                    Component.text("[$sourceType] ${plugins.size}個", NamedTextColor.AQUA)
-                )
+                sender.sendRichMessage("<white>[$sourceType] ${plugins.size}個")
                 plugins.sorted().forEach { pluginName ->
-                    sender.sendMessage(
-                        Component.text("  - $pluginName", NamedTextColor.WHITE)
-                    )
+                    sender.sendRichMessage("<white>  - $pluginName")
                 }
             }
         }
 
         // フッター
-        sender.sendMessage(
-            Component.text("プラグインを追加するには: /mpm add <pluginName>", NamedTextColor.GRAY)
-        )
+        sender.sendRichMessage("<gray>プラグインを追加するには: /mpm add <pluginName>")
     }
 }

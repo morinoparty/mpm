@@ -54,7 +54,7 @@ class RemoteRepositorySource(
             try {
                 // ベースURLにHEADリクエストを送信
                 val response =
-                    httpClient.head("${url.trimEnd('/')}/_list.json") {
+                    httpClient.head("${url.trimEnd('/')}/list") {
                         headers {
                             append(HttpHeaders.UserAgent, "MinecraftPluginManager")
                             // カスタムヘッダーを追加
@@ -81,7 +81,7 @@ class RemoteRepositorySource(
         withContext(Dispatchers.IO) {
             try {
                 // {url}/index.json にGETリクエストを送信
-                val indexUrl = "${url.trimEnd('/')}/_list.json"
+                val indexUrl = "${url.trimEnd('/')}/list"
                 val response =
                     httpClient.get(indexUrl) {
                         headers {

@@ -50,9 +50,10 @@ class LockPluginUseCaseImpl :
         // ロックフラグを設定
         val updatedMetadata =
             metadata.copy(
-                mpmInfo = metadata.mpmInfo.copy(
-                    settings = metadata.mpmInfo.settings.copy(lock = true)
-                )
+                mpmInfo =
+                    metadata.mpmInfo.copy(
+                        settings = metadata.mpmInfo.settings.copy(lock = true)
+                    )
             )
 
         // メタデータを保存

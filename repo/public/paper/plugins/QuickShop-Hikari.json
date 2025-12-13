@@ -8,7 +8,7 @@
       "type": "modrinth",
       "id": "ijC5dDkD",
       "fileNameRegex": "QuickShop-Hikari-.*\\.jar$",
-      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*).(0|[1-9]\\d*"
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
     },
     {
       "type": "spigot",

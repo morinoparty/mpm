@@ -103,6 +103,23 @@
             "description": "すべてのプラグインの更新を確認します"
         },
         {
+            "command": "mpm versions <plugin> [[--limit]]",
+            "status": "newly",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "プラグインの利用可能なバージョン一覧を表示します（デフォルト: 20件まで）",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                },
+                {
+                    "name": "--limit",
+                    "required": false
+                }
+            ]
+        },
+        {
             "command": "mpm update",
             "status": "newly",
             "category": "manage",

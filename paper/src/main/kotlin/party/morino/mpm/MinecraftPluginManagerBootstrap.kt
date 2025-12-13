@@ -14,18 +14,26 @@ import io.papermc.paper.plugin.bootstrap.PluginBootstrap
 import io.papermc.paper.plugin.bootstrap.PluginProviderContext
 import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
-import org.incendo.cloud.CommandManager
 import org.incendo.cloud.annotations.AnnotationParser
+import org.incendo.cloud.brigadier.BrigadierSetting
 import org.incendo.cloud.execution.ExecutionCoordinator
 import org.incendo.cloud.kotlin.coroutines.annotations.installCoroutineSupport
 import org.incendo.cloud.paper.PaperCommandManager
-import party.morino.mpm.ui.commands.manage.AddCommand
-import party.morino.mpm.ui.commands.manage.InitCommand
-import party.morino.mpm.ui.commands.manage.InstallCommand
-import party.morino.mpm.ui.commands.manage.ListCommand
-import party.morino.mpm.ui.commands.manage.UninstallCommand
-import party.morino.mpm.ui.commands.repo.RepositoryCommands
+import org.incendo.cloud.setting.Configurable
+import party.morino.mpm.ui.command.manage.AddCommand
+import party.morino.mpm.ui.command.manage.InitCommand
+import party.morino.mpm.ui.command.manage.InstallCommand
+import party.morino.mpm.ui.command.manage.ListCommand
+import party.morino.mpm.ui.command.manage.LockCommand
+import party.morino.mpm.ui.command.manage.OutdatedCommand
+import party.morino.mpm.ui.command.manage.RemoveCommand
+import party.morino.mpm.ui.command.manage.UninstallCommand
+import party.morino.mpm.ui.command.manage.UpdateCommand
+import party.morino.mpm.ui.command.manage.VersionsCommand
+import party.morino.mpm.ui.command.repo.RepositoryCommands
 import party.morino.mpm.utils.CommandSenderMapper
+import party.morino.mpm.utils.command.parser.InstalledPluginParser
+import party.morino.mpm.utils.command.parser.RepositoryPluginParser
 
 /**
  * MinecraftPluginManagerのブートストラップクラス
@@ -33,6 +41,22 @@ import party.morino.mpm.utils.CommandSenderMapper
  */
 @Suppress("unused")
 class MinecraftPluginManagerBootstrap : PluginBootstrap {
+    lateinit var commandManager: PaperCommandManager.Bootstrapped<CommandSender>
+    private val commands =
+        listOf(
+            AddCommand(),
+            InitCommand(),
+            InstallCommand(),
+            ListCommand(),
+            LockCommand(),
+            OutdatedCommand(),
+            RemoveCommand(),
+            UninstallCommand(),
+            UpdateCommand(),
+            VersionsCommand(),
+            RepositoryCommands()
+        )
+
     /**
      * プラグインのブートストラップ処理を行うメソッド
      * コマンドマネージャーの設定とコマンドの登録を行う
@@ -40,25 +64,28 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
      */
     override fun bootstrap(context: BootstrapContext) {
         // コマンドマネージャーのインスタンスを作成
-        val commandManager: CommandManager<CommandSender> =
+        commandManager =
             PaperCommandManager
                 .builder(CommandSenderMapper())
-                .executionCoordinator(ExecutionCoordinator.asyncCoordinator()) // 非同期実行コーディネーターを設定
+                .executionCoordinator(ExecutionCoordinator.simpleCoordinator()) // 非同期実行コーディネーターを設定
                 .buildBootstrapped(context) // ブートストラップされたコマンドマネージャーを構築
+
+        val manager = commandManager.brigadierManager()
+        val settings: Configurable<BrigadierSetting> = manager.settings()
+        manager.setNativeNumberSuggestions(true)
+        settings.set(BrigadierSetting.FORCE_EXECUTABLE, true)
 
         // アノテーションパーサーのインスタンスを作成
         val annotationParser = AnnotationParser(commandManager, CommandSender::class.java)
         annotationParser.installCoroutineSupport()
 
+        commandManager.parserRegistry().registerParser(InstalledPluginParser.installedPluginParser())
+        commandManager.parserRegistry().registerParser(RepositoryPluginParser.repositoryPluginParser())
+
         // コマンドの登録
         with(annotationParser) {
             parse(
-                InstallCommand(),
-                AddCommand(),
-                UninstallCommand(),
-                ListCommand(),
-                RepositoryCommands(),
-                InitCommand()
+                commands
             )
         }
     }

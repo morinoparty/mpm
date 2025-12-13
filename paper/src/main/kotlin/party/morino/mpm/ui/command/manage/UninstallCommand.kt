@@ -7,17 +7,16 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.ui.commands.manage
+package party.morino.mpm.ui.command.manage
 
-import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.command.CommandSender
 import org.incendo.cloud.annotations.Argument
 import org.incendo.cloud.annotations.Command
 import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.UninstallPluginUseCase
+import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 
 /**
  * プラグインアンインストールコマンドのコントローラー
@@ -28,34 +27,29 @@ import party.morino.mpm.api.core.plugin.UninstallPluginUseCase
 @Permission("mpm.command")
 class UninstallCommand : KoinComponent {
     // KoinによるDI
-    private val uninstallPluginUseCase: UninstallPluginUseCase by inject()
+    private val lifecycleManager: PluginLifecycleManager by inject()
 
     /**
      * プラグインをアンインストールするコマンド
      * @param sender コマンド送信者
-     * @param pluginName プラグイン名
+     * @param plugin インストール済みプラグイン
      */
     @Command("uninstall <pluginName>")
     suspend fun uninstall(
         sender: CommandSender,
-        @Argument("pluginName") pluginName: String
+        @Argument("pluginName") plugin: InstalledPlugin
     ) {
-        // ユースケースを実行
-        uninstallPluginUseCase.uninstallPlugin(pluginName).fold(
+        val pluginName = plugin.pluginId
+        // PluginLifecycleManagerを実行
+        lifecycleManager.uninstall(plugin).fold(
             // 失敗時の処理
             { errorMessage ->
-                sender.sendMessage(
-                    Component.text(errorMessage, NamedTextColor.RED)
-                )
+                sender.sendRichMessage("<red>$errorMessage</red>")
             },
             // 成功時の処理
             {
-                sender.sendMessage(
-                    Component.text("プラグイン '$pluginName' をアンインストールしました。", NamedTextColor.GREEN)
-                )
-                sender.sendMessage(
-                    Component.text("変更を反映するには、サーバーを再起動してください。", NamedTextColor.GRAY)
-                )
+                sender.sendRichMessage("<green>プラグイン '$pluginName' をアンインストールしました。</green>")
+                sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
             }
         )
     }

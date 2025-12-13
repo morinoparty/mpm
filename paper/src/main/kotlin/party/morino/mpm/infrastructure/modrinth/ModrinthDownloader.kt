@@ -109,6 +109,26 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
     }
 
     /**
+     * すべてのバージョンを取得
+     * @param urlData ModrinthのURL情報
+     * @return バージョンリスト（新しい順）
+     */
+    override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
+        urlData as UrlData.ModrinthUrlData
+        // Modrinthのバージョン一覧APIを呼び出す
+        // loaders=["paper","spigot"]でフィルタリングする
+        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
+        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
+        val response = getRequest(url, "application/json")
+        val versions = json.decodeFromString<List<ModrinthVersion>>(response)
+
+        // バージョン情報のリストに変換
+        return versions.map { modrinthVersion ->
+            VersionData(downloadId = modrinthVersion.id, version = modrinthVersion.versionNumber)
+        }
+    }
+
+    /**
      * 指定バージョンのプラグインをダウンロード
      * @param urlData ModrinthのURL情報
      * @param version バージョン名

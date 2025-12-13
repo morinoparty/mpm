@@ -138,6 +138,31 @@ class DownloaderRepositoryImpl :
         }
 
     /**
+     * すべてのバージョンを取得
+     * @param urlData URLデータ
+     * @return バージョンリスト（新しい順）
+     */
+    override suspend fun getAllVersions(urlData: UrlData): List<VersionData> =
+        when (urlData) {
+            is UrlData.GithubUrlData -> {
+                GithubDownloader().getAllVersions(urlData)
+            }
+
+            is UrlData.SpigotMcUrlData -> {
+                SpigotDownloader().getAllVersions(urlData)
+            }
+
+            is UrlData.ModrinthUrlData -> {
+                ModrinthDownloader().getAllVersions(urlData)
+            }
+
+            else -> {
+                // 他のリポジトリタイプの実装
+                emptyList()
+            }
+        }
+
+    /**
      * 指定バージョンのプラグインをダウンロード
      * @param urlData URLデータ
      * @param version バージョン
