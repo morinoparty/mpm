@@ -10,44 +10,31 @@
 package party.morino.mpm.core.repository
 
 import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.config.plugin.MpmConfig
-import party.morino.mpm.api.config.plugin.RepositorySourceConfig
+import party.morino.mpm.api.core.config.ConfigManager
 import party.morino.mpm.api.core.repository.PluginRepositorySourceManager
-import party.morino.mpm.utils.Utils
-import java.io.File
 
 /**
  * リポジトリソースマネージャーを生成するファクトリー
  */
 object RepositorySourceManagerFactory {
     /**
-     * プラグインディレクトリからリポジトリソースマネージャーを生成
-     * mpm.jsonが存在する場合はそこから設定を読み込み、存在しない場合はデフォルト設定を使用
+     * プラグインディレクトリとConfigManagerからリポジトリソースマネージャーを生成
+     * config.jsonからリポジトリ設定を読み込む
      *
      * @param pluginDirectory プラグインディレクトリ
+     * @param configManager 設定マネージャー
      * @return リポジトリソースマネージャー
      */
-    fun create(pluginDirectory: PluginDirectory): PluginRepositorySourceManager {
-        // rootディレクトリとmpm.jsonを取得
+    fun create(
+        pluginDirectory: PluginDirectory,
+        configManager: ConfigManager
+    ): PluginRepositorySourceManager {
+        // rootディレクトリを取得
         val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
 
-        // mpm.jsonが存在する場合は読み込む、存在しない場合はデフォルト設定を使用
-        val repositoryConfigs =
-            if (configFile.exists()) {
-                try {
-                    // mpm.jsonを読み込んでリポジトリ設定を取得
-                    val jsonString = configFile.readText()
-                    val mpmConfig = Utils.json.decodeFromString<MpmConfig>(jsonString)
-                    mpmConfig.repositories
-                } catch (e: Exception) {
-                    // 読み込みに失敗した場合はデフォルト設定を使用
-                    listOf(RepositorySourceConfig.Local())
-                }
-            } else {
-                // mpm.jsonが存在しない場合はデフォルト設定を使用
-                listOf(RepositorySourceConfig.Local())
-            }
+        // ConfigManagerから設定を取得
+        val config = configManager.getConfig()
+        val repositoryConfigs = config.repositories
 
         // リポジトリソースのリストを生成してマネージャーを作成
         val sources = RepositorySourceFactory.createAll(repositoryConfigs, rootDir)

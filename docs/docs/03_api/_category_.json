@@ -1,0 +1,8 @@
+{
+    "label": "🔌 API",
+    "position": 5,
+    "link": {
+        "type": "generated-index",
+        "description": "MinecraftPluginManagerのAPIを使用して、他のプラグインからプラグイン管理機能にアクセスする方法を説明します。"
+    }
+}

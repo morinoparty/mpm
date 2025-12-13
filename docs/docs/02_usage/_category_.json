@@ -1,8 +1,9 @@
 {
-    "label": "使い方",
+    "label": "📖 使い方",
     "position": 4,
     "link": {
         "type": "generated-index",
-        "description": "プラグインの使い方を紹介します。"
+        "title": "📖 使い方",
+        "description": "MinecraftPluginManagerの基本的な使い方を紹介します。"
     }
 }
