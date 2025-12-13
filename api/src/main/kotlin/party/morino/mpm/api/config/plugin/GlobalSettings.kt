@@ -12,18 +12,13 @@ package party.morino.mpm.api.config.plugin
 import kotlinx.serialization.Serializable
 
 /**
- * mpm.json ファイルのデータ構造
- *
- * package.jsonに相当する、プロジェクト全体の依存関係宣言ファイル
+ * グローバル設定
  */
 @Serializable
-data class MpmConfig(
-    // プロジェクト名
-    val name: String,
-    // プロジェクトのバージョン
-    val version: String = "1.0.0",
+data class GlobalSettings(
+    // デフォルトの自動更新設定
+    val autoUpdate: Boolean = false,
 
-    // プラグインの依存関係（プラグイン名 -> バージョン文字列 または "unmanaged"）
-    val plugins: Map<String, String> = emptyMap(),
+    // プラグインの一時保存ディレクトリ（mpm/配下のパス）
+    val tempDir: String = "temp",
 )
-

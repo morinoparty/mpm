@@ -1,0 +1,201 @@
+# API概要
+
+MinecraftPluginManagerは、他のプラグインやアドオンから利用できる公開APIを提供しています。
+このAPIを使用することで、プラグインの管理機能をプログラムから制御することができます。
+
+## API取得方法
+
+MinecraftPluginManagerのAPIは、`MinecraftPluginManagerAPI`インターフェースを通じて提供されます。
+
+### Bukkit APIを使用して取得
+
+```kotlin
+import org.bukkit.Bukkit
+import party.morino.mpm.api.MinecraftPluginManagerAPI
+
+// プラグインインスタンスを取得
+val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+
+// APIにキャスト
+if (mpmPlugin is MinecraftPluginManagerAPI) {
+    val api: MinecraftPluginManagerAPI = mpmPlugin
+    // APIを使用
+}
+```
+
+### 依存関係の設定
+
+APIを使用するには、`build.gradle.kts`に以下の依存関係を追加してください：
+
+```kotlin
+dependencies {
+    compileOnly("party.morino.mpm:api:VERSION")
+}
+```
+
+また、`plugin.yml`または`paper-plugin.yml`でMinecraftPluginManagerを依存関係として指定してください：
+
+```yaml
+# plugin.yml
+depend: [MinecraftPluginManager]
+```
+
+```yaml
+# paper-plugin.yml
+dependencies:
+  server:
+    MinecraftPluginManager:
+      required: true
+      load: BEFORE
+      join-classpath: true
+```
+
+## 利用可能なマネージャー
+
+MinecraftPluginManagerAPIは、以下のマネージャーへのアクセスを提供します：
+
+### ConfigManager
+設定ファイル（config.json）の読み込みと再読み込みを担当します。
+
+```kotlin
+val configManager = api.getConfigManager()
+val config = configManager.getConfig()
+```
+
+### PluginDirectory
+プラグインディレクトリやデータディレクトリのパス管理を担当します。
+
+```kotlin
+val pluginDirectory = api.getPluginDirectory()
+val dataDir = pluginDirectory.getDataDirectory()
+```
+
+### PluginInfoManager
+プラグインの情報取得やリスト表示を担当します。
+
+```kotlin
+val pluginInfoManager = api.getPluginInfoManager()
+val plugins = pluginInfoManager.getInstalledPlugins()
+```
+
+### PluginLifecycleManager
+プラグインのインストール、削除、有効化/無効化を担当します。
+
+```kotlin
+val lifecycleManager = api.getPluginLifecycleManager()
+// プラグインのインストール
+lifecycleManager.installPlugin("PluginName")
+```
+
+### PluginUpdateManager
+プラグインの更新チェックとアップデートを担当します。
+
+```kotlin
+val updateManager = api.getPluginUpdateManager()
+val outdated = updateManager.checkOutdated()
+```
+
+### PluginMetadataManager
+プラグインのメタデータ管理を担当します。
+
+```kotlin
+val metadataManager = api.getPluginMetadataManager()
+val metadata = metadataManager.getPluginMetadata("PluginName")
+```
+
+### ProjectManager
+プロジェクトの検索とメタデータ取得を担当します。
+
+```kotlin
+val projectManager = api.getProjectManager()
+val project = projectManager.searchProject("PluginName")
+```
+
+### PluginRepositorySourceManager
+リポジトリソースの管理を担当します。
+
+```kotlin
+val repositoryManager = api.getPluginRepositorySourceManager()
+val repositories = repositoryManager.getSources()
+```
+
+## 使用例
+
+### プラグインの情報を取得する
+
+```kotlin
+import org.bukkit.Bukkit
+import party.morino.mpm.api.MinecraftPluginManagerAPI
+
+fun getPluginInfo(pluginName: String) {
+    val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+
+    if (mpmPlugin is MinecraftPluginManagerAPI) {
+        val pluginInfoManager = mpmPlugin.getPluginInfoManager()
+        val plugins = pluginInfoManager.getInstalledPlugins()
+
+        val plugin = plugins.find { it.name == pluginName }
+        if (plugin != null) {
+            println("プラグイン名: ${plugin.name}")
+            println("バージョン: ${plugin.version}")
+        }
+    }
+}
+```
+
+### プラグインをインストールする
+
+```kotlin
+import org.bukkit.Bukkit
+import party.morino.mpm.api.MinecraftPluginManagerAPI
+import kotlinx.coroutines.runBlocking
+
+fun installPlugin(pluginName: String) {
+    val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+
+    if (mpmPlugin is MinecraftPluginManagerAPI) {
+        val lifecycleManager = mpmPlugin.getPluginLifecycleManager()
+
+        runBlocking {
+            val result = lifecycleManager.installPlugin(pluginName)
+            result.fold(
+                { println("プラグインのインストールに成功しました") },
+                { error -> println("エラー: $error") }
+            )
+        }
+    }
+}
+```
+
+### 更新が必要なプラグインをチェックする
+
+```kotlin
+import org.bukkit.Bukkit
+import party.morino.mpm.api.MinecraftPluginManagerAPI
+import kotlinx.coroutines.runBlocking
+
+fun checkOutdatedPlugins() {
+    val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+
+    if (mpmPlugin is MinecraftPluginManagerAPI) {
+        val updateManager = mpmPlugin.getPluginUpdateManager()
+
+        runBlocking {
+            val outdated = updateManager.checkOutdated()
+            outdated.forEach { info ->
+                println("${info.pluginName}: ${info.currentVersion} -> ${info.latestVersion}")
+            }
+        }
+    }
+}
+```
+
+## 注意事項
+
+- ほとんどのAPI呼び出しは`suspend`関数です。Kotlinのコルーチンを使用してください。
+- API呼び出しは失敗する可能性があります。Arrow-ktの`Either`型で結果を返すため、適切にエラーハンドリングを行ってください。
+- プラグインのインストールや更新などの操作は、サーバーのパフォーマンスに影響を与える可能性があります。適切なタイミングで実行してください。
+
+## 詳細なドキュメント
+
+各マネージャーの詳細な使用方法については、APIのソースコードに含まれるKDocを参照してください。すべてのインターフェースとメソッドには詳細なドキュメントが含まれています。

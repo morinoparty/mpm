@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # はじめに
 
-このプラグインは、Minecraftサーバーのプラグインを管理するためのプラグインです。
+MinecraftPluginManagerは、Minecraftサーバーのプラグインを簡単に管理するためのプラグインです。
 
 ## 注意
 

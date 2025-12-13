@@ -12,7 +12,9 @@ package party.morino.mpm
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
+import party.morino.mpm.api.MinecraftPluginManagerAPI
 import party.morino.mpm.api.config.PluginDirectory
+import party.morino.mpm.api.core.config.ConfigManager
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
@@ -22,6 +24,7 @@ import party.morino.mpm.api.core.plugin.PluginUpdateManager
 import party.morino.mpm.api.core.plugin.ProjectManager
 import party.morino.mpm.api.core.repository.PluginRepositorySourceManager
 import party.morino.mpm.config.PluginDirectoryImpl
+import party.morino.mpm.core.config.ConfigManagerImpl
 import party.morino.mpm.core.plugin.PluginInfoManagerImpl
 import party.morino.mpm.core.plugin.PluginLifecycleManagerImpl
 import party.morino.mpm.core.plugin.PluginUpdateManagerImpl
@@ -35,7 +38,19 @@ import party.morino.mpm.core.repository.RepositorySourceManagerFactory
  * MinecraftPluginManagerのメインクラス
  * プラグインの起動・終了処理やDIコンテナの設定を担当
  */
-open class MinecraftPluginManager : JavaPlugin() {
+open class MinecraftPluginManager :
+    JavaPlugin(),
+    MinecraftPluginManagerAPI {
+    // 各マネージャーのインスタンスをKoinから遅延初期化
+    private val _configManager: ConfigManager by lazy { GlobalContext.get().get() }
+    private val _pluginDirectory: PluginDirectory by lazy { GlobalContext.get().get() }
+    private val _pluginInfoManager: PluginInfoManager by lazy { GlobalContext.get().get() }
+    private val _pluginLifecycleManager: PluginLifecycleManager by lazy { GlobalContext.get().get() }
+    private val _pluginUpdateManager: PluginUpdateManager by lazy { GlobalContext.get().get() }
+    private val _pluginMetadataManager: PluginMetadataManager by lazy { GlobalContext.get().get() }
+    private val _projectManager: ProjectManager by lazy { GlobalContext.get().get() }
+    private val _pluginRepositorySourceManager: PluginRepositorySourceManager by lazy { GlobalContext.get().get() }
+
     /**
      * プラグイン有効化時の処理
      * DIコンテナの初期化を行う
@@ -67,10 +82,11 @@ open class MinecraftPluginManager : JavaPlugin() {
 
                 // 設定の登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginDirectory> { PluginDirectoryImpl() }
+                single<ConfigManager> { ConfigManagerImpl() }
 
                 // リポジトリソースマネージャーの登録（ファクトリーを使用）
                 single<PluginRepositorySourceManager> {
-                    RepositorySourceManagerFactory.create(get())
+                    RepositorySourceManagerFactory.create(get(), get())
                 }
 
                 // リポジトリの登録（依存性はKoinのinjectによって自動注入される）
@@ -92,4 +108,21 @@ open class MinecraftPluginManager : JavaPlugin() {
             modules(appModule)
         }
     }
+
+    // API getters - 式本体で簡潔に
+    override fun getConfigManager(): ConfigManager = _configManager
+
+    override fun getPluginDirectory(): PluginDirectory = _pluginDirectory
+
+    override fun getPluginInfoManager(): PluginInfoManager = _pluginInfoManager
+
+    override fun getPluginLifecycleManager(): PluginLifecycleManager = _pluginLifecycleManager
+
+    override fun getPluginUpdateManager(): PluginUpdateManager = _pluginUpdateManager
+
+    override fun getPluginMetadataManager(): PluginMetadataManager = _pluginMetadataManager
+
+    override fun getProjectManager(): ProjectManager = _projectManager
+
+    override fun getPluginRepositorySourceManager(): PluginRepositorySourceManager = _pluginRepositorySourceManager
 }
