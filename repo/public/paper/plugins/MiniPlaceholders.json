@@ -1,0 +1,14 @@
+{
+  "id": "MiniPlaceholders",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/miniplaceholders",
+  "source": "https://github.com/MiniPlaceholders/MiniPlaceholders/",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "HQyibRsN",
+      "fileNameRegex": ".*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

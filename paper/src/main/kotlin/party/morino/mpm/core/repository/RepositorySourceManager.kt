@@ -18,7 +18,7 @@ import party.morino.mpm.api.core.repository.RepositoryFile
  * 複数のリポジトリソースを優先順位順に管理する
  */
 class RepositorySourceManager(
-        private val sources: List<PluginRepositorySource>
+    private val sources: List<PluginRepositorySource>
 ) : PluginRepositorySourceManager {
     // キャッシュ用のプロパティ
     private var cachedPlugins: List<String>? = null
@@ -102,11 +102,11 @@ class RepositorySourceManager(
      * @return 利用可能なソースのリスト
      */
     override suspend fun getAvailableSources(): List<PluginRepositorySource> =
-            sources.filter {
-                try {
-                    it.isAvailable()
-                } catch (e: Exception) {
-                    false
-                }
+        sources.filter {
+            try {
+                it.isAvailable()
+            } catch (e: Exception) {
+                false
             }
+        }
 }

@@ -16,6 +16,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
+import party.morino.mpm.api.config.plugin.withSortedPlugins
 import party.morino.mpm.api.core.plugin.InitUseCase
 import party.morino.mpm.utils.PluginDataUtils
 import party.morino.mpm.utils.Utils
@@ -83,13 +84,13 @@ class InitUseCaseImpl :
             }
         }
 
-        // MpmConfigを作成
+        // MpmConfigを作成し、pluginsをa-Z順にソート
         val mpmConfig =
             MpmConfig(
                 name = projectName,
                 version = "1.0.0",
                 plugins = unmanagedPlugins
-            )
+            ).withSortedPlugins()
 
         // JSONとして保存
         return try {

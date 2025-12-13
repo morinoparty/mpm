@@ -1,0 +1,14 @@
+{
+  "id": "Craftconomy3",
+  "license": "LGPL-3.0",
+  "website": "https://github.com/pavog/craftconomy3",
+  "source": "https://github.com/pavog/craftconomy3",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "pavog/craftconomy3",
+      "fileNameRegex": ".*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

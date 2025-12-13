@@ -1,0 +1,14 @@
+{
+  "id": "CarbonChat",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/carbon",
+  "source": "https://github.com/Hexaoxide/Carbon",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "QzooIsZI",
+      "fileNameRegex": ".*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

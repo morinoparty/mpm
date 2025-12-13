@@ -11,8 +11,6 @@ package party.morino.mpm.core.repository
 
 import party.morino.mpm.api.config.plugin.RepositorySourceConfig
 import party.morino.mpm.api.core.repository.PluginRepositorySource
-import party.morino.mpm.api.core.repository.PluginRepositorySourceManager
-import party.morino.mpm.api.core.repository.RepositoryFile
 import java.io.File
 
 /**
@@ -53,5 +51,3 @@ object RepositorySourceFactory {
         baseDirectory: File
     ): List<PluginRepositorySource> = configs.map { create(it, baseDirectory) }
 }
-
-

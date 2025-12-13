@@ -1,0 +1,14 @@
+{
+  "id": "FancyHolograms",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/fancyholograms",
+  "source": "https://github.com/FancyInnovations/FancyPlugins",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "5QNgOj66",
+      "fileNameRegex": ".*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

@@ -17,6 +17,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
+import party.morino.mpm.api.config.plugin.withSortedPlugins
 import party.morino.mpm.api.core.plugin.AddPluginUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
@@ -131,8 +132,8 @@ class AddPluginUseCaseImpl :
         val updatedPlugins = mpmConfig.plugins.toMutableMap()
         updatedPlugins[pluginName] = latestVersion.version
 
-        // 更新されたMpmConfigを作成
-        val updatedConfig = mpmConfig.copy(plugins = updatedPlugins)
+        // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
+        val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
 
         // JSONとして保存
         return try {
