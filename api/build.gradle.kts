@@ -13,7 +13,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/morinoparty/MinecraftPluginManager")
+            url = uri("https://maven.pkg.github.com/morinoparty/mpm")
             credentials {
                 username = System.getenv("GITHUB_ACTOR")
                 password = System.getenv("GITHUB_TOKEN")

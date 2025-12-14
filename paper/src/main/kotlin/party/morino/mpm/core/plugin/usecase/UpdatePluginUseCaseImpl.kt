@@ -75,7 +75,7 @@ class UpdatePluginUseCaseImpl :
                 }
 
             // ロックされている場合はスキップ
-            if (metadata.mpmInfo.settings.lock) {
+            if (metadata.mpmInfo.settings.lock == true) {
                 updateResults.add(
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,

@@ -43,7 +43,7 @@ class UnlockPluginUseCaseImpl :
             }
 
         // 既にロック解除されている場合はエラー
-        if (!metadata.mpmInfo.settings.lock) {
+        if (metadata.mpmInfo.settings.lock != true) {
             return "プラグイン '$pluginName' はロックされていません。".left()
         }
 

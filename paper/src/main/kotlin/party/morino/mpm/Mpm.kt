@@ -9,10 +9,11 @@
 
 package party.morino.mpm
 
+import kotlinx.coroutines.runBlocking
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
-import party.morino.mpm.api.MinecraftPluginManagerAPI
+import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.core.config.ConfigManager
 import party.morino.mpm.api.core.plugin.DownloaderRepository
@@ -35,12 +36,12 @@ import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
 import party.morino.mpm.core.repository.RepositorySourceManagerFactory
 
 /**
- * MinecraftPluginManagerのメインクラス
+ * mpmのメインクラス
  * プラグインの起動・終了処理やDIコンテナの設定を担当
  */
-open class MinecraftPluginManager :
-    JavaPlugin(),
-    MinecraftPluginManagerAPI {
+open class Mpm :
+        JavaPlugin(),
+        MpmAPI {
     // 各マネージャーのインスタンスをKoinから遅延初期化
     private val _configManager: ConfigManager by lazy { GlobalContext.get().get() }
     private val _pluginDirectory: PluginDirectory by lazy { GlobalContext.get().get() }
@@ -58,14 +59,17 @@ open class MinecraftPluginManager :
     override fun onEnable() {
         // DIコンテナの初期化
         setupKoin()
-        logger.info("MinecraftPluginManager has been enabled!")
+        runBlocking {
+            _configManager.reload()
+        }
+        logger.info("mpm has been enabled!")
     }
 
     /**
      * プラグイン無効化時の処理
      */
     override fun onDisable() {
-        logger.info("MinecraftPluginManager has been disabled!")
+        logger.info("mpm has been disabled!")
     }
 
     /**
@@ -77,8 +81,8 @@ open class MinecraftPluginManager :
         val appModule =
             module {
                 // プラグインインスタンス
-                single<MinecraftPluginManager> { this@MinecraftPluginManager }
-                single<JavaPlugin> { this@MinecraftPluginManager }
+                single<Mpm> { this@Mpm }
+                single<JavaPlugin> { this@Mpm }
 
                 // 設定の登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginDirectory> { PluginDirectoryImpl() }

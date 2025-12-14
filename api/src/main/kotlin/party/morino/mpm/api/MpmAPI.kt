@@ -24,7 +24,7 @@ import party.morino.mpm.api.core.repository.RepositoryManager
  * 外部プラグインやアドオンがMinecraftPluginManagerの機能にアクセスするための公開API
  * 各マネージャーへのアクセサを提供する
  */
-interface MinecraftPluginManagerAPI {
+interface MpmAPI {
     /**
      * 設定管理マネージャーを取得
      *

@@ -21,7 +21,7 @@ import org.eclipse.aether.repository.RemoteRepository
  * プラグインの依存関係を管理するためのクラス
  */
 @Suppress("unused")
-class MinecraftPluginManagerLoader : PluginLoader {
+class MpmLoader : PluginLoader {
     /**
      * プラグインのクラスローダーに依存関係を追加するメソッド
      * @param classpathBuilder クラスパスビルダー

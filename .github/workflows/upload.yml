@@ -27,7 +27,7 @@ jobs:
         run: ./gradlew clean build -x test
 
       - name: Rename jar
-        run: mv ./build/libs/MinecraftPluginManager-1.0-SNAPSHOT-all.jar ./build/libs/MinecraftPluginManager_${{ github.event.release.tag_name }}.jar
+        run: mv ./paper/build/libs/paper-*-all.jar ./MinecraftPluginManager_${{ github.event.release.tag_name }}.jar
 
       - uses: Kir-Antipov/mc-publish@v3.3
         with:
@@ -38,7 +38,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-draft: false
           files: |
-            ./build/libs/MinecraftPluginManager_${{ github.event.release.tag_name }}.jar
+            ./MinecraftPluginManager_${{ github.event.release.tag_name }}.jar
           loaders: |
             paper
             purpur

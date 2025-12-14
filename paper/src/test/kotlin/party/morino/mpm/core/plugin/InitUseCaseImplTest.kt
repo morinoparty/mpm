@@ -19,13 +19,13 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.MinecraftPluginManagerTest
+import party.morino.mpm.MpmTest
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.core.plugin.InitUseCase
 import java.io.File
 
-@ExtendWith(MinecraftPluginManagerTest::class)
+@ExtendWith(MpmTest::class)
 @DisplayName("InitUseCaseImplのテスト")
 class InitUseCaseImplTest : KoinComponent {
     private val initUseCase: InitUseCase by inject()

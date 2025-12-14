@@ -56,7 +56,7 @@ abstract class AbstractPluginDownloader : PluginDownloader {
                     httpClient.get(downloadUrl) {
                         headers {
                             append(HttpHeaders.Accept, "application/java-archive")
-                            append(HttpHeaders.UserAgent, "MinecraftPluginManager")
+                            append(HttpHeaders.UserAgent, "mpm")
                         }
                     }
 
@@ -89,7 +89,7 @@ abstract class AbstractPluginDownloader : PluginDownloader {
                 httpClient.get(url) {
                     headers {
                         append(HttpHeaders.Accept, acceptHeader)
-                        append(HttpHeaders.UserAgent, "MinecraftPluginManager")
+                        append(HttpHeaders.UserAgent, "mpm")
                     }
                 }
 

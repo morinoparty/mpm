@@ -5,7 +5,7 @@ import { themes as prismThemes } from "prism-react-renderer";
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-    title: "MinecraftPluginManager Documentation",
+    title: "MPM Documentation",
     favicon: "img/favicon.ico",
     staticDirectories: ["static"],
     trailingSlash: true,
@@ -14,7 +14,7 @@ const config: Config = {
     baseUrl: "/",
 
     organizationName: "morinoparty",
-    projectName: "MinecraftPluginManager",
+    projectName: "mpm",
     onBrokenLinks: "throw",
     markdown: {
         hooks: {
@@ -35,7 +35,7 @@ const config: Config = {
                     sidebarPath: "./sidebars.ts",
                     routeBasePath: "",
                     editUrl:
-                        "https://github.com/morinoparty/minecraftpluginmanager/tree/master/docs/",
+                        "https://github.com/morinoparty/mpm/tree/master/docs/",
                 },
                 theme: {
                     customCss: "./src/css/custom.css",
@@ -58,20 +58,25 @@ const config: Config = {
     themeConfig: {
         image: "img/docusaurus-social-card.jpg",
         navbar: {
-            title: "MinecraftPluginManager",
+            title: "mpm",
             logo: {
-                alt: "MinecraftPluginManager Logo",
+                alt: "mpm Logo",
                 src: "img/logo.svg",
             },
             items: [
                 {
-                    href: "https://github.com/morinoparty/minecraftpluginmanager",
+                    href: "https://github.com/morinoparty/mpm",
                     label: "GitHub",
                     position: "right",
                 },
                 {
-                    href: "https://github.com/morinoparty/minecraftpluginmanager/releases",
-                    label: "Download",
+                    href: "https://modrinth.com/plugin/mpm-package",
+                    label: "Modrinth",
+                    position: "right",
+                },
+                {
+                    href: "https://github.com/morinoparty/mpm/releases",
+                    label: "Release",
                     position: "right",
                 },
                 {
@@ -116,7 +121,7 @@ const config: Config = {
                     items: [
                         {
                             label: "GitHub",
-                            href: "https://github.com/morinoparty/minecraftpluginmanager",
+                            href: "https://github.com/morinoparty/mpm",
                         },
                     ],
                 },

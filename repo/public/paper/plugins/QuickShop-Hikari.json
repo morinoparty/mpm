@@ -1,19 +1,19 @@
 {
-  "id": "QuickShop-Hikari",
-  "license": "GPL-3.0-only",
-  "website": "https://modrinth.com/plugin/quickshop-hikari",
-  "source": "https://github.com/QuickShop-Community/QuickShop-Hikari",
-  "repositories": [
-    {
-      "type": "modrinth",
-      "id": "ijC5dDkD",
-      "fileNameRegex": "QuickShop-Hikari-.*\\.jar$",
-      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-    },
-    {
-      "type": "spigot",
-      "id": "100125",
-      "fileNameRegex": ".*\\.jar$"
-    }
-  ]
+    "id": "QuickShop-Hikari",
+    "license": "GPL-3.0-only",
+    "website": "https://modrinth.com/plugin/quickshop-hikari",
+    "source": "https://github.com/QuickShop-Community/QuickShop-Hikari",
+    "repositories": [
+        {
+            "type": "spigot",
+            "id": "100125",
+            "fileNameRegex": ".*\\.jar$"
+        },
+        {
+            "type": "modrinth",
+            "id": "ijC5dDkD",
+            "fileNameRegex": "QuickShop-Hikari-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+    ]
 }

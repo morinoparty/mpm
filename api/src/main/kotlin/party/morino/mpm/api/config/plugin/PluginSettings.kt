@@ -13,12 +13,20 @@ import kotlinx.serialization.Serializable
 
 /**
  * プラグイン固有の設定
+ *
+ * 各フィールドがnullの場合、GlobalSettingsの値が使用される
  */
 @Serializable
 data class PluginSettings(
     // バージョンをロックするか（trueの場合、updateコマンドでも更新されない）
-    val lock: Boolean = false,
+    // nullの場合はGlobalSettings.lockの値を使用
+    val lock: Boolean? = null,
 
     // 自動更新を有効にするか（将来実装予定）
-    val autoUpdate: Boolean = false
+    // nullの場合はGlobalSettings.autoUpdateの値を使用
+    val autoUpdate: Boolean? = null,
+
+    // 自動バージョンチェックを有効にするか（将来実装予定）
+    // nullの場合はGlobalSettings.autoCheckの値を使用
+    val autoCheck: Boolean? = null
 )

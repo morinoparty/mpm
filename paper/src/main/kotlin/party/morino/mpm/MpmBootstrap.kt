@@ -20,6 +20,8 @@ import org.incendo.cloud.execution.ExecutionCoordinator
 import org.incendo.cloud.kotlin.coroutines.annotations.installCoroutineSupport
 import org.incendo.cloud.paper.PaperCommandManager
 import org.incendo.cloud.setting.Configurable
+import party.morino.mpm.ui.command.HelpCommand
+import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.AddCommand
 import party.morino.mpm.ui.command.manage.InitCommand
 import party.morino.mpm.ui.command.manage.InstallCommand
@@ -40,7 +42,7 @@ import party.morino.mpm.utils.command.parser.RepositoryPluginParser
  * プラグインの初期化処理を行う
  */
 @Suppress("unused")
-class MinecraftPluginManagerBootstrap : PluginBootstrap {
+class MpmBootstrap : PluginBootstrap {
     lateinit var commandManager: PaperCommandManager.Bootstrapped<CommandSender>
     private val commands =
         listOf(
@@ -54,7 +56,9 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
             UninstallCommand(),
             UpdateCommand(),
             VersionsCommand(),
-            RepositoryCommands()
+            RepositoryCommands(),
+                HelpCommand(),
+                ReloadCommand(),
         )
 
     /**
@@ -93,9 +97,9 @@ class MinecraftPluginManagerBootstrap : PluginBootstrap {
     /**
      * プラグインのインスタンスを作成するメソッド
      * @param context プラグインプロバイダコンテキスト
-     * @return MinecraftPluginManagerプラグインのインスタンス
+     * @return mpmプラグインのインスタンス
      */
     override fun createPlugin(context: PluginProviderContext): JavaPlugin {
-        return MinecraftPluginManager() // MinecraftPluginManagerプラグインのインスタンスを返す
+        return Mpm()
     }
 }

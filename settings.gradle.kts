@@ -1,4 +1,4 @@
-rootProject.name = "MinecraftPluginManager"
+rootProject.name = "mpm"
 
 pluginManagement {
     repositories {

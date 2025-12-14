@@ -22,11 +22,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import party.morino.mpm.MinecraftPluginManagerTest
+import party.morino.mpm.MpmTest
 import party.morino.mpm.core.repository.RemoteRepositorySource
 import party.morino.mpm.utils.MockDataLoader
 
-@ExtendWith(MinecraftPluginManagerTest::class)
+@ExtendWith(MpmTest::class)
 class RemoteRepositorySourceTest {
     // テスト用のベースURL
     private val baseUrl = "https://example.com/repository"

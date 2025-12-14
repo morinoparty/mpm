@@ -1,16 +1,16 @@
-# MinecraftPluginManager
+# mpm - Minecraft Plugin Manager
 
 ## About
 
-MinecraftPluginManager is a comprehensive plugin management system for Minecraft servers. It simplifies the process of installing, updating, and managing plugins from multiple platforms including SpigotMC, Modrinth, Hangar, and GitHub.
+mpm is a comprehensive plugin management system for Minecraft servers. It simplifies the process of installing, updating, and managing plugins from multiple platforms including SpigotMC, Modrinth, Hangar, and GitHub.
 
 ## Tech Stack
 
 - Language: Kotlin
-- Framework: PaperMC
+- Server Software: PaperMC
 - Dependency Injection: Koin
 - HTTP Client: Ktor
-- Serialization: kotlinx-serialization
+- Serialization: kotlinx-serialization(json, yaml)
 - Build Tool: Gradle
 
 ## Features
@@ -27,30 +27,30 @@ MinecraftPluginManager is a comprehensive plugin management system for Minecraft
 Build the plugin:
 
 ```bash
-./gradlew build
+task build
 ```
 
 Run tests:
 
 ```bash
-./gradlew test
+task test
 ```
 
 Check code style and quality:
 
 ```bash
-./gradlew check
+task check
 ```
 
 Format code with ktlint:
 
 ```bash
-./gradlew ktlintFormat
+task format
 ```
 
 ## Documentation
 
-For detailed documentation, please visit the [documentation site](https://mpm.morino.party/).
+For detailed documentation, please visit the [documentation site](https://mpm.plugin.morino.party/).
 
 ## Project Structure
 
@@ -60,8 +60,8 @@ For detailed documentation, please visit the [documentation site](https://mpm.mo
 
 ## License
 
-Written in 2024 by Nikomaru &emsp; No Rights Reserved.
+Written in 2024-2025 by Nikomaru &emsp; No Rights Reserved.
 
-To the extent possible under law, Nikomaru has waived all copyright and related or neighboring rights to MinecraftPluginManager. This work is published from: Japan.
+To the extent possible under law, Nikomaru has waived all copyright and related or neighboring rights to mpm. This work is published from: Japan.
 
 You should have received a copy of the CC0 Public Domain Dedication along with this software. If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.

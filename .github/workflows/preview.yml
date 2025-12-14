@@ -20,7 +20,7 @@ jobs:
       S3_UPLOAD_BUCKET: ${{ secrets.S3_UPLOAD_BUCKET }}
       S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
       PREVIEW_BASE_URL: https://moripa-ci.nikomaru.dev/mpm
-      PROJECT_NAME: MinecraftPluginManager
+      PROJECT_NAME: mpm
     runs-on: ubuntu-latest
 
     steps:

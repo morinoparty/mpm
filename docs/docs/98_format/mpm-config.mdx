@@ -156,13 +156,21 @@ your-server/
 {
     "settings": {
         "autoUpdate": false,
+        "autoCheck": false,
+        "lock": false,
         "tempDir": "temp"
     }
 }
 ```
 
 - **autoUpdate**: 自動更新を有効にするか（デフォルト: `false`）
+- **autoCheck**: 自動バージョンチェックを有効にするか（デフォルト: `false`）
+- **lock**: デフォルトでバージョンをロックするか（デフォルト: `false`）
 - **tempDir**: 一時ファイルの保存ディレクトリ（デフォルト: `"temp"`）
+
+:::info 優先順位
+個別プラグインのメタデータ（`metadata/*.yaml`）で設定が指定されている場合、そちらがこのグローバル設定より優先されます。
+:::
 
 ## 使用例
 

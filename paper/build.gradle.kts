@@ -86,19 +86,19 @@ tasks {
 sourceSets.main {
     resourceFactory {
         paperPluginYaml {
-            name = "MinecraftPluginManager"
+            name = "mpm"
             version = project.version.toString()
             website = "https://mpm.plugin.morino.party"
-            main = "$group.mpm.MinecraftPluginManager"
+            main = "$group.mpm.Mpm"
             apiVersion = "1.20"
-            bootstrapper = "$group.mpm.MinecraftPluginManagerBootstrap"
-            loader = "$group.mpm.MinecraftPluginManagerLoader"
+            bootstrapper = "$group.mpm.MpmBootstrap"
+            loader = "$group.mpm.MpmLoader"
         }
         bukkitPluginYaml {
-            name = "MinecraftPluginManager"
+            name = "mpm"
             version = "miencraft_plugin_version"
-            website = "https://github.com/Nlkomaru/MinecraftPluginManager"
-            main = "$group.mpm.MinecraftPluginManager"
+            website = "https://mpm.plugin.morino.party"
+            main = "$group.mpm.Mpm"
             apiVersion = "1.20"
             libraries = libs.bundles.coroutines.asString()
             softDepend = listOf()
@@ -120,7 +120,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/morinoparty/MinecraftPluginManager")
+            url = uri("https://maven.pkg.github.com/morinoparty/mpm")
             credentials {
                 username = System.getenv("GITHUB_ACTOR")
                 password = System.getenv("GITHUB_TOKEN")

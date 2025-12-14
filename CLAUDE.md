@@ -18,7 +18,7 @@
 
 
 ## このアプリケーションの概要
-「MinecraftPluginManager」という、Minecraftサーバープラグインの管理・配布を行うためのプラグインです。
+「mpm」という、Minecraftサーバープラグインの管理・配布を行うためのプラグインです。
 Spigot, Modrinth, Hanger, GitHubといった複数のプラットフォームからプラグインを取得し、サーバー管理者が簡単にプラグインをインストール・更新できるようにします。
 
 ## 主な技術スタック
@@ -82,7 +82,7 @@ Spigot, Modrinth, Hanger, GitHubといった複数のプラットフォームか
 # Gitのルール
 
 ## Repository
-- [MinecraftPluginManager](https://github.com/morinoparty/MinecraftPluginManager)
+- [mpm](https://github.com/morinoparty/mpm)
 
 ## コミットメッセージ
 - コミットメッセージは英語で書き、以下のような形式で書く。

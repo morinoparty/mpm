@@ -30,11 +30,11 @@ import party.morino.mpm.core.plugin.usecase.PluginInstallUseCaseImpl
 import party.morino.mpm.core.plugin.usecase.PluginListUseCaseImpl
 import party.morino.mpm.mock.config.PluginDirectoryMock
 
-class MinecraftPluginManagerTest :
+class MpmTest :
     BeforeEachCallback,
     AfterEachCallback {
     private lateinit var server: ServerMock
-    private lateinit var plugin: MinecraftPluginManager
+    private lateinit var plugin: Mpm
 
     override fun beforeEach(context: ExtensionContext) {
         println("beforeEach() executed before " + context.displayName + ".")
@@ -49,7 +49,7 @@ class MinecraftPluginManagerTest :
 
     private fun setupKoin() {
         // プラグインをロード（この時点でonEnable()が呼ばれてKoinが初期化される）
-        plugin = MockBukkit.load(MinecraftPluginManager::class.java)
+        plugin = MockBukkit.load(Mpm::class.java)
 
         // プラグイン側で初期化されたKoinを停止
         stopKoin()
@@ -57,7 +57,7 @@ class MinecraftPluginManagerTest :
         // テスト用のモジュールを定義
         val appModule =
             module {
-                single<MinecraftPluginManager> { plugin }
+                single<Mpm> { plugin }
                 single<ServerMock> { server }
                 single<PluginDirectory> { PluginDirectoryMock() }
 

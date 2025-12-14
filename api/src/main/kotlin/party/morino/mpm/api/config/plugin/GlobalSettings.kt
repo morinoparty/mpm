@@ -19,6 +19,12 @@ data class GlobalSettings(
     // デフォルトの自動更新設定
     val autoUpdate: Boolean = false,
 
+    // デフォルトの自動バージョンチェック設定
+    val autoCheck: Boolean = false,
+
+    // デフォルトのバージョンロック設定
+    val lock: Boolean = false,
+
     // プラグインの一時保存ディレクトリ（mpm/配下のパス）
     val tempDir: String = "temp",
 )

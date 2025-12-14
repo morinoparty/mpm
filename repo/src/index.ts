@@ -54,7 +54,7 @@ app.get(
 );
 
 const requestSchema = z.object({
-    pluginId: z.string().default("MinecraftPluginManager.json"),
+    pluginId: z.string().default("LuckPerms.json"),
 });
 
 app.get(

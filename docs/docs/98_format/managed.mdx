@@ -61,6 +61,7 @@ mpmInfo:
   settings:
     lock: false
     autoUpdate: false
+    autoCheck: false
 
   history:
     - version: "5.4.102"
@@ -172,16 +173,24 @@ mpmInfo:
 
 #### settings
 
-プラグイン固有の設定です。`mpm.json`の`settings`フィールドと同じ形式です。
+プラグイン固有の設定です。
 
 ```yaml
 mpmInfo:
   settings:
     lock: false          # バージョンロック
     autoUpdate: false    # 自動更新
-    downloadUrl: null    # カスタムダウンロードURL（オプション）
-    fileName: null       # カスタムファイル名（オプション）
+    autoCheck: false     # 自動バージョンチェック
 ```
+
+各フィールドは省略可能（`null`）で、省略された場合は`mpm.json`の`settings`（グローバル設定）の値が使用されます。
+
+:::info 優先順位
+- メタデータで設定が指定されている場合：その値を使用
+- メタデータで`null`の場合：`mpm.json`のグローバル設定を使用
+
+この仕組みにより、プロジェクト全体のデフォルト設定を保ちつつ、個別プラグインごとに設定を上書きできます。
+:::
 
 #### history
 
@@ -250,6 +259,7 @@ mpmInfo:
   settings:
     lock: false
     autoUpdate: false
+    autoCheck: false
 
   # インストール履歴
   history:
@@ -299,6 +309,7 @@ mpmInfo:
   settings:
     lock: true  # バージョンを固定
     autoUpdate: false
+    autoCheck: false
 
   # インストール履歴
   history:
