@@ -1,0 +1,14 @@
+{
+  "id": "GSit",
+  "license": "GPL-3.0",
+  "website": "https://github.com/gecolay/GSit",
+  "source": "https://github.com/gecolay/GSit",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "Gecolay/GSit",
+      "fileNameRegex": ".*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}
