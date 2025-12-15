@@ -97,7 +97,7 @@ jobs:
 
       - name: Publish test results
         id: publish-test-results
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@e08919a3b1fb83a78393dfb775a9c37f17d8eea6 # v6.0.1
         if: success() || failure()
         with:
           report_paths: './**/build/test-results/test/TEST-*.xml'
