@@ -46,7 +46,7 @@ export const RepositoryItem: React.FC<RepositoryItemProps> = ({
         }
     };
 
-    // versionModifierを適用
+    // versionModifierを適用してバージョン文字列を正規化
     const applyVersionModifier = (version: string, modifier?: string): string | null => {
         if (!modifier) return version;
 
@@ -59,14 +59,12 @@ export const RepositoryItem: React.FC<RepositoryItemProps> = ({
         }
     };
 
-    // 最初のファイルからversionを取得
+    // Version Modifier Previewのためのバージョン情報を取得
+    // latestVersionフィールド（API取得時のバージョン文字列）を使用
+    // versionModifierは実際にはこのバージョン文字列に対して適用される
     const getVersionInfo = (): { original: string | null; modified: string | null } => {
-        const filteredFiles = getFilteredFiles();
-        if (filteredFiles.length === 0) {
-            return { original: null, modified: null };
-        }
-
-        const originalVersion = filteredFiles[0];
+        // latestVersionが存在する場合はそれを使用（全プラットフォーム対応）
+        const originalVersion = repo.latestVersion;
 
         if (!originalVersion) {
             return { original: null, modified: null };
@@ -204,7 +202,13 @@ export const RepositoryItem: React.FC<RepositoryItemProps> = ({
                                                     })
                                                 }
                                                 placeholder=".*\\.jar$"
+                                                disabled={repo.repository.type === "spigotmc"}
                                             />
+                                            {repo.repository.type === "spigotmc" && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    SpigotMC では1つのバージョンにつき1つのファイルのみのため、ファイル名フィルタは不要です
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Version Modifier (Optional) */}
@@ -228,15 +232,22 @@ export const RepositoryItem: React.FC<RepositoryItemProps> = ({
                                             />
                                         </div>
 
-                                        {/* Version Preview */}
+                                        {/* Version Preview（全プラットフォーム対応） */}
+                                        {/*
+                                            latestVersionフィールドを使用してバージョン文字列のプレビューを表示
+                                            versionModifierは実際にこのバージョン文字列に対して適用される
+                                        */}
                                         {versionInfo.original && (
                                             <div className="flex flex-col gap-2 col-span-2 p-3 bg-muted/50 rounded-md">
                                                 <Label className="text-sm font-semibold">
-                                                    Version Preview
+                                                    Version Modifier Preview
                                                 </Label>
+                                                <p className="text-xs text-muted-foreground">
+                                                    バージョン文字列に対してversionModifierを適用した結果のプレビュー
+                                                </p>
                                                 <div className="flex items-center gap-4 text-sm">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-muted-foreground">Original:</span>
+                                                        <span className="text-muted-foreground">元のバージョン:</span>
                                                         <code className="px-2 py-1 bg-background rounded">
                                                             {versionInfo.original}
                                                         </code>
@@ -245,14 +256,14 @@ export const RepositoryItem: React.FC<RepositoryItemProps> = ({
                                                         <>
                                                             <span className="text-muted-foreground">→</span>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-muted-foreground">Modified:</span>
+                                                                <span className="text-muted-foreground">正規化後:</span>
                                                                 {versionInfo.modified ? (
                                                                     <code className="px-2 py-1 bg-primary/10 text-primary rounded font-semibold">
                                                                         {versionInfo.modified}
                                                                     </code>
                                                                 ) : (
                                                                     <code className="px-2 py-1 bg-destructive/10 text-destructive rounded text-xs">
-                                                                        Conversion failed
+                                                                        変換失敗
                                                                     </code>
                                                                 )}
                                                             </div>

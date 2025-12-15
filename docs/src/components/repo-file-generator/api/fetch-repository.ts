@@ -63,7 +63,7 @@ export const detectPlatform = (
 // Modrinth APIからデータを取得
 export const fetchModrinthData = async (
     slug: string,
-): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[] }> => {
+): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[]; version?: string }> => {
     const response = await fetch(`https://api.modrinth.com/v2/project/${slug}`);
     if (!response.ok) {
         throw new Error(`Modrinth API error: ${response.statusText}`);
@@ -76,12 +76,13 @@ export const fetchModrinthData = async (
     );
     const versions = versionsResponse.ok ? await versionsResponse.json() : [];
 
-    // 最新バージョンのファイルのみを取得
+    // 最新バージョンのファイルとバージョン番号を取得
     const latestVersion = versions[versions.length - 1];
     const files =
         latestVersion?.files
             ?.map((f: any) => f.filename)
             .filter((f: string) => f) || [];
+    const version = latestVersion?.version_number;
 
     return {
         pluginInfo: {
@@ -103,13 +104,15 @@ export const fetchModrinthData = async (
             ],
         },
         files,
+        version,
     };
 };
 
 // Spigot APIからデータを取得
+// 注意: SpigotMC APIではファイル名を取得できないため、filesにはバージョン名が入る
 export const fetchSpigotData = async (
     id: string,
-): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[] }> => {
+): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[]; version?: string }> => {
     const response = await fetch(`https://api.spiget.org/v2/resources/${id}`);
     if (!response.ok) {
         throw new Error(`Spigot API error: ${response.statusText}`);
@@ -122,9 +125,11 @@ export const fetchSpigotData = async (
     );
     const versions = versionsResponse.ok ? await versionsResponse.json() : [];
 
-    // 最新バージョンのファイル名のみを取得
+    // 注意: SpigotMCではファイル名が取得できないため、バージョン名をfilesに格納
+    // これにより、Version Modifier Previewでバージョン文字列のプレビューが可能
     const latestVersion = versions[0];
     const files = latestVersion?.name ? [latestVersion.name] : [];
+    const version = latestVersion?.name;
 
     return {
         pluginInfo: {
@@ -137,22 +142,23 @@ export const fetchSpigotData = async (
             license: "Unknown",
             repositories: [
                 {
-                    type: "spigot",
+                    type: "spigotmc",
                     id: id,
-                    fileNameRegex: ".*\\.jar$",
+                    fileNameRegex: "", // SpigotMCではファイルが一意に定まるため空文字列
                     versionModifier:
                         "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
                 },
             ],
         },
         files,
+        version,
     };
 };
 
 // GitHub APIからデータを取得
 export const fetchGitHubData = async (
     ownerRepo: string,
-): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[] }> => {
+): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[]; version?: string }> => {
     const [owner, repo] = ownerRepo.split("/");
     const response = await fetch(
         `https://api.github.com/repos/${owner}/${repo}`,
@@ -170,11 +176,12 @@ export const fetchGitHubData = async (
         ? await releasesResponse.json()
         : null;
 
-    // 最新リリースのファイルのみを取得
+    // 最新リリースのファイルとタグ名（バージョン）を取得
     const files =
         latestRelease?.assets
             ?.map((a: any) => a.name)
             .filter((f: string) => f) || [];
+    const version = latestRelease?.tag_name;
 
     return {
         pluginInfo: {
@@ -196,13 +203,14 @@ export const fetchGitHubData = async (
             ],
         },
         files,
+        version,
     };
 };
 
 // Hangar APIからデータを取得
 export const fetchHangarData = async (
     authorSlug: string,
-): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[] }> => {
+): Promise<{ pluginInfo: Partial<PluginInfo>; files: string[]; version?: string }> => {
     const [author, slug] = authorSlug.split("/");
     const response = await fetch(
         `https://hangar.papermc.io/api/v1/projects/${author}/${slug}`,
@@ -218,12 +226,13 @@ export const fetchHangarData = async (
     );
     const versions = versionsResponse.ok ? await versionsResponse.json() : [];
 
-    // 最新バージョンのファイルのみを取得
+    // 最新バージョンのファイルとバージョン名を取得
     const latestVersion = versions.result?.[0] || versions[0];
     const files =
         latestVersion?.downloads
             ?.map((d: any) => d.fileName)
             .filter((f: string) => f) || [];
+    const version = latestVersion?.name;
 
     return {
         pluginInfo: {
@@ -244,5 +253,6 @@ export const fetchHangarData = async (
             ],
         },
         files,
+        version,
     };
 };

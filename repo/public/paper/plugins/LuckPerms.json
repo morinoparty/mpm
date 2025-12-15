@@ -11,7 +11,7 @@
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
     },
     {
-      "type": "spigot",
+      "type": "spigotmc",
       "id": "28140",
       "fileNameRegex": "",
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"

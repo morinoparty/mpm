@@ -144,9 +144,10 @@ open class SpigotDownloader : AbstractPluginDownloader() {
     ): File? {
         urlData as UrlData.SpigotMcUrlData
         val details = getDetails(urlData)
+        //https://api.spiget.org/v2/resources/62325/versions/latest/download/proxy
         val downloadUrl =
             "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions/" +
-                "${version.downloadId}/download"
+                "${version.downloadId}/download/proxy"
         val fileName = "${details.name}-${version.version}.jar"
         return downloadFile(downloadUrl, fileName)
     }
