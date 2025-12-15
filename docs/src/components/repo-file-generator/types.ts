@@ -17,6 +17,7 @@ export type RepositoryData = {
     url: string; // リポジトリのURL
     repository: Repository | null; // Repository設定（取得前はnull）
     downloadFiles: string[]; // ダウンロード可能なファイル一覧
+    latestVersion?: string; // 最新バージョン文字列（versionModifierのプレビュー用）
     isLoading: boolean; // データ取得中かどうか
 };
 

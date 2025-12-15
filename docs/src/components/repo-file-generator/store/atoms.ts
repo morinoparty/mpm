@@ -62,6 +62,7 @@ export const addRepositoryAtom = atom(
             url,
             repository: null,
             downloadFiles: [],
+            latestVersion: undefined,
             isLoading: false,
         };
 
@@ -102,6 +103,7 @@ export const fetchRepositoryDataAtom = atom(
 
             let repository: Repository | null = null;
             let downloadFiles: string[] = [];
+            let latestVersion: string | undefined = undefined;
             let fetchedPluginInfo: Partial<PluginInfo> | null = null;
 
             // プラットフォームに応じてデータを取得
@@ -110,6 +112,7 @@ export const fetchRepositoryDataAtom = atom(
                     const data = await fetchModrinthData(platformInfo.id);
                     repository = data.pluginInfo.repositories?.[0] || null;
                     downloadFiles = data.files;
+                    latestVersion = data.version;
                     fetchedPluginInfo = data.pluginInfo;
                     break;
                 }
@@ -117,6 +120,7 @@ export const fetchRepositoryDataAtom = atom(
                     const data = await fetchSpigotData(platformInfo.id);
                     repository = data.pluginInfo.repositories?.[0] || null;
                     downloadFiles = data.files;
+                    latestVersion = data.version;
                     fetchedPluginInfo = data.pluginInfo;
                     break;
                 }
@@ -124,6 +128,7 @@ export const fetchRepositoryDataAtom = atom(
                     const data = await fetchGitHubData(platformInfo.id);
                     repository = data.pluginInfo.repositories?.[0] || null;
                     downloadFiles = data.files;
+                    latestVersion = data.version;
                     fetchedPluginInfo = data.pluginInfo;
                     break;
                 }
@@ -131,6 +136,7 @@ export const fetchRepositoryDataAtom = atom(
                     const data = await fetchHangarData(platformInfo.id);
                     repository = data.pluginInfo.repositories?.[0] || null;
                     downloadFiles = data.files;
+                    latestVersion = data.version;
                     fetchedPluginInfo = data.pluginInfo;
                     break;
                 }
@@ -144,6 +150,7 @@ export const fetchRepositoryDataAtom = atom(
                 ...finalRepos[index],
                 repository,
                 downloadFiles,
+                latestVersion,
                 isLoading: false,
             };
             set(repositoriesAtom, finalRepos);

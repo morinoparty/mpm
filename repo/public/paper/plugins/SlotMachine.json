@@ -1,0 +1,14 @@
+{
+  "id": "SlotMachine",
+  "license": "Unknown",
+  "website": "https://www.spigotmc.org/resources/22023",
+  "source": "https://www.spigotmc.org/resources/22023",
+  "repositories": [
+    {
+      "type": "spigotmc",
+      "id": "22023",
+      "fileNameRegex": "",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}
