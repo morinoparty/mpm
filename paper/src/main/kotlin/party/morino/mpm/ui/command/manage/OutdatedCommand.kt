@@ -10,13 +10,14 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Description
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグイン更新確認コマンドのコントローラー
@@ -25,20 +26,16 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
  * mpm outdatedAll - すべてのプラグインの更新を確認
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class OutdatedCommand : KoinComponent {
     // Koinによる依存性注入
     private val infoManager: PluginInfoManager by inject()
 
-    /**
-     * 指定されたプラグインの更新を確認するコマンド
-     * @param sender コマンド送信者
-     * @param plugin インストール済みプラグイン
-     */
-    @Command("outdated <plugin>")
+    @Subcommand("outdated")
+    @Description("指定されたプラグインの更新を確認します。")
     suspend fun outdated(
         sender: CommandSender,
-        @Argument("plugin") plugin: InstalledPlugin
+        plugin: InstalledPlugin
     ) {
         val pluginName = plugin.pluginId
         sender.sendRichMessage("<gray>プラグイン '$pluginName' の更新を確認しています...</gray>")
@@ -69,7 +66,7 @@ class OutdatedCommand : KoinComponent {
      * すべての管理下プラグインの更新を確認するコマンド
      * @param sender コマンド送信者
      */
-    @Command("outdatedAll")
+    @Subcommand("outdatedAll")
     suspend fun outdatedAll(sender: CommandSender) {
         sender.sendRichMessage("<gray>すべてのプラグインの更新を確認しています...</gray>")
 

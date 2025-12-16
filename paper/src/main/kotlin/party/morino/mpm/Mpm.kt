@@ -24,6 +24,8 @@ import party.morino.mpm.api.core.plugin.PluginRepository
 import party.morino.mpm.api.core.plugin.PluginUpdateManager
 import party.morino.mpm.api.core.plugin.ProjectManager
 import party.morino.mpm.api.core.repository.RepositoryManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.config.PluginDirectoryImpl
 import party.morino.mpm.core.config.ConfigManagerImpl
 import party.morino.mpm.core.plugin.PluginInfoManagerImpl
@@ -34,6 +36,21 @@ import party.morino.mpm.core.plugin.infrastructure.DownloaderRepositoryImpl
 import party.morino.mpm.core.plugin.infrastructure.PluginMetadataManagerImpl
 import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
 import party.morino.mpm.core.repository.RepositorySourceManagerFactory
+import party.morino.mpm.ui.command.ReloadCommand
+import party.morino.mpm.ui.command.manage.AddCommand
+import party.morino.mpm.ui.command.manage.InitCommand
+import party.morino.mpm.ui.command.manage.InstallCommand
+import party.morino.mpm.ui.command.manage.ListCommand
+import party.morino.mpm.ui.command.manage.LockCommand
+import party.morino.mpm.ui.command.manage.OutdatedCommand
+import party.morino.mpm.ui.command.manage.RemoveCommand
+import party.morino.mpm.ui.command.manage.UninstallCommand
+import party.morino.mpm.ui.command.manage.UpdateCommand
+import party.morino.mpm.ui.command.manage.VersionsCommand
+import party.morino.mpm.ui.command.repo.RepositoryCommands
+import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
+import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
+import revxrsal.commands.bukkit.BukkitLamp
 
 /**
  * mpmのメインクラス
@@ -54,7 +71,7 @@ open class Mpm :
 
     /**
      * プラグイン有効化時の処理
-     * DIコンテナの初期化を行う
+     * DIコンテナとコマンドハンドラーの初期化を行う
      */
     override fun onEnable() {
         // DIコンテナの初期化
@@ -62,6 +79,10 @@ open class Mpm :
         runBlocking {
             _configManager.reload()
         }
+
+        // Lampコマンドハンドラーの初期化
+        setupCommandHandler()
+
         logger.info("mpm has been enabled!")
     }
 
@@ -111,6 +132,36 @@ open class Mpm :
         GlobalContext.getOrNull() ?: GlobalContext.startKoin {
             modules(appModule)
         }
+    }
+
+    /**
+     * Lampコマンドハンドラーのセットアップ
+     * コマンドの登録とParameterTypeの設定を行う
+     */
+    private fun setupCommandHandler() {
+        // BukkitLampの作成
+        val lamp =
+            BukkitLamp
+                .builder(this)
+                .parameterTypes { builder ->
+                    // カスタムParameterTypeの登録
+                    builder.addParameterType(RepositoryPlugin::class.java, RepositoryPluginParameterType())
+                    builder.addParameterType(InstalledPlugin::class.java, InstalledPluginParameterType())
+                }.build()
+
+        // 全コマンドの登録
+        lamp.register(AddCommand())
+        lamp.register(InitCommand())
+        lamp.register(InstallCommand())
+        lamp.register(ListCommand())
+        lamp.register(LockCommand())
+        lamp.register(OutdatedCommand())
+        lamp.register(RemoveCommand())
+        lamp.register(UninstallCommand())
+        lamp.register(UpdateCommand())
+        lamp.register(VersionsCommand())
+        lamp.register(RepositoryCommands())
+        lamp.register(ReloadCommand())
     }
 
     // API getters - 式本体で簡潔に

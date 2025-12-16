@@ -10,13 +10,12 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Flag
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.ProjectManager
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Flag
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プロジェクト初期化コマンドのコントローラー
@@ -24,7 +23,7 @@ import party.morino.mpm.api.core.plugin.ProjectManager
  * mpm init - mpm.jsonを生成し、すべてのプラグインをunmanagedとして追加
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class InitCommand : KoinComponent {
     // KoinによるDI
     private val projectManager: ProjectManager by inject()
@@ -37,10 +36,10 @@ class InitCommand : KoinComponent {
      * @param projectName プロジェクト名（デフォルト: "my-server"）
      * @param overwrite 既存のmpm.jsonを上書きするかどうか
      */
-    @Command("init [projectName]")
+    @Command("init")
     suspend fun init(
         sender: CommandSender,
-        @Argument("projectName") projectName: String?,
+        projectName: String?,
         @Flag("overwrite") overwrite: Boolean = false
     ) {
         // プロジェクト名のデフォルト値を設定

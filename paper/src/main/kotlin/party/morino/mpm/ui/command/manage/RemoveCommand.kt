@@ -10,13 +10,13 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグイン削除コマンドのコントローラー
@@ -24,7 +24,7 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
  * mpm remove <pluginName> - プラグインを管理対象から除外（ファイルは削除しない）
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class RemoveCommand : KoinComponent {
     // Koinによる依存性注入
     private val lifecycleManager: PluginLifecycleManager by inject()
@@ -34,10 +34,10 @@ class RemoveCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param plugin インストール済みプラグイン
      */
-    @Command("remove <pluginName>")
+    @Command("remove")
     suspend fun remove(
         sender: CommandSender,
-        @Argument("pluginName") plugin: InstalledPlugin
+        plugin: InstalledPlugin
     ) {
         val pluginName = plugin.pluginId
         // PluginLifecycleManagerを実行
@@ -59,7 +59,7 @@ class RemoveCommand : KoinComponent {
      * mpm管理下にないプラグインを削除するコマンド
      * @param sender コマンド送信者
      */
-    @Command("removeUnmanaged")
+    @Subcommand("removeUnmanaged")
     suspend fun removeUnmanaged(sender: CommandSender) {
         sender.sendRichMessage("<gray>管理外のプラグインを検索しています...</gray>")
 

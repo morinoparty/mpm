@@ -10,13 +10,13 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグイン追加コマンドのコントローラー
@@ -24,7 +24,7 @@ import party.morino.mpm.api.model.plugin.RepositoryPlugin
  * mpm add <pluginName> - プラグインを管理対象に追加
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class AddCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleManager: PluginLifecycleManager by inject()
@@ -34,10 +34,10 @@ class AddCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param plugin プラグイン名
      */
-    @Command("add <pluginName>")
+    @Subcommand("add")
     suspend fun add(
         sender: CommandSender,
-        @Argument("pluginName") plugin: RepositoryPlugin
+        plugin: RepositoryPlugin
     ) {
         val pluginName = plugin.pluginId
         sender.sendRichMessage("<gray>プラグイン '$pluginName' の情報を取得しています...")

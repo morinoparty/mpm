@@ -65,6 +65,11 @@ tasks {
     withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
     }
+    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            javaParameters.set(true) // パラメータ名を保持（Lamp必須）
+        }
+    }
     runServer {
         minecraftVersion("1.21.10")
 

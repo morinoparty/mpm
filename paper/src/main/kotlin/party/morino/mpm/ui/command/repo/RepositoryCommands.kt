@@ -9,19 +9,14 @@
 
 package party.morino.mpm.ui.command.repo
 
-import kotlinx.serialization.json.Json
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.core.plugin.DownloaderRepository
-import party.morino.mpm.api.core.repository.RepositoryConfig
-import party.morino.mpm.api.core.repository.RepositoryFile
 import party.morino.mpm.api.core.repository.RepositoryManager
-import java.io.File
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
+import sun.jvmstat.perfdata.monitor.protocol.local.PerfDataFile.fileNamePattern
 
 /**
  * リポジトリファイルを作成するコマンドのコントローラー
@@ -29,122 +24,15 @@ import java.io.File
  * mpm create-repo <pluginName> <url> [fileNamePattern]
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class RepositoryCommands : KoinComponent {
-    // KoinによるDI
-    private val downloaderRepository: DownloaderRepository by inject()
-    private val pluginDirectory: PluginDirectory by inject()
     private val repositorySourceManager: RepositoryManager by inject()
-
-    // JSONシリアライザー（整形済み）
-    private val json =
-        Json {
-            prettyPrint = true
-            ignoreUnknownKeys = true
-        }
-
-    /**
-     * URLからリポジトリファイルを作成するコマンド
-     * @param sender コマンド送信者
-     * @param pluginName プラグイン名（リポジトリファイル名として使用）
-     * @param url リポジトリURL
-     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション）
-     */
-    @Command("create-repo <pluginName> <url> [fileNamePattern]")
-    suspend fun createRepo(
-        sender: CommandSender,
-        @Argument("pluginName") pluginName: String,
-        @Argument("url") url: String,
-        @Argument("fileNamePattern") fileNamePattern: String?
-    ) {
-        // 入力バリデーション
-        if (pluginName.isEmpty()) {
-            sender.sendMessage("プラグイン名を入力してください")
-            return
-        }
-        if (url.isEmpty()) {
-            sender.sendMessage("URLを入力してください")
-            return
-        }
-
-        // URLからリポジトリタイプを判定
-        val repositoryType = downloaderRepository.getRepositoryType(url)
-        if (repositoryType == null) {
-            sender.sendMessage("サポートされていないURLです: $url")
-            sender.sendMessage("サポートされているリポジトリ: GitHub, Modrinth, SpigotMC")
-            return
-        }
-
-        // URLからURLデータを抽出
-        val urlData = downloaderRepository.getUrlData(url)
-        if (urlData == null) {
-            sender.sendMessage("URLからデータを抽出できませんでした: $url")
-            return
-        }
-
-        // リポジトリタイプに応じてIDを取得
-        val repositoryId =
-            when (urlData) {
-                is party.morino.mpm.api.model.repository.UrlData.GithubUrlData ->
-                    "${urlData.owner}/${urlData.repository}"
-
-                is party.morino.mpm.api.model.repository.UrlData.SpigotMcUrlData ->
-                    urlData.resourceId
-
-                is party.morino.mpm.api.model.repository.UrlData.ModrinthUrlData -> urlData.id
-                else -> {
-                    sender.sendMessage("未対応のリポジトリタイプです")
-                    return
-                }
-            }
-
-        // RepositoryConfigを作成
-        val repositoryConfig =
-            RepositoryConfig(
-                type = repositoryType.name.lowercase(),
-                repositoryId = repositoryId,
-                fileNamePattern = fileNamePattern
-            )
-
-        // RepositoryFileを作成
-        val repositoryFile =
-            RepositoryFile(
-                id = pluginName,
-                website = url,
-                repositories = listOf(repositoryConfig)
-            )
-
-        // repository/ディレクトリを取得
-        val repositoryDir = pluginDirectory.getRepositoryDirectory()
-        if (!repositoryDir.exists()) {
-            repositoryDir.mkdirs()
-        }
-
-        // JSONファイルとして保存
-        val outputFile = File(repositoryDir, "$pluginName.json")
-        if (outputFile.exists()) {
-            sender.sendMessage("既に同名のリポジトリファイルが存在します: ${outputFile.name}")
-            sender.sendMessage("上書きする場合は、先にファイルを削除してください")
-            return
-        }
-
-        try {
-            val jsonString = json.encodeToString(repositoryFile)
-            outputFile.writeText(jsonString)
-            sender.sendMessage(
-                "リポジトリファイルを作成しました: ${outputFile.absolutePath}"
-            )
-            sender.sendMessage("次のコマンドでプラグインを追加できます: /mpm add $pluginName")
-        } catch (e: Exception) {
-            sender.sendMessage("リポジトリファイルの作成に失敗しました: ${e.message}")
-        }
-    }
 
     /**
      * 利用可能なリポジトリファイルの一覧を表示するコマンド
      * @param sender コマンド送信者
      */
-    @Command("repository list")
+    @Subcommand("repository list")
     suspend fun listRepositories(sender: CommandSender) {
         // すべてのリポジトリソースから利用可能なプラグインを収集
         val allPlugins = repositorySourceManager.getAvailablePlugins().toMutableSet()

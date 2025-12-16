@@ -24,6 +24,10 @@ tasks:
     cmds:
       - ./gradlew clean runServer
     silent: true
+  run:clean:
+    cmds:
+      - rm -rf ./paper/run/plugins/*
+    silent: true
   dokka:
     cmds:
       - ./gradlew clean dokkaGenerate
