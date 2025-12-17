@@ -32,11 +32,11 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
           node-version: '22'
 
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - uses: pnpm/action-setup@b9e1dbc72ff7358f971cc0b7c62c7a0d83f1068b # v4.0.0
         name: Install pnpm
         with:
           version: 10
@@ -97,7 +97,7 @@ jobs:
 
       - name: Publish test results
         id: publish-test-results
-        uses: mikepenz/action-junit-report@cf701569b05ccdd861a76b8607a66d76f6fd4857 # v5.5.1
+        uses: mikepenz/action-junit-report@e08919a3b1fb83a78393dfb775a9c37f17d8eea6 # v6.0.1
         if: success() || failure()
         with:
           report_paths: './**/build/test-results/test/TEST-*.xml'
