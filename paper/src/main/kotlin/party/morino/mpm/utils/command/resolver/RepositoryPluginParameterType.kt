@@ -72,6 +72,7 @@ class RepositoryPluginParameterType :
     override fun defaultSuggestions(): SuggestionProvider<BukkitCommandActor> {
         // リポジトリから取得可能なプラグイン一覧を返すサジェストプロバイダー
         return SuggestionProvider { context ->
+
             kotlinx.coroutines.runBlocking {
                 repositoryManager.getAvailablePlugins().toList()
             }

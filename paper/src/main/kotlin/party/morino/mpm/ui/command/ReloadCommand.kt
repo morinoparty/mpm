@@ -14,6 +14,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.config.ConfigManager
 import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 @Command("mpm")
@@ -21,7 +22,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class ReloadCommand : KoinComponent {
     private val configManager: ConfigManager by inject()
 
-    @Command("reload")
+    @Subcommand("reload")
     suspend fun reload(sender: CommandSender) {
         configManager.reload()
         sender.sendRichMessage("<green>設定ファイルを再読み込みしました。")

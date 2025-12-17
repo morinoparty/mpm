@@ -34,7 +34,7 @@ class RemoveCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param plugin インストール済みプラグイン
      */
-    @Command("remove")
+    @Subcommand("remove")
     suspend fun remove(
         sender: CommandSender,
         plugin: InstalledPlugin

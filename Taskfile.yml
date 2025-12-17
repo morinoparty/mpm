@@ -27,6 +27,7 @@ tasks:
   run:clean:
     cmds:
       - rm -rf ./paper/run/plugins/*
+      - rm -rf ./paper/run/**/session.lock
     silent: true
   dokka:
     cmds:

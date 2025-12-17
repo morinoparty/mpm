@@ -17,6 +17,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
+import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.config.plugin.withSortedPlugins
 import party.morino.mpm.api.core.plugin.AddPluginUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
@@ -44,12 +45,12 @@ class AddPluginUseCaseImpl :
      * mpm.jsonのpluginsマップにプラグインを追加する
      *
      * @param pluginName プラグイン名
-     * @param version バージョン文字列（デフォルトは"latest"）
+     * @param version バージョン指定（デフォルトはLatest）
      * @return 成功時はUnit、失敗時はエラーメッセージ
      */
     override suspend fun addPlugin(
         pluginName: String,
-        version: String
+        version: VersionSpecifier
     ): Either<String, Unit> {
         // rootディレクトリを取得
         val rootDir = pluginDirectory.getRootDirectory()
@@ -96,24 +97,6 @@ class AddPluginUseCaseImpl :
                 }
             }
 
-        // 最新バージョンを取得
-        val latestVersion =
-            try {
-                downloaderRepository.getLatestVersion(urlData)
-            } catch (e: Exception) {
-                return "バージョン情報の取得に失敗しました (${firstRepository.type}: ${firstRepository.repositoryId}): ${e.message}"
-                    .left()
-            }
-
-        // メタデータを作成
-        val metadata =
-            metadataManager
-                .createMetadata(pluginName, firstRepository, latestVersion, "add")
-                .getOrElse { return it.left() }
-
-        // メタデータを保存
-        metadataManager.saveMetadata(pluginName, metadata).getOrElse { return it.left() }
-
         // mpm.jsonを読み込む
         val mpmConfig =
             try {
@@ -128,20 +111,72 @@ class AddPluginUseCaseImpl :
             return "プラグイン '$pluginName' は既に管理対象に追加されています。".left()
         }
 
-        // pluginsマップに追加（バージョン番号を使用）
+        // VersionSpecifierに応じてバージョンデータを決定
+        val versionData: party.morino.mpm.api.model.repository.VersionData =
+            when (version) {
+                // 最新バージョンを取得
+                is VersionSpecifier.Latest -> {
+                    try {
+                        downloaderRepository.getLatestVersion(urlData)
+                    } catch (e: Exception) {
+                        return (
+                            "バージョン情報の取得に失敗しました " +
+                                "(${firstRepository.type}: ${firstRepository.repositoryId}): " +
+                                e.message
+                        ).left()
+                    }
+                }
+                // 固定バージョンを使用
+                is VersionSpecifier.Fixed -> {
+                    // 固定バージョンの場合、downloadIdを取得する必要がある
+                    // ここでは最新バージョンを取得してdownloadIdを使う
+                    // （将来的には指定されたバージョンのdownloadIdを取得する実装が必要）
+                    try {
+                        val latestVersionData = downloaderRepository.getLatestVersion(urlData)
+                        party.morino.mpm.api.model.repository.VersionData(
+                            downloadId = latestVersionData.downloadId,
+                            version = version.version
+                        )
+                    } catch (e: Exception) {
+                        return (
+                            "バージョン情報の取得に失敗しました " +
+                                "(${firstRepository.type}: ${firstRepository.repositoryId}): " +
+                                e.message
+                        ).left()
+                    }
+                }
+                // Tag指定（将来実装予定）
+                is VersionSpecifier.Tag -> {
+                    return "Tag指定は現在サポートされていません。".left()
+                }
+                // Pattern指定（将来実装予定）
+                is VersionSpecifier.Pattern -> {
+                    return "Pattern指定は現在サポートされていません。".left()
+                }
+            }
+        val metadata =
+            metadataManager
+                .createMetadata(pluginName, firstRepository, versionData, "add")
+                .getOrElse { return it.left() }
+
+        // pluginsマップに追加（決定されたバージョン番号を使用）
         val updatedPlugins = mpmConfig.plugins.toMutableMap()
-        updatedPlugins[pluginName] = latestVersion.version
+        updatedPlugins[pluginName] = versionData.version
 
         // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
         val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
 
-        // JSONとして保存
-        return try {
+        // mpm.jsonを保存
+        try {
             val jsonString = Utils.json.encodeToString(updatedConfig)
             configFile.writeText(jsonString)
-            Unit.right()
         } catch (e: Exception) {
-            "mpm.jsonの更新に失敗しました: ${e.message}".left()
+            return "mpm.jsonの更新に失敗しました: ${e.message}".left()
         }
+
+        // mpm.jsonの保存が成功した後にメタデータを保存
+        metadataManager.saveMetadata(pluginName, metadata).getOrElse { return it.left() }
+
+        return Unit.right()
     }
 }

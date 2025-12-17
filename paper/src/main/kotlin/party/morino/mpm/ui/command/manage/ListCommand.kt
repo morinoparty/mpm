@@ -15,8 +15,8 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.model.plugin.PluginData
 import revxrsal.commands.annotation.Command
-import revxrsal.commands.annotation.Flag
 import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
@@ -39,10 +39,10 @@ class ListCommand : KoinComponent {
     @Subcommand("list")
     suspend fun list(
         sender: CommandSender,
-        @Flag("all") showAll: Boolean = false,
-        @Flag("enabled") showEnabled: Boolean = false,
-        @Flag("disabled") showDisabled: Boolean = false,
-        @Flag("unmanaged") showUnmanaged: Boolean = false
+        @Switch("all") showAll: Boolean = false,
+        @Switch("enabled") showEnabled: Boolean = false,
+        @Switch("disabled") showDisabled: Boolean = false,
+        @Switch("unmanaged") showUnmanaged: Boolean = false
     ) {
         // デフォルトですべてのプラグインを表示
         val shouldShowAll = showAll || (!showEnabled && !showDisabled && !showUnmanaged)

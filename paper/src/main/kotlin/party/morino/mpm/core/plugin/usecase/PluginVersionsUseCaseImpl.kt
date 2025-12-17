@@ -15,12 +15,10 @@ import arrow.core.right
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginVersionsUseCase
 import party.morino.mpm.api.core.repository.RepositoryManager
 import party.morino.mpm.api.model.repository.UrlData
-import party.morino.mpm.utils.Utils
 import java.io.File
 
 /**
@@ -49,20 +47,6 @@ class PluginVersionsUseCaseImpl :
         // mpm.jsonが存在しない場合はエラー
         if (!configFile.exists()) {
             return "mpm.jsonが存在しません。先に 'mpm init' を実行してください。".left()
-        }
-
-        // mpm.jsonを読み込む
-        val mpmConfig =
-            try {
-                val jsonString = configFile.readText()
-                Utils.json.decodeFromString<MpmConfig>(jsonString)
-            } catch (e: Exception) {
-                return "mpm.jsonの読み込みに失敗しました: ${e.message}".left()
-            }
-
-        // プラグインが管理対象に含まれているか確認
-        if (!mpmConfig.plugins.containsKey(pluginName)) {
-            return "プラグイン '$pluginName' は管理対象に含まれていません。".left()
         }
 
         // リポジトリファイルを取得

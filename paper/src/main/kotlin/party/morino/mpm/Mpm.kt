@@ -15,6 +15,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.config.PluginDirectory
+import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.core.config.ConfigManager
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginInfoManager
@@ -50,6 +51,7 @@ import party.morino.mpm.ui.command.manage.VersionsCommand
 import party.morino.mpm.ui.command.repo.RepositoryCommands
 import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
 import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
+import party.morino.mpm.utils.command.resolver.VersionSpecifierParameterType
 import revxrsal.commands.bukkit.BukkitLamp
 
 /**
@@ -147,6 +149,7 @@ open class Mpm :
                     // カスタムParameterTypeの登録
                     builder.addParameterType(RepositoryPlugin::class.java, RepositoryPluginParameterType())
                     builder.addParameterType(InstalledPlugin::class.java, InstalledPluginParameterType())
+                    builder.addParameterType(VersionSpecifier::class.java, VersionSpecifierParameterType())
                 }.build()
 
         // 全コマンドの登録
