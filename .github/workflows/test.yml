@@ -22,7 +22,7 @@ jobs:
         run: ./gradlew test
 
       - name: Publish test results
-        uses: mikepenz/action-junit-report@v6
+        uses: mikepenz/action-junit-report@v6.0.1
         if: success() || failure()
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'

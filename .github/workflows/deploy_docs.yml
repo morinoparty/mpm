@@ -28,11 +28,11 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew dokkaGenerate
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6.1.0
         with:
           node-version: 22
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4.2.0
         name: Install pnpm
         with:
           version: 9
