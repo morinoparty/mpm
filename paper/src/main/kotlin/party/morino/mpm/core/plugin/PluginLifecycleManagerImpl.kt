@@ -12,6 +12,7 @@ This software is distributed without any warranty.
 package party.morino.mpm.core.plugin
 
 import arrow.core.Either
+import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.core.plugin.InstallResult
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
@@ -37,7 +38,7 @@ class PluginLifecycleManagerImpl : PluginLifecycleManager {
 
     override suspend fun add(
         plugin: RepositoryPlugin,
-        version: String
+        version: VersionSpecifier
     ): Either<String, Unit> =
         // AddPluginUseCaseに処理を委譲
         addPluginUseCase.addPlugin(plugin.pluginId, version)

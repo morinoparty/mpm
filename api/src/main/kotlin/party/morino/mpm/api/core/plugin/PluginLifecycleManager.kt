@@ -12,6 +12,7 @@ This software is distributed without any warranty.
 package party.morino.mpm.api.core.plugin
 
 import arrow.core.Either
+import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.Plugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
@@ -26,12 +27,12 @@ interface PluginLifecycleManager {
      * mpm.jsonのpluginsマップにプラグインを追加する
      *
      * @param plugin リポジトリプラグイン
-     * @param version バージョン文字列（デフォルトは"latest"）
+     * @param version バージョン指定（デフォルトはLatest）
      * @return 成功時はUnit、失敗時はエラーメッセージ
      */
     suspend fun add(
         plugin: RepositoryPlugin,
-        version: String = "latest"
+        version: VersionSpecifier = VersionSpecifier.Latest
     ): Either<String, Unit>
 
     /**

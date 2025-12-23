@@ -10,19 +10,20 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Flag
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.model.plugin.PluginData
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグインリスト表示コマンドのコントローラー
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class ListCommand : KoinComponent {
     // KoinによるDI
     private val infoManager: PluginInfoManager by inject()
@@ -35,13 +36,13 @@ class ListCommand : KoinComponent {
      * @param showDisabled 無効なプラグインのみ表示するフラグ
      * @param showUnmanaged 管理されていないプラグインを表示するフラグ
      */
-    @Command("list")
+    @Subcommand("list")
     suspend fun list(
         sender: CommandSender,
-        @Flag("all") showAll: Boolean = false,
-        @Flag("enabled") showEnabled: Boolean = false,
-        @Flag("disabled") showDisabled: Boolean = false,
-        @Flag("unmanaged") showUnmanaged: Boolean = false
+        @Switch("all") showAll: Boolean = false,
+        @Switch("enabled") showEnabled: Boolean = false,
+        @Switch("disabled") showDisabled: Boolean = false,
+        @Switch("unmanaged") showUnmanaged: Boolean = false
     ) {
         // デフォルトですべてのプラグインを表示
         val shouldShowAll = showAll || (!showEnabled && !showDisabled && !showUnmanaged)

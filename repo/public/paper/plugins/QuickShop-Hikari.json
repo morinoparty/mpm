@@ -5,7 +5,7 @@
     "source": "https://github.com/QuickShop-Community/QuickShop-Hikari",
     "repositories": [
         {
-            "type": "spigot",
+            "type": "spigotmc",
             "id": "100125",
             "fileNameRegex": ".*\\.jar$"
         },

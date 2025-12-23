@@ -10,11 +10,12 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * 一括インストールコマンドのコントローラー
@@ -22,7 +23,7 @@ import party.morino.mpm.api.core.plugin.PluginUpdateManager
  * mpm install - mpm.jsonに定義されたプラグインを一括インストール
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class InstallCommand : KoinComponent {
     // KoinによるDI
     private val updateManager: PluginUpdateManager by inject()
@@ -31,7 +32,7 @@ class InstallCommand : KoinComponent {
      * mpm.jsonに定義されたプラグインを一括インストールするコマンド
      * @param sender コマンド送信者
      */
-    @Command("install")
+    @Subcommand("install")
     suspend fun install(sender: CommandSender) {
         sender.sendRichMessage("<gray>mpm.jsonを読み込んでいます...")
 

@@ -10,11 +10,12 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグイン更新コマンドのコントローラー
@@ -22,7 +23,7 @@ import party.morino.mpm.api.core.plugin.PluginUpdateManager
  * mpm update - 新しいバージョンがあるプラグインを更新
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class UpdateCommand : KoinComponent {
     // Koinによる依存性注入
     private val updateManager: PluginUpdateManager by inject()
@@ -31,7 +32,7 @@ class UpdateCommand : KoinComponent {
      * 新しいバージョンがあるプラグインを更新するコマンド
      * @param sender コマンド送信者
      */
-    @Command("update")
+    @Subcommand("update")
     suspend fun update(sender: CommandSender) {
         sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
 

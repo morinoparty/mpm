@@ -1,6 +1,5 @@
 [versions]
-cloud = "2.1.0-SNAPSHOT"
-cloudPaper = "2.0.0-SNAPSHOT"
+lamp = "4.0.0-rc.14"
 paper = "1.21.11-R0.1-SNAPSHOT"
 mccoroutine = "2.22.0"
 koin = "4.1.1"
@@ -19,10 +18,9 @@ arrow = "2.2.1.1"
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
 
-cloud = { module = "org.incendo:cloud-core", version.ref = "cloud" }
-cloud-annotations = { module = "org.incendo:cloud-annotations", version.ref = "cloud" }
-cloudPaper = { module = "org.incendo:cloud-paper", version.ref = "cloudPaper" }
-cloud-kotlin-coroutines-annotations = { group = "org.incendo", name = "cloud-kotlin-coroutines-annotations", version.ref = "cloud" }
+lamp-common = { group = "io.github.revxrsal", name = "lamp.common", version.ref = "lamp" }
+lamp-bukkit = { group = "io.github.revxrsal", name = "lamp.bukkit", version.ref = "lamp" }
+lamp-brigadier = { group = "io.github.revxrsal", name = "lamp.brigadier", version.ref = "lamp" }
 
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kaml = { group = "com.charleskorn.kaml", name = "kaml", version.ref = "kaml" }
@@ -70,7 +68,7 @@ ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
 
 
 [bundles]
-commands = ["cloud", "cloudPaper", "cloud-annotations", "cloud-kotlin-coroutines-annotations"]
+commands = ["lamp-common", "lamp-bukkit", "lamp-brigadier"]
 coroutines = ["mccoroutine-bukkit-api", "mccoroutine-bukkit-core" , "kotlinx-coroutines-core"]
 ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-mock", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json"]
 junit = ["junit-jupiter", "junit-platform-launcher", "kotlinx-coroutines-test", "mockk", "mock-bukkit"]

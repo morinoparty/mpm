@@ -12,12 +12,15 @@ package party.morino.mpm.core.plugin.usecase
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.config.plugin.withSortedPlugins
 import party.morino.mpm.api.core.plugin.UninstallPluginUseCase
+import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.event.PluginUninstallEvent
 import party.morino.mpm.utils.PluginDataUtils
 import party.morino.mpm.utils.Utils
 import java.io.File
@@ -31,6 +34,7 @@ class UninstallPluginUseCaseImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * プラグインをアンインストールする
@@ -63,14 +67,15 @@ class UninstallPluginUseCaseImpl :
             return "プラグイン '$pluginName' は管理対象に含まれていません。".left()
         }
 
-        // pluginsディレクトリからJARファイルを探して削除
+        // pluginsディレクトリからJARファイルを探す
         val pluginsDir = pluginDirectory.getPluginsDirectory()
         val pluginFiles =
             pluginsDir.listFiles { file ->
                 file.isFile && file.extension == "jar"
             } ?: emptyArray()
 
-        var fileDeleted = false
+        // 対象のJARファイルを特定
+        var targetJarFile: File? = null
         for (jarFile in pluginFiles) {
             try {
                 val pluginData = PluginDataUtils.getPluginData(jarFile)
@@ -82,10 +87,7 @@ class UninstallPluginUseCaseImpl :
                         }
 
                     if (name == pluginName) {
-                        // ファイルを削除
-                        if (jarFile.delete()) {
-                            fileDeleted = true
-                        }
+                        targetJarFile = jarFile
                         break
                     }
                 }
@@ -93,6 +95,25 @@ class UninstallPluginUseCaseImpl :
                 // エラーが発生した場合はスキップ
                 continue
             }
+        }
+
+        // PluginUninstallEventを発火して、他のプラグインがキャンセルできるようにする
+        val uninstallEvent =
+            PluginUninstallEvent(
+                installedPlugin = InstalledPlugin(pluginName),
+                jarFile = targetJarFile
+            )
+        plugin.server.pluginManager.callEvent(uninstallEvent)
+
+        // イベントがキャンセルされた場合はスキップ
+        if (uninstallEvent.isCancelled) {
+            return "アンインストールがキャンセルされました".left()
+        }
+
+        // JARファイルを削除
+        var fileDeleted = false
+        if (targetJarFile != null && targetJarFile.delete()) {
+            fileDeleted = true
         }
 
         // mpm.jsonからプラグインを削除

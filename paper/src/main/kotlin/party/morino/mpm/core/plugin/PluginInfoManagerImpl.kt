@@ -71,9 +71,11 @@ class PluginInfoManagerImpl : PluginInfoManager {
         // PluginListUseCaseに処理を委譲
         pluginListUseCase.getDisabledPlugins()
 
-    override suspend fun getVersions(plugin: RepositoryPlugin): Either<String, List<String>> =
+    override suspend fun getVersions(plugin: RepositoryPlugin): Either<String, List<String>> {
         // PluginVersionsUseCaseに処理を委譲
-        pluginVersionsUseCase.getVersions(plugin.pluginId)
+        val versions = pluginVersionsUseCase.getVersions(plugin.pluginId)
+        return versions
+    }
 
     override suspend fun checkOutdated(plugin: InstalledPlugin): Either<String, OutdatedInfo> =
         // CheckOutdatedUseCaseに処理を委譲

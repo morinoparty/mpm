@@ -13,6 +13,7 @@ import arrow.core.Either
 import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
@@ -21,8 +22,10 @@ import party.morino.mpm.api.core.plugin.CheckOutdatedUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
 import party.morino.mpm.api.core.repository.RepositoryManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.OutdatedInfo
 import party.morino.mpm.api.model.repository.UrlData
+import party.morino.mpm.event.PluginOutdatedEvent
 import party.morino.mpm.utils.Utils
 import java.io.File
 
@@ -38,6 +41,7 @@ class CheckOutdatedUseCaseImpl :
     private val pluginMetadataManager: PluginMetadataManager by inject()
     private val repositorySourceManager: RepositoryManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * 指定されたプラグインの更新を確認する
@@ -122,6 +126,17 @@ class CheckOutdatedUseCaseImpl :
         // 現在のバージョンと最新バージョンを比較
         val currentVersion = metadata.mpmInfo.version.current.raw
         val needsUpdate = currentVersion != latestVersion.version
+
+        // 更新が必要な場合はイベントを発火
+        if (needsUpdate) {
+            val outdatedEvent =
+                PluginOutdatedEvent(
+                    installedPlugin = InstalledPlugin(pluginName),
+                    currentVersion = currentVersion,
+                    latestVersion = latestVersion.version
+                )
+            plugin.server.pluginManager.callEvent(outdatedEvent)
+        }
 
         return OutdatedInfo(
             pluginName = pluginName,

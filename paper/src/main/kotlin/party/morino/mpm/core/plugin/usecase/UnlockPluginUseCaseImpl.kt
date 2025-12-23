@@ -13,10 +13,13 @@ import arrow.core.Either
 import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
 import party.morino.mpm.api.core.plugin.UnlockPluginUseCase
+import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.event.PluginUnlockEvent
 
 /**
  * mpm unlockコマンドに関するユースケースの実装
@@ -27,6 +30,7 @@ class UnlockPluginUseCaseImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * プラグインのロックを解除する
@@ -45,6 +49,19 @@ class UnlockPluginUseCaseImpl :
         // 既にロック解除されている場合はエラー
         if (metadata.mpmInfo.settings.lock != true) {
             return "プラグイン '$pluginName' はロックされていません。".left()
+        }
+
+        // PluginUnlockEventを発火して、他のプラグインがキャンセルできるようにする
+        val unlockEvent =
+            PluginUnlockEvent(
+                installedPlugin = InstalledPlugin(pluginName),
+                currentVersion = metadata.mpmInfo.version.current.raw
+            )
+        plugin.server.pluginManager.callEvent(unlockEvent)
+
+        // イベントがキャンセルされた場合はスキップ
+        if (unlockEvent.isCancelled) {
+            return "ロック解除がキャンセルされました".left()
         }
 
         // ロックフラグを解除

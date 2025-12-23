@@ -101,7 +101,7 @@ class SpigotDownloaderTest {
             MockEngine { request ->
                 when {
                     request.url.toString().startsWith("https://api.spiget.org/v2/resources/9089/versions/") &&
-                        request.url.toString().endsWith("/download") -> {
+                        request.url.toString().endsWith("/download/proxy") -> {
                         // ファイルダウンロードのモックレスポンス
                         respond(
                             content = ByteReadChannel(ByteArray(100)),

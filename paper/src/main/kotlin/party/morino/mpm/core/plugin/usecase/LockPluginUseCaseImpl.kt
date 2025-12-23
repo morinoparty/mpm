@@ -13,10 +13,13 @@ import arrow.core.Either
 import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.LockPluginUseCase
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.event.PluginLockEvent
 
 /**
  * mpm lockコマンドに関するユースケースの実装
@@ -27,6 +30,7 @@ class LockPluginUseCaseImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * プラグインをロックする
@@ -45,6 +49,19 @@ class LockPluginUseCaseImpl :
         // 既にロックされている場合はエラー
         if (metadata.mpmInfo.settings.lock == true) {
             return "プラグイン '$pluginName' は既にロックされています。".left()
+        }
+
+        // PluginLockEventを発火して、他のプラグインがキャンセルできるようにする
+        val lockEvent =
+            PluginLockEvent(
+                installedPlugin = InstalledPlugin(pluginName),
+                currentVersion = metadata.mpmInfo.version.current.raw
+            )
+        plugin.server.pluginManager.callEvent(lockEvent)
+
+        // イベントがキャンセルされた場合はスキップ
+        if (lockEvent.isCancelled) {
+            return "ロックがキャンセルされました".left()
         }
 
         // ロックフラグを設定

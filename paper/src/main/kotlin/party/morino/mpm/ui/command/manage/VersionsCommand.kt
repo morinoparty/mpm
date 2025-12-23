@@ -10,14 +10,14 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Flag
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Flag
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグインバージョン一覧表示コマンドのコントローラー
@@ -25,7 +25,7 @@ import party.morino.mpm.api.model.plugin.RepositoryPlugin
  * mpm versions <plugin> [--limit <数>] - プラグインの利用可能なバージョン一覧を表示
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class VersionsCommand : KoinComponent {
     // Koinによる依存性注入
     private val infoManager: PluginInfoManager by inject()
@@ -36,10 +36,10 @@ class VersionsCommand : KoinComponent {
      * @param plugin リポジトリプラグイン
      * @param limit 表示するバージョンの最大数（デフォルト: 20）
      */
-    @Command("versions <plugin>")
+    @Subcommand("versions")
     suspend fun versions(
         sender: CommandSender,
-        @Argument("plugin") plugin: RepositoryPlugin,
+        plugin: RepositoryPlugin,
         @Flag("limit") limit: Int = 20
     ) {
         val pluginName = plugin.pluginId

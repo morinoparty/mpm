@@ -13,13 +13,17 @@ import arrow.core.Either
 import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.core.plugin.CheckOutdatedUseCase
 import party.morino.mpm.api.core.plugin.PluginInstallUseCase
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
 import party.morino.mpm.api.core.plugin.UpdatePluginUseCase
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.UpdateResult
+import party.morino.mpm.event.PluginUpdateEvent
 
 /**
  * mpm updateコマンドに関するユースケースの実装
@@ -32,6 +36,7 @@ class UpdatePluginUseCaseImpl :
     private val checkOutdatedUseCase: CheckOutdatedUseCase by inject()
     private val pluginInstallUseCase: PluginInstallUseCase by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * 新しいバージョンがあるすべてのプラグインを更新する
@@ -83,6 +88,29 @@ class UpdatePluginUseCaseImpl :
                         newVersion = outdatedInfo.latestVersion,
                         success = false,
                         errorMessage = "プラグインがロックされています"
+                    )
+                )
+                continue
+            }
+
+            // PluginUpdateEventを発火して、他のプラグインがキャンセルできるようにする
+            val updateEvent =
+                PluginUpdateEvent(
+                    installedPlugin = InstalledPlugin(outdatedInfo.pluginName),
+                    beforeVersion = VersionSpecifier.Fixed(outdatedInfo.currentVersion),
+                    targetVersion = VersionSpecifier.Fixed(outdatedInfo.latestVersion)
+                )
+            plugin.server.pluginManager.callEvent(updateEvent)
+
+            // イベントがキャンセルされた場合はスキップ
+            if (updateEvent.isCancelled) {
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = outdatedInfo.pluginName,
+                        oldVersion = outdatedInfo.currentVersion,
+                        newVersion = outdatedInfo.latestVersion,
+                        success = false,
+                        errorMessage = "更新がキャンセルされました"
                     )
                 )
                 continue

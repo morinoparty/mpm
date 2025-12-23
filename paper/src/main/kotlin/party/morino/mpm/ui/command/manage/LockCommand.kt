@@ -10,13 +10,13 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginUpdateManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグインロック/アンロックコマンドのコントローラー
@@ -25,7 +25,7 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
  * mpm unlock <plugin> - プラグインのロックを解除
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class LockCommand : KoinComponent {
     // Koinによる依存性注入
     private val updateManager: PluginUpdateManager by inject()
@@ -35,10 +35,10 @@ class LockCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param plugin インストール済みプラグイン
      */
-    @Command("lock <plugin>")
+    @Subcommand("lock")
     suspend fun lock(
         sender: CommandSender,
-        @Argument("plugin") plugin: InstalledPlugin
+        plugin: InstalledPlugin
     ) {
         val pluginName = plugin.pluginId
         // PluginUpdateManagerを実行
@@ -60,10 +60,10 @@ class LockCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param plugin インストール済みプラグイン
      */
-    @Command("unlock <plugin>")
+    @Subcommand("unlock")
     suspend fun unlock(
         sender: CommandSender,
-        @Argument("plugin") plugin: InstalledPlugin
+        plugin: InstalledPlugin
     ) {
         val pluginName = plugin.pluginId
         // PluginUpdateManagerを実行

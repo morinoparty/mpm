@@ -10,13 +10,14 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグイン追加コマンドのコントローラー
@@ -24,26 +25,41 @@ import party.morino.mpm.api.model.plugin.RepositoryPlugin
  * mpm add <pluginName> - プラグインを管理対象に追加
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class AddCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleManager: PluginLifecycleManager by inject()
 
     /**
-     * プラグインを管理対象に追加するコマンド
+     * プラグインを管理対象に追加するコマンド（バージョン指定なし）
      * @param sender コマンド送信者
      * @param plugin プラグイン名
      */
-    @Command("add <pluginName>")
+    @Subcommand("add")
     suspend fun add(
         sender: CommandSender,
-        @Argument("pluginName") plugin: RepositoryPlugin
+        plugin: RepositoryPlugin
+    ) {
+        addWithVersion(sender, plugin, VersionSpecifier.Latest)
+    }
+
+    /**
+     * プラグインを管理対象に追加するコマンド（バージョン指定あり）
+     * @param sender コマンド送信者
+     * @param plugin プラグイン名
+     * @param version バージョン指定
+     */
+    @Subcommand("add")
+    suspend fun addWithVersion(
+        sender: CommandSender,
+        plugin: RepositoryPlugin,
+        version: VersionSpecifier
     ) {
         val pluginName = plugin.pluginId
         sender.sendRichMessage("<gray>プラグイン '$pluginName' の情報を取得しています...")
 
         // PluginLifecycleManagerを実行
-        lifecycleManager.add(plugin).fold(
+        lifecycleManager.add(plugin, version).fold(
             // 失敗時の処理
             { errorMessage ->
                 sender.sendRichMessage("<red>$errorMessage")

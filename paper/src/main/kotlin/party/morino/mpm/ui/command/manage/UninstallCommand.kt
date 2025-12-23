@@ -10,13 +10,14 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Description
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグインアンインストールコマンドのコントローラー
@@ -24,20 +25,16 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
  * mpm uninstall <pluginName> - プラグインをアンインストール
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class UninstallCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleManager: PluginLifecycleManager by inject()
 
-    /**
-     * プラグインをアンインストールするコマンド
-     * @param sender コマンド送信者
-     * @param plugin インストール済みプラグイン
-     */
-    @Command("uninstall <pluginName>")
+    @Subcommand("uninstall")
+    @Description("指定されたプラグインをアンインストールします。")
     suspend fun uninstall(
         sender: CommandSender,
-        @Argument("pluginName") plugin: InstalledPlugin
+        plugin: InstalledPlugin
     ) {
         val pluginName = plugin.pluginId
         // PluginLifecycleManagerを実行

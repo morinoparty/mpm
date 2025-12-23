@@ -12,12 +12,15 @@ package party.morino.mpm.core.plugin.usecase
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.config.plugin.withSortedPlugins
 import party.morino.mpm.api.core.plugin.RemovePluginUseCase
+import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.event.PluginRemoveEvent
 import party.morino.mpm.utils.Utils
 import java.io.File
 
@@ -30,6 +33,7 @@ class RemovePluginUseCaseImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * プラグインを管理対象から除外する
@@ -60,6 +64,18 @@ class RemovePluginUseCaseImpl :
         // プラグインが管理対象に含まれているか確認
         if (!mpmConfig.plugins.containsKey(pluginName)) {
             return "プラグイン '$pluginName' は管理対象に含まれていません。".left()
+        }
+
+        // PluginRemoveEventを発火して、他のプラグインがキャンセルできるようにする
+        val removeEvent =
+            PluginRemoveEvent(
+                installedPlugin = InstalledPlugin(pluginName)
+            )
+        plugin.server.pluginManager.callEvent(removeEvent)
+
+        // イベントがキャンセルされた場合はスキップ
+        if (removeEvent.isCancelled) {
+            return "除外がキャンセルされました".left()
         }
 
         // mpm.jsonからプラグインを削除

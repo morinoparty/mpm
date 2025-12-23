@@ -14,6 +14,7 @@ import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
 import com.charleskorn.kaml.Yaml
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
@@ -24,17 +25,21 @@ import party.morino.mpm.api.core.plugin.PluginInstallInfo
 import party.morino.mpm.api.core.plugin.PluginInstallUseCase
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
 import party.morino.mpm.api.core.plugin.PluginRemovalInfo
+import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.model.repository.UrlData
 import party.morino.mpm.api.model.repository.VersionData
+import party.morino.mpm.event.PluginInstallEvent
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import java.io.File
 
 class PluginInstallUseCaseImpl :
     PluginInstallUseCase,
     KoinComponent {
+    // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
     private val downloaderRepository: DownloaderRepository by inject()
     private val metadataManager: PluginMetadataManager by inject()
+    private val plugin: JavaPlugin by inject()
 
     override suspend fun installPlugin(pluginName: String): Either<String, InstallResult> {
         val metadataDir = pluginDirectory.getMetadataDirectory()
@@ -87,6 +92,21 @@ class PluginInstallUseCaseImpl :
             metadataManager
                 .updateMetadata(pluginName, versionData, latestVersionData, "install")
                 .getOrElse { return it.left() }
+
+        // PluginInstallEventを発火して、他のプラグインがキャンセルできるようにする
+        val installEvent =
+            PluginInstallEvent(
+                repositoryPlugin = RepositoryPlugin(pluginName),
+                version = versionData.version,
+                repositoryType = repositoryInfo.type.name,
+                repositoryId = repositoryInfo.id
+            )
+        plugin.server.pluginManager.callEvent(installEvent)
+
+        // イベントがキャンセルされた場合はスキップ
+        if (installEvent.isCancelled) {
+            return "インストールがキャンセルされました".left()
+        }
 
         val downloadedFile =
             try {

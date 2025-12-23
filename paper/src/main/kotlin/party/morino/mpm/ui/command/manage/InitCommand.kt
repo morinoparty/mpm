@@ -10,13 +10,13 @@
 package party.morino.mpm.ui.command.manage
 
 import org.bukkit.command.CommandSender
-import org.incendo.cloud.annotations.Argument
-import org.incendo.cloud.annotations.Command
-import org.incendo.cloud.annotations.Flag
-import org.incendo.cloud.annotations.Permission
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.core.plugin.ProjectManager
+import revxrsal.commands.annotation.Command
+import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
+import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プロジェクト初期化コマンドのコントローラー
@@ -24,7 +24,7 @@ import party.morino.mpm.api.core.plugin.ProjectManager
  * mpm init - mpm.jsonを生成し、すべてのプラグインをunmanagedとして追加
  */
 @Command("mpm")
-@Permission("mpm.command")
+@CommandPermission("mpm.command")
 class InitCommand : KoinComponent {
     // KoinによるDI
     private val projectManager: ProjectManager by inject()
@@ -34,28 +34,17 @@ class InitCommand : KoinComponent {
      * pluginsディレクトリ内のすべてのプラグインをunmanagedとして追加する
      *
      * @param sender コマンド送信者
-     * @param projectName プロジェクト名（デフォルト: "my-server"）
      * @param overwrite 既存のmpm.jsonを上書きするかどうか
      */
-    @Command("init [projectName]")
+    @Subcommand("init")
     suspend fun init(
         sender: CommandSender,
-        @Argument("projectName") projectName: String?,
-        @Flag("overwrite") overwrite: Boolean = false
+        @Switch("overwrite")overwrite: Boolean = false
     ) {
-        // プロジェクト名のデフォルト値を設定
-        val name = projectName ?: "my-server"
-
-        // 入力バリデーション
-        if (name.isEmpty()) {
-            sender.sendMessage("プロジェクト名を入力してください")
-            return
-        }
-
         sender.sendMessage("プロジェクトを初期化しています...")
 
         // ProjectManagerを実行
-        projectManager.initialize(name, overwrite).fold(
+        projectManager.initialize("server", overwrite).fold(
             // エラーの場合
             { errorMessage ->
                 sender.sendMessage("❌ エラー: $errorMessage")
@@ -63,7 +52,6 @@ class InitCommand : KoinComponent {
             // 成功の場合
             {
                 sender.sendMessage("✅ mpm.jsonを作成しました")
-                sender.sendMessage("プロジェクト名: $name")
                 sender.sendMessage("すべてのプラグインをunmanagedとして追加しました")
                 sender.sendMessage("次のコマンドでプラグインを確認できます: /mpm list")
             }
