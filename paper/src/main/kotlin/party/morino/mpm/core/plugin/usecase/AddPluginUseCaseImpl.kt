@@ -19,10 +19,12 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.config.plugin.VersionSpecifier
+import party.morino.mpm.api.config.plugin.VersionSpecifierParser
 import party.morino.mpm.api.config.plugin.withSortedPlugins
 import party.morino.mpm.api.core.plugin.AddPluginUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
+import party.morino.mpm.api.core.repository.RepositoryConfig
 import party.morino.mpm.api.core.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.model.repository.UrlData
@@ -157,6 +159,57 @@ class AddPluginUseCaseImpl :
                 is VersionSpecifier.Pattern -> {
                     return "Pattern指定は現在サポートされていません。".left()
                 }
+                // Sync指定: ターゲットプラグインのバージョンに同期
+                is VersionSpecifier.Sync -> {
+                    // ターゲットプラグインがmpm.jsonに存在するか確認
+                    val targetVersion =
+                        mpmConfig.plugins[version.targetPlugin]
+                            ?: return "同期対象のプラグイン '${version.targetPlugin}' がmpm.jsonに存在しません。".left()
+
+                    // ターゲットがunmanagedの場合はエラー
+                    if (targetVersion == "unmanaged") {
+                        return "同期対象のプラグイン '${version.targetPlugin}' は手動管理（unmanaged）です。".left()
+                    }
+
+                    // ターゲットもSync指定の場合はエラー
+                    if (VersionSpecifierParser.isSyncFormat(targetVersion)) {
+                        return "同期対象のプラグイン '${version.targetPlugin}' も同期設定になっています。".left()
+                    }
+
+                    // ターゲットのバージョンを解決（latestの場合はターゲット側のリポジトリから取得）
+                    val resolvedVersion =
+                        if (targetVersion == "latest") {
+                            metadataManager.loadMetadata(version.targetPlugin).fold(
+                                {
+                                    // メタデータがない場合はターゲットのリポジトリから最新バージョンを取得
+                                    val targetRepo =
+                                        repositorySourceManager
+                                            .getRepositoryFile(version.targetPlugin)
+                                            ?.repositories
+                                            ?.firstOrNull()
+                                            ?: return "ターゲットプラグインのリポジトリが見つかりません: ${version.targetPlugin}".left()
+                                    val targetUrlData =
+                                        createUrlData(targetRepo)
+                                            ?: return "未対応のリポジトリタイプです: ${targetRepo.type}".left()
+                                    try {
+                                        downloaderRepository.getLatestVersion(targetUrlData).version
+                                    } catch (e: Exception) {
+                                        return "ターゲットプラグインのバージョン取得に失敗しました: ${e.message}".left()
+                                    }
+                                },
+                                { it.mpmInfo.version.current.raw }
+                            )
+                        } else {
+                            targetVersion
+                        }
+
+                    // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
+                    try {
+                        downloaderRepository.getVersionByName(urlData, resolvedVersion)
+                    } catch (e: Exception) {
+                        return "バージョン '$resolvedVersion' の取得に失敗しました: ${e.message}".left()
+                    }
+                }
             }
         val metadata =
             metadataManager
@@ -178,9 +231,15 @@ class AddPluginUseCaseImpl :
             return "追加がキャンセルされました".left()
         }
 
-        // pluginsマップに追加（決定されたバージョン番号を使用）
+        // pluginsマップに追加（Syncの場合は"sync:PluginName"形式で保存）
         val updatedPlugins = mpmConfig.plugins.toMutableMap()
-        updatedPlugins[pluginName] = versionData.version
+        val versionToSave =
+            when (version) {
+                is VersionSpecifier.Sync -> VersionSpecifierParser.toVersionString(version)
+                is VersionSpecifier.Latest -> "latest"
+                else -> versionData.version
+            }
+        updatedPlugins[pluginName] = versionToSave
 
         // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
         val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
@@ -198,4 +257,20 @@ class AddPluginUseCaseImpl :
 
         return Unit.right()
     }
+
+    /**
+     * RepositoryConfigからUrlDataを生成する
+     * @return 変換されたUrlData、未対応のタイプの場合はnull
+     */
+    private fun createUrlData(repo: RepositoryConfig): UrlData? =
+        when (repo.type.lowercase()) {
+            "github" ->
+                repo.repositoryId
+                    .split("/")
+                    .takeIf { it.size == 2 }
+                    ?.let { (owner, repository) -> UrlData.GithubUrlData(owner, repository) }
+            "modrinth" -> UrlData.ModrinthUrlData(repo.repositoryId)
+            "spigotmc" -> UrlData.SpigotMcUrlData(repo.repositoryId)
+            else -> null
+        }
 }

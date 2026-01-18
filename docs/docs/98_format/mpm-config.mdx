@@ -140,13 +140,50 @@ your-server/
     "plugins": {
         "LuckPerms": "5.4.97",
         "Vault": "latest",
-        "EssentialsX": "unmanaged"
+        "EssentialsX": "unmanaged",
+        "QuickShop-Hikari-Addon": "sync:QuickShop-Hikari"
     }
 }
 ```
 
 - **キー**: プラグイン名
-- **値**: バージョン文字列または`"unmanaged"`
+- **値**: バージョン指定文字列
+
+#### 🔄 バージョン指定形式
+
+| 形式 | 説明 | 例 |
+|------|------|-----|
+| `"X.Y.Z"` | 固定バージョン | `"5.4.97"` |
+| `"latest"` | 最新バージョン | `"latest"` |
+| `"sync:PluginName"` | 別プラグインと同期 | `"sync:QuickShop"` |
+| `"unmanaged"` | 手動管理 | `"unmanaged"` |
+
+#### 🔗 sync指定（バージョン同期）
+
+`sync:PluginName` 形式を使用すると、アドオンプラグインを親プラグインのバージョンに同期できます。
+
+```json
+{
+    "plugins": {
+        "QuickShop-Hikari": "6.2.0",
+        "QuickShop-Hikari-Addon": "sync:QuickShop-Hikari"
+    }
+}
+```
+
+**動作:**
+- インストール時: `QuickShop-Hikari-Addon` は `QuickShop-Hikari` と同じ `6.2.0` をインストール
+- 更新時: `QuickShop-Hikari` が更新されると、アドオンも連動して更新
+
+**制限事項:**
+- 同期対象プラグインは `mpm.json` に存在する必要があります
+- 同期の連鎖（sync:A → sync:B）はサポートされていません
+- 循環依存（A → B → A）は検出されエラーになります
+
+:::tip ユースケース
+QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで特に便利です。
+親プラグインのバージョンを変更するだけで、関連するすべてのアドオンが自動的に同じバージョンに更新されます。
+:::
 
 ### settings（グローバル設定）
 

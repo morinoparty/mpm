@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.plugin.VersionSpecifier
+import party.morino.mpm.api.config.plugin.VersionSpecifierParser
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import revxrsal.commands.autocomplete.SuggestionProvider
@@ -46,13 +47,9 @@ class VersionSpecifierParameterType :
         // 入力ストリームから文字列を読み取る
         val versionString = input.readString()
 
-        // "latest"の場合はLatestを返す
-        return if (versionString.equals("latest", ignoreCase = true)) {
-            VersionSpecifier.Latest
-        } else {
-            // それ以外の場合は固定バージョンとして扱う
-            VersionSpecifier.Fixed(versionString)
-        }
+        // VersionSpecifierParserを使用してパース
+        // "latest", "sync:PluginName", "tag:stable", "pattern:..." などをサポート
+        return VersionSpecifierParser.parse(versionString)
     }
 
     /**

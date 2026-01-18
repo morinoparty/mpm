@@ -17,6 +17,9 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
+import party.morino.mpm.api.config.plugin.VersionSpecifierParser
+import party.morino.mpm.api.config.plugin.topologicalSortPlugins
+import party.morino.mpm.api.config.plugin.validateSyncDependencies
 import party.morino.mpm.api.core.plugin.BulkInstallResult
 import party.morino.mpm.api.core.plugin.BulkInstallUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
@@ -59,30 +62,46 @@ class BulkInstallUseCaseImpl :
                 return "mpm.jsonの読み込みに失敗しました: ${e.message}".left()
             }
 
+        // Sync依存関係のバリデーション
+        mpmConfig.validateSyncDependencies().onLeft { error ->
+            return error.toMessage().left()
+        }
+
+        // トポロジカルソートでプラグインを並べ替え（依存先が先に来るように）
+        val sortedPlugins = mpmConfig.topologicalSortPlugins()
+
+        // 解決済みバージョンを追跡（Syncプラグインのバージョン解決に使用）
+        val resolvedVersions = mutableMapOf<String, String>()
+
         // インストールが必要なプラグインを検出
         val pluginsToInstall = mutableListOf<String>()
-        for ((pluginName, expectedVersion) in mpmConfig.plugins) {
-            // "unmanaged"のプラグインはスキップ
-            if (expectedVersion == "unmanaged") {
-                continue
-            }
+        for (pluginName in sortedPlugins) {
+            val expectedVersion = mpmConfig.plugins[pluginName] ?: continue
+            if (expectedVersion == "unmanaged") continue
 
-            // metadataを読み込んで比較
+            val resolvedVersion = resolveExpectedVersion(pluginName, expectedVersion, resolvedVersions)
+            val metadataResult = metadataManager.loadMetadata(pluginName)
+
+            // インストールが必要かを判定
             val shouldInstall =
-                metadataManager.loadMetadata(pluginName).fold(
-                    // metadataが存在しない場合はインストールが必要
-                    { true },
-                    // metadataが存在する場合、バージョンを比較
+                metadataResult.fold(
+                    { true }, // メタデータなし → インストール必要
                     { metadata ->
-                        val currentVersion = metadata.mpmInfo.version.current.raw
-                        // mpm.jsonのバージョンとmetadataのバージョンが異なる場合はインストールが必要
-                        currentVersion != expectedVersion
+                        // latestは常に最新取得するのでスキップ、それ以外はバージョン比較
+                        expectedVersion != "latest" && metadata.mpmInfo.version.current.raw != resolvedVersion
                     }
                 )
 
-            if (shouldInstall) {
-                pluginsToInstall.add(pluginName)
+            // 解決済みバージョンを記録（Sync以外のプラグイン）
+            if (!VersionSpecifierParser.isSyncFormat(expectedVersion)) {
+                resolvedVersions[pluginName] =
+                    metadataResult.fold(
+                        { resolvedVersion },
+                        { it.mpmInfo.version.current.raw }
+                    )
             }
+
+            if (shouldInstall) pluginsToInstall.add(pluginName)
         }
 
         // インストール結果を記録
@@ -90,18 +109,25 @@ class BulkInstallUseCaseImpl :
         val removed = mutableListOf<PluginRemovalInfo>()
         val failed = mutableMapOf<String, String>()
 
-        // 各プラグインをインストール
-        for (pluginName in pluginsToInstall) {
-            val result = installSinglePlugin(pluginName, mpmConfig.plugins[pluginName]!!)
-            result.fold(
-                // 失敗時
-                { errorMessage ->
-                    failed[pluginName] = errorMessage
-                },
-                // 成功時
-                { installResult ->
-                    installed.add(installResult.installed)
-                    installResult.removed?.let { removed.add(it) }
+        // 各プラグインをトポロジカルソート順にインストール
+        for (pluginName in sortedPlugins) {
+            val versionString = mpmConfig.plugins[pluginName] ?: continue
+
+            if (pluginName !in pluginsToInstall) {
+                // インストール不要でもバージョンを記録（後続のSyncプラグインのため）
+                if (versionString != "unmanaged" && !VersionSpecifierParser.isSyncFormat(versionString)) {
+                    resolvedVersions[pluginName] = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
+                }
+                continue
+            }
+
+            val versionToInstall = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
+            installSinglePlugin(pluginName, versionToInstall).fold(
+                { failed[pluginName] = it },
+                { result ->
+                    installed.add(result.installed)
+                    result.removed?.let { removed.add(it) }
+                    resolvedVersions[pluginName] = result.installed.currentVersion
                 }
             )
         }
@@ -303,5 +329,29 @@ class BulkInstallUseCaseImpl :
             )
 
         return template.replaceTemplate(data)
+    }
+
+    /**
+     * バージョン指定文字列を実際のバージョンに解決する
+     * @param pluginName プラグイン名
+     * @param expected バージョン指定文字列
+     * @param resolved 解決済みバージョンのマップ
+     * @return 解決されたバージョン文字列
+     */
+    private fun resolveExpectedVersion(
+        pluginName: String,
+        expected: String,
+        resolved: Map<String, String>
+    ): String {
+        val syncTarget = VersionSpecifierParser.extractSyncTarget(expected)
+        return when {
+            syncTarget != null -> resolved[syncTarget] ?: expected
+            expected == "latest" ->
+                metadataManager.loadMetadata(pluginName).fold(
+                    { expected },
+                    { it.mpmInfo.version.current.raw }
+                )
+            else -> expected
+        }
     }
 }

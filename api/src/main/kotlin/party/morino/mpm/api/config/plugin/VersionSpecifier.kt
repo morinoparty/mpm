@@ -62,4 +62,18 @@ sealed class VersionSpecifier {
     @Serializable
     @SerialName("pattern")
     data class Pattern(val pattern: String) : VersionSpecifier()
+
+    /**
+     * 同期バージョン指定
+     *
+     * 別のプラグインのバージョンに同期する
+     * アドオンプラグインが親プラグインと同じバージョンを使用する場合に使用する
+     *
+     * 例: "sync:QuickShop" → QuickShopと同じバージョンを使用
+     *
+     * @property targetPlugin 同期対象のプラグイン名
+     */
+    @Serializable
+    @SerialName("sync")
+    data class Sync(val targetPlugin: String) : VersionSpecifier()
 }
