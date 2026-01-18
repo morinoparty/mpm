@@ -13,7 +13,7 @@ import { commandsSchema } from "@site/src/type/command";
 import React from "react";
 
 interface CommandListProps {
-    category: "manage" | "repo";
+    category: "manage" | "repo" | "backup" | "dependency";
     section?: string; // セクション名でフィルタリング（オプショナル）
 }
 

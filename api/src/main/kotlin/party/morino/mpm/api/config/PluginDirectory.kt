@@ -38,4 +38,10 @@ interface PluginDirectory {
      * @return レポジトリのデータディレクトリ
      */
     fun getRepositoryDirectory(): File
+
+    /**
+     * バックアップディレクトリを取得する
+     * @return バックアップディレクトリ
+     */
+    fun getBackupsDirectory(): File
 }
