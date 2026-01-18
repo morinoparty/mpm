@@ -16,7 +16,10 @@ import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.VersionSpecifier
+import party.morino.mpm.api.core.backup.ServerBackupManager
 import party.morino.mpm.api.core.config.ConfigManager
+import party.morino.mpm.api.core.dependency.DependencyAnalyzer
+import party.morino.mpm.api.core.dependency.DependencyInstallUseCase
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.PluginInfoManager
 import party.morino.mpm.api.core.plugin.PluginLifecycleManager
@@ -28,7 +31,10 @@ import party.morino.mpm.api.core.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.config.PluginDirectoryImpl
+import party.morino.mpm.core.backup.ServerBackupManagerImpl
 import party.morino.mpm.core.config.ConfigManagerImpl
+import party.morino.mpm.core.dependency.DependencyAnalyzerImpl
+import party.morino.mpm.core.dependency.DependencyInstallUseCaseImpl
 import party.morino.mpm.core.plugin.PluginInfoManagerImpl
 import party.morino.mpm.core.plugin.PluginLifecycleManagerImpl
 import party.morino.mpm.core.plugin.PluginUpdateManagerImpl
@@ -39,6 +45,8 @@ import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
 import party.morino.mpm.core.repository.RepositorySourceManagerFactory
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.AddCommand
+import party.morino.mpm.ui.command.manage.BackupCommand
+import party.morino.mpm.ui.command.manage.DependencyCommand
 import party.morino.mpm.ui.command.manage.InitCommand
 import party.morino.mpm.ui.command.manage.InstallCommand
 import party.morino.mpm.ui.command.manage.ListCommand
@@ -128,6 +136,13 @@ open class Mpm :
                 single<PluginInfoManager> { PluginInfoManagerImpl() }
                 single<PluginUpdateManager> { PluginUpdateManagerImpl() }
                 single<ProjectManager> { ProjectManagerImpl() }
+
+                // バックアップ管理の登録
+                single<ServerBackupManager> { ServerBackupManagerImpl() }
+
+                // 依存関係解析の登録
+                single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
+                single<DependencyInstallUseCase> { DependencyInstallUseCaseImpl() }
             }
 
         // Koinの開始（すでに開始されている場合は何もしない）
@@ -154,6 +169,8 @@ open class Mpm :
 
         // 全コマンドの登録
         lamp.register(AddCommand())
+        lamp.register(BackupCommand())
+        lamp.register(DependencyCommand())
         lamp.register(InitCommand())
         lamp.register(InstallCommand())
         lamp.register(ListCommand())

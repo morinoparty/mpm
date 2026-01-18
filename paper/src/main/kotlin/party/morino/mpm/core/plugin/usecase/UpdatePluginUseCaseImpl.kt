@@ -20,10 +20,12 @@ import party.morino.mpm.api.config.PluginDirectory
 import party.morino.mpm.api.config.plugin.MpmConfig
 import party.morino.mpm.api.config.plugin.VersionSpecifier
 import party.morino.mpm.api.config.plugin.getPluginsSyncingTo
+import party.morino.mpm.api.core.backup.ServerBackupManager
 import party.morino.mpm.api.core.plugin.CheckOutdatedUseCase
 import party.morino.mpm.api.core.plugin.PluginInstallUseCase
 import party.morino.mpm.api.core.plugin.PluginMetadataManager
 import party.morino.mpm.api.core.plugin.UpdatePluginUseCase
+import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.UpdateResult
 import party.morino.mpm.event.PluginUpdateEvent
@@ -43,6 +45,7 @@ class UpdatePluginUseCaseImpl :
     private val pluginMetadataManager: PluginMetadataManager by inject()
     private val plugin: JavaPlugin by inject()
     private val pluginDirectory: PluginDirectory by inject()
+    private val backupManager: ServerBackupManager by inject()
 
     /**
      * 新しいバージョンがあるすべてのプラグインを更新する
@@ -55,6 +58,15 @@ class UpdatePluginUseCaseImpl :
             checkOutdatedUseCase.checkAllOutdated().getOrElse {
                 return it.left()
             }
+
+        // 更新が必要なプラグインがある場合、バックアップを作成
+        val hasUpdates = outdatedInfoList.any { it.needsUpdate }
+        if (hasUpdates) {
+            backupManager.createBackup(BackupReason.UPDATE).fold(
+                { plugin.logger.warning("バックアップの作成に失敗しました: $it") },
+                { plugin.logger.info("バックアップを作成しました: ${it.fileName}") }
+            )
+        }
 
         // mpm.jsonを読み込んでSync依存関係を取得
         val mpmConfig = loadMpmConfig()

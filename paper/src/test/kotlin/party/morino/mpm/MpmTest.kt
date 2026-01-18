@@ -18,11 +18,13 @@ import org.koin.core.context.GlobalContext
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import party.morino.mpm.api.config.PluginDirectory
+import party.morino.mpm.api.core.dependency.DependencyAnalyzer
 import party.morino.mpm.api.core.plugin.DownloaderRepository
 import party.morino.mpm.api.core.plugin.InitUseCase
 import party.morino.mpm.api.core.plugin.PluginInstallUseCase
 import party.morino.mpm.api.core.plugin.PluginListUseCase
 import party.morino.mpm.api.core.plugin.PluginRepository
+import party.morino.mpm.core.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.core.plugin.infrastructure.DownloaderRepositoryImpl
 import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
 import party.morino.mpm.core.plugin.usecase.InitUseCaseImpl
@@ -78,6 +80,11 @@ class MpmTest :
                 }
                 single<PluginListUseCase> {
                     PluginListUseCaseImpl()
+                }
+
+                // 依存関係解析の登録
+                single<DependencyAnalyzer> {
+                    DependencyAnalyzerImpl()
                 }
             }
 

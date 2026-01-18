@@ -45,6 +45,42 @@ object PluginDataUtils {
         val author = (yamlData["author"] ?: "").toString()
         val website = (yamlData["website"] ?: "").toString()
 
+        // Paper形式の依存関係を解析（dependencies セクション内にserver/bootstrapがある）
+        val dependencies = yamlData["dependencies"] as? Map<*, *>
+
+        // serverセクションとbootstrapセクションから依存関係を収集
+        val serverDeps = dependencies?.get("server") as? Map<*, *>
+        val bootstrapDeps = dependencies?.get("bootstrap") as? Map<*, *>
+
+        // 必須依存を収集
+        val depend = mutableListOf<String>()
+        serverDeps
+            ?.filterValues { it is Map<*, *> && (it as Map<*, *>)["required"] == true }
+            ?.keys
+            ?.forEach { depend.add(it.toString()) }
+        bootstrapDeps
+            ?.filterValues { it is Map<*, *> && (it as Map<*, *>)["required"] == true }
+            ?.keys
+            ?.forEach { if (!depend.contains(it.toString())) depend.add(it.toString()) }
+
+        // オプション依存を収集
+        val softDepend = mutableListOf<String>()
+        serverDeps
+            ?.filterValues { it is Map<*, *> && (it as Map<*, *>)["required"] != true }
+            ?.keys
+            ?.forEach { softDepend.add(it.toString()) }
+        bootstrapDeps
+            ?.filterValues { it is Map<*, *> && (it as Map<*, *>)["required"] != true }
+            ?.keys
+            ?.forEach { if (!softDepend.contains(it.toString())) softDepend.add(it.toString()) }
+
+        // loadBeforeを収集（Paper形式ではload: AFTERで表現される）
+        val loadBefore = mutableListOf<String>()
+        serverDeps
+            ?.filterValues { it is Map<*, *> && (it as Map<*, *>)["load"] == "BEFORE" }
+            ?.keys
+            ?.forEach { loadBefore.add(it.toString()) }
+
         return PluginData.PaperPluginData(
             name,
             version,
@@ -54,7 +90,10 @@ object PluginDataUtils {
             bootstrapper,
             loader,
             author,
-            website
+            website,
+            depend,
+            softDepend,
+            loadBefore
         )
     }
 
@@ -72,6 +111,11 @@ object PluginDataUtils {
         val website = (yamlData["website"] ?: "").toString()
         val apiVersion = (yamlData["api-version"] ?: "").toString()
 
+        // Bukkit形式の依存関係を解析
+        val depend = parseStringList(yamlData["depend"])
+        val softDepend = parseStringList(yamlData["softdepend"])
+        val loadBefore = parseStringList(yamlData["loadbefore"])
+
         return PluginData.BukkitPluginData(
             name,
             version,
@@ -79,7 +123,22 @@ object PluginDataUtils {
             description,
             author,
             website,
-            apiVersion
+            apiVersion,
+            depend,
+            softDepend,
+            loadBefore
         )
     }
+
+    /**
+     * YAMLの値をString型のリストに変換する
+     * @param value YAMLから読み込んだ値
+     * @return 文字列のリスト
+     */
+    private fun parseStringList(value: Any?): List<String> =
+        when (value) {
+            is List<*> -> value.filterIsInstance<String>()
+            is String -> listOf(value)
+            else -> emptyList()
+        }
 }

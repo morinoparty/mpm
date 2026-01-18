@@ -1,0 +1,51 @@
+{
+    "commands": [
+        {
+            "command": "mpm backup create",
+            "status": "newly",
+            "category": "backup",
+            "section": "バックアップ作成",
+            "description": "`plugins/`ディレクトリ全体の手動バックアップを作成します"
+        },
+        {
+            "command": "mpm backup list",
+            "status": "newly",
+            "category": "backup",
+            "section": "バックアップ一覧",
+            "description": "作成されたバックアップの一覧を表示します"
+        },
+        {
+            "command": "mpm backup restore <backupId>",
+            "status": "newly",
+            "category": "backup",
+            "section": "リストア",
+            "description": "指定したバックアップからplugins/ディレクトリを復元します",
+            "arguments": [
+                {
+                    "name": "backupId",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm backup delete <backupId>",
+            "status": "newly",
+            "category": "backup",
+            "section": "バックアップ削除",
+            "description": "指定したバックアップを削除します",
+            "arguments": [
+                {
+                    "name": "backupId",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm backup cleanup",
+            "status": "newly",
+            "category": "backup",
+            "section": "クリーンアップ",
+            "description": "保持期間を過ぎた古いバックアップを削除します"
+        }
+    ]
+}

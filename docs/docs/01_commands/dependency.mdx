@@ -1,0 +1,108 @@
+---
+sidebar_position: 5
+---
+
+import { CommandList } from "@site/src/components/command-list";
+
+# 🔗 依存関係コマンド
+
+プラグインの依存関係を解析・表示するコマンドです。
+
+## 概要
+
+`mpm deps` コマンドは、プラグインの依存関係（depend、softdepend、loadbefore）を解析し、
+ツリー形式で可視化したり、不足している依存関係をチェックしたりすることができます。
+
+## コマンド一覧
+
+<CommandList category="dependency" />
+
+## 使い方
+
+### 依存関係ツリーの表示
+
+```bash
+/mpm deps tree <plugin>
+```
+
+指定したプラグインの依存関係をツリー形式で表示します。
+
+```
+依存関係ツリー: MyPlugin
+└── MyPlugin
+    ├── Vault
+    │   └── Economy (optional)
+    └── LuckPerms
+```
+
+#### オプション依存も含めて表示
+
+```bash
+/mpm deps tree <plugin> --soft
+```
+
+`--soft` フラグを付けると、softdepend（オプション依存）も含めて表示します。
+
+### 不足している依存関係のチェック
+
+#### 特定のプラグインをチェック
+
+```bash
+/mpm deps check <plugin>
+```
+
+#### 全プラグインをチェック
+
+```bash
+/mpm deps check
+```
+
+プラグイン名を省略すると、インストール済みの全プラグインの依存関係をチェックします。
+
+### 逆依存関係の表示
+
+```bash
+/mpm deps reverse <plugin>
+```
+
+指定したプラグインに依存している他のプラグインを表示します。
+プラグインを削除する前に、他のプラグインへの影響を確認するのに便利です。
+
+```
+LuckPerms に依存しているプラグイン:
+  - MyPlugin
+  - AnotherPlugin
+```
+
+### 依存関係情報の表示
+
+```bash
+/mpm deps info <plugin>
+```
+
+プラグインの詳細な依存関係情報を表示します：
+
+- **depend**: 必須依存（これがないとプラグインが動作しない）
+- **softdepend**: オプション依存（あれば機能が拡張される）
+- **loadbefore**: このプラグインより後にロードされるべきプラグイン
+
+## 依存関係の種類
+
+| 種類 | 説明 |
+|------|------|
+| **depend** | 必須依存。依存先がないとプラグインが読み込まれません |
+| **softdepend** | オプション依存。あれば追加機能が有効になります |
+| **loadbefore** | ロード順序の指定。このプラグインより後にロードされます |
+
+## ツリー表示の凡例
+
+| 表示 | 意味 |
+|------|------|
+| <span style={{color: 'green'}}>緑色</span> | インストール済み |
+| <span style={{color: 'red'}}>赤色</span> | 未インストール（不足） |
+| `(optional)` | オプション依存 |
+
+## 関連ドキュメント
+
+- [プラグイン管理コマンド](/commands/manage) - プラグインのインストール・更新
+- [バックアップコマンド](/commands/backup) - プラグインのバックアップ・リストア
