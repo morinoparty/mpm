@@ -32,6 +32,7 @@ class PluginDirectoryImpl : PluginDirectory, KoinComponent {
     // プラグインをインストールするためのデータを保存するディレクトリをlazyで初期化
     private val repositoryDirectoryFile: File by lazy { File(rootDirectoryFile, "repository") }
     private val metadataDirectoryFile: File by lazy { File(rootDirectoryFile, "metadata") }
+    private val backupsDirectoryFile: File by lazy { File(rootDirectoryFile, "backups") }
 
     /**
      * プラグインのルートディレクトリを取得する
@@ -83,5 +84,18 @@ class PluginDirectoryImpl : PluginDirectory, KoinComponent {
             repositoryDirectoryFile.mkdirs()
         }
         return repositoryDirectoryFile
+    }
+
+    /**
+     * バックアップディレクトリを取得する
+     * ディレクトリが存在しない場合は作成する
+     * @return バックアップディレクトリ
+     */
+    override fun getBackupsDirectory(): File {
+        // ディレクトリが存在しない場合は作成
+        if (!backupsDirectoryFile.exists()) {
+            backupsDirectoryFile.mkdirs()
+        }
+        return backupsDirectoryFile
     }
 }

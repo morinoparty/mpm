@@ -1,0 +1,60 @@
+{
+    "commands": [
+        {
+            "command": "mpm deps tree <plugin> [[--soft]]",
+            "status": "newly",
+            "category": "dependency",
+            "section": "依存関係ツリー",
+            "description": "プラグインの依存関係をツリー形式で表示します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                },
+                {
+                    "name": "--soft",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "command": "mpm deps check [[plugin]]",
+            "status": "newly",
+            "category": "dependency",
+            "section": "依存関係チェック",
+            "description": "不足している依存関係をチェックします（プラグイン指定なしで全プラグイン対象）",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "command": "mpm deps reverse <plugin>",
+            "status": "newly",
+            "category": "dependency",
+            "section": "逆依存関係",
+            "description": "指定したプラグインに依存している他のプラグインを表示します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm deps info <plugin>",
+            "status": "newly",
+            "category": "dependency",
+            "section": "依存関係情報",
+            "description": "プラグインの依存関係情報（depend、softdepend、loadbefore）を表示します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        }
+    ]
+}

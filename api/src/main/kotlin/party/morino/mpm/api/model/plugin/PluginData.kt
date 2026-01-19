@@ -28,6 +28,9 @@ sealed class PluginData {
      * @property author 作者
      * @property website ウェブサイト
      * @property apiVersion APIバージョン
+     * @property depend 必須依存プラグインのリスト
+     * @property softDepend オプション依存プラグインのリスト
+     * @property loadBefore このプラグインより先に読み込むべきプラグインのリスト
      */
     @Serializable
     data class BukkitPluginData(
@@ -37,7 +40,10 @@ sealed class PluginData {
         val description: String = "",
         val author: String = "",
         val website: String = "",
-        val apiVersion: String = ""
+        val apiVersion: String = "",
+        val depend: List<String> = emptyList(),
+        val softDepend: List<String> = emptyList(),
+        val loadBefore: List<String> = emptyList()
     ) : PluginData()
 
     /**
@@ -51,6 +57,9 @@ sealed class PluginData {
      * @property loader ローダー
      * @property author 作者
      * @property website ウェブサイト
+     * @property depend 必須依存プラグイン（server/bootstrap両方）
+     * @property softDepend オプション依存プラグイン（server/bootstrap両方）
+     * @property loadBefore このプラグインより先に読み込むべきプラグイン（server/bootstrap両方）
      */
     @Serializable
     data class PaperPluginData(
@@ -62,6 +71,9 @@ sealed class PluginData {
         val bootstrapper: String = "",
         val loader: String = "",
         val author: String = "",
-        val website: String = ""
+        val website: String = "",
+        val depend: List<String> = emptyList(),
+        val softDepend: List<String> = emptyList(),
+        val loadBefore: List<String> = emptyList()
     ) : PluginData()
 }

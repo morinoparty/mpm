@@ -1,0 +1,94 @@
+---
+sidebar_position: 4
+---
+
+import { CommandList } from "@site/src/components/command-list";
+
+# 💾 バックアップコマンド
+
+プラグインのバックアップとリストアを行うコマンドです。
+
+## 概要
+
+`mpm backup` コマンドは、`plugins/` ディレクトリ全体（JARファイルと設定フォルダ）をZIP形式でバックアップします。
+プラグインの更新やインストール前に自動でバックアップが作成されるため、問題が発生した場合に以前の状態に戻すことができます。
+
+## コマンド一覧
+
+<CommandList category="backup" />
+
+## 使い方
+
+### 手動バックアップの作成
+
+```bash
+/mpm backup create
+```
+
+現在の `plugins/` ディレクトリ全体のバックアップを作成します。
+バックアップファイルは `plugins/MinecraftPluginManager/backups/` に保存されます。
+
+### バックアップ一覧の確認
+
+```bash
+/mpm backup list
+```
+
+作成されたバックアップの一覧を表示します。各バックアップには以下の情報が表示されます：
+
+- **ID**: バックアップの識別子（リストア時に使用）
+- **理由**: バックアップが作成された理由（UPDATE、INSTALL、MANUAL）
+- **作成日時**: バックアップが作成された日時
+- **サイズ**: バックアップファイルのサイズ
+
+### バックアップからのリストア
+
+```bash
+/mpm backup restore <backupId>
+```
+
+:::warning
+リストアを実行すると、現在の `plugins/` ディレクトリの内容が上書きされます。
+リストア後はサーバーの再起動が必要です。
+:::
+
+### バックアップの削除
+
+```bash
+/mpm backup delete <backupId>
+```
+
+指定したバックアップを削除します。
+
+### 古いバックアップのクリーンアップ
+
+```bash
+/mpm backup cleanup
+```
+
+保持期間（デフォルト: 7日）を過ぎた古いバックアップを自動的に削除します。
+
+## バックアップディレクトリ構造
+
+```
+plugins/MinecraftPluginManager/
+└── backups/
+    ├── index.json                         # バックアップインデックス
+    ├── backup-2025-01-18-abc123.zip       # バックアップファイル
+    └── backup-2025-01-17-def456.zip
+```
+
+## 自動バックアップ
+
+以下の操作時に自動でバックアップが作成されます：
+
+| 操作 | バックアップ理由 |
+|------|-----------------|
+| `mpm update` | UPDATE |
+| `mpm install` | INSTALL |
+| `mpm backup create` | MANUAL |
+
+## 関連ドキュメント
+
+- [プラグイン管理コマンド](/commands/manage) - プラグインのインストール・更新
+- [依存関係コマンド](/commands/dependency) - プラグインの依存関係管理
