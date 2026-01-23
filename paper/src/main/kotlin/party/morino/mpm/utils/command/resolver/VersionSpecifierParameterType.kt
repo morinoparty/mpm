@@ -12,9 +12,10 @@ package party.morino.mpm.utils.command.resolver
 import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.config.plugin.VersionSpecifier
-import party.morino.mpm.api.config.plugin.VersionSpecifierParser
-import party.morino.mpm.api.core.plugin.PluginInfoManager
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import revxrsal.commands.autocomplete.SuggestionProvider
 import revxrsal.commands.bukkit.actor.BukkitCommandActor
@@ -31,8 +32,8 @@ import revxrsal.commands.stream.MutableStringStream
 class VersionSpecifierParameterType :
     ParameterType<BukkitCommandActor, VersionSpecifier>,
     KoinComponent {
-    // PluginInfoManagerをKoinから注入
-    private val infoManager: PluginInfoManager by inject()
+    // PluginInfoServiceをKoinから注入
+    private val infoService: PluginInfoService by inject()
 
     /**
      * コマンド引数からVersionSpecifierを解析する
@@ -64,13 +65,11 @@ class VersionSpecifierParameterType :
                 // Note: getVersions()はsuspend関数のため、runBlockingを使用
                 val versions =
                     runBlocking {
-                        infoManager.getVersions(plugin).fold(
+                        infoService.getVersions(PluginName(plugin.pluginId)).fold(
                             // エラーの場合は空リストを返す
-                            {
-                                emptyList()
-                            },
-                            // 成功した場合はバージョンリストを返す
-                            { it }
+                            { emptyList() },
+                            // 成功した場合はバージョン文字列のリストを返す
+                            { versionDetails -> versionDetails.map { it.raw } }
                         )
                     }
 

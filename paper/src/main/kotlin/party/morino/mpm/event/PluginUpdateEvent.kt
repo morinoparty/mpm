@@ -12,7 +12,7 @@ package party.morino.mpm.event
 import org.bukkit.event.Cancellable
 import org.bukkit.event.Event
 import org.bukkit.event.HandlerList
-import party.morino.mpm.api.config.plugin.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 
 /**

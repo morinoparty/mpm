@@ -11,7 +11,7 @@ package party.morino.mpm.utils.command.resolver
 
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.repository.RepositoryManager
+import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import revxrsal.commands.autocomplete.SuggestionProvider
 import revxrsal.commands.bukkit.actor.BukkitCommandActor

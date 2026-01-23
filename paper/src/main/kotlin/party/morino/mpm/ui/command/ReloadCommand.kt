@@ -12,7 +12,7 @@ package party.morino.mpm.ui.command
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.config.ConfigManager
+import party.morino.mpm.api.domain.config.ConfigManager
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission

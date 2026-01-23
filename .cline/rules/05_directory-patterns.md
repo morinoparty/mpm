@@ -5,3 +5,4 @@
 - api/src/main/kotlin/party/morino/mpm/api/ にAPIのインターフェースを配置します。
 - data classはそれぞれのmodelに配置します。
 - 一つのファイルに一つのクラスを配置します。
+- 一パッケージに7つ以上のクラスを記述するのは極力避けてください

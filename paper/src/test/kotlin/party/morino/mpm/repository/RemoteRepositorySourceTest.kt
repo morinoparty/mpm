@@ -23,7 +23,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import party.morino.mpm.MpmTest
-import party.morino.mpm.core.repository.RemoteRepositorySource
+import party.morino.mpm.infrastructure.repository.RemoteRepositorySource
 import party.morino.mpm.utils.MockDataLoader
 
 @ExtendWith(MpmTest::class)

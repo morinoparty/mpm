@@ -12,7 +12,8 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginInfoManager
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Flag
@@ -28,7 +29,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class VersionsCommand : KoinComponent {
     // Koinによる依存性注入
-    private val infoManager: PluginInfoManager by inject()
+    private val infoService: PluginInfoService by inject()
 
     /**
      * 指定されたプラグインの利用可能なバージョン一覧を表示するコマンド
@@ -42,14 +43,14 @@ class VersionsCommand : KoinComponent {
         plugin: RepositoryPlugin,
         @Flag("limit") limit: Int = 20
     ) {
-        val pluginName = plugin.pluginId
-        sender.sendRichMessage("<gray>プラグイン '$pluginName' のバージョン一覧を取得しています...</gray>")
+        val pluginId = plugin.pluginId
+        sender.sendRichMessage("<gray>プラグイン '$pluginId' のバージョン一覧を取得しています...</gray>")
 
-        // PluginInfoManagerを実行
-        infoManager.getVersions(plugin).fold(
+        // PluginInfoServiceを実行
+        infoService.getVersions(PluginName(pluginId)).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
             { versions ->

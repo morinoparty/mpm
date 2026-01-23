@@ -12,7 +12,7 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import party.morino.mpm.api.application.plugin.PluginUpdateService
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class UpdateCommand : KoinComponent {
     // Koinによる依存性注入
-    private val updateManager: PluginUpdateManager by inject()
+    private val updateService: PluginUpdateService by inject()
 
     /**
      * 新しいバージョンがあるプラグインを更新するコマンド
@@ -36,11 +36,11 @@ class UpdateCommand : KoinComponent {
     suspend fun update(sender: CommandSender) {
         sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
 
-        // PluginUpdateManagerを実行
-        updateManager.update().fold(
+        // PluginUpdateServiceを実行
+        updateService.update().fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
             { updateResults ->

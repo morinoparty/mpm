@@ -12,7 +12,7 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.ProjectManager
+import party.morino.mpm.api.application.project.ProjectService
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -27,7 +27,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class InitCommand : KoinComponent {
     // KoinによるDI
-    private val projectManager: ProjectManager by inject()
+    private val projectService: ProjectService by inject()
 
     /**
      * プロジェクトを初期化し、mpm.jsonを生成するコマンド
@@ -43,11 +43,11 @@ class InitCommand : KoinComponent {
     ) {
         sender.sendMessage("プロジェクトを初期化しています...")
 
-        // ProjectManagerを実行
-        projectManager.initialize("server", overwrite).fold(
+        // ProjectServiceを実行
+        projectService.init("server").fold(
             // エラーの場合
-            { errorMessage ->
-                sender.sendMessage("❌ エラー: $errorMessage")
+            { error ->
+                sender.sendMessage("❌ エラー: ${error.message}")
             },
             // 成功の場合
             {

@@ -12,7 +12,8 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
@@ -27,7 +28,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class RemoveCommand : KoinComponent {
     // Koinによる依存性注入
-    private val lifecycleManager: PluginLifecycleManager by inject()
+    private val lifecycleService: PluginLifecycleService by inject()
 
     /**
      * プラグインを管理対象から除外するコマンド
@@ -39,18 +40,18 @@ class RemoveCommand : KoinComponent {
         sender: CommandSender,
         plugin: InstalledPlugin
     ) {
-        val pluginName = plugin.pluginId
-        // PluginLifecycleManagerを実行
-        lifecycleManager.remove(plugin).fold(
+        val pluginId = plugin.pluginId
+        // PluginLifecycleServiceを実行
+        lifecycleService.remove(PluginName(pluginId)).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$pluginName' を管理対象から除外しました。</green>")
+                sender.sendRichMessage("<green>プラグイン '$pluginId' を管理対象から除外しました。</green>")
                 sender.sendRichMessage("<gray>プラグインファイルは削除されていません。</gray>")
-                sender.sendRichMessage("<gray>ファイルも削除する場合は 'mpm uninstall $pluginName' を実行してください。</gray>")
+                sender.sendRichMessage("<gray>ファイルも削除する場合は 'mpm uninstall $pluginId' を実行してください。</gray>")
             }
         )
     }
@@ -63,21 +64,18 @@ class RemoveCommand : KoinComponent {
     suspend fun removeUnmanaged(sender: CommandSender) {
         sender.sendRichMessage("<gray>管理外のプラグインを検索しています...</gray>")
 
-        // PluginLifecycleManagerを実行
-        lifecycleManager.removeUnmanaged().fold(
+        // PluginLifecycleServiceを実行
+        lifecycleService.removeUnmanaged().fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
-            { removedPlugins ->
-                if (removedPlugins.isEmpty()) {
+            { removedCount ->
+                if (removedCount == 0) {
                     sender.sendRichMessage("<yellow>削除対象のプラグインはありませんでした。</yellow>")
                 } else {
-                    sender.sendRichMessage("<green>以下のプラグインを削除しました:</green>")
-                    removedPlugins.forEach { pluginName ->
-                        sender.sendRichMessage("  - $pluginName")
-                    }
+                    sender.sendRichMessage("<green>${removedCount}個のプラグインを削除しました。</green>")
                     sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
                 }
             }

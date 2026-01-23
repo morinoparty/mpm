@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.core.dependency
+package party.morino.mpm.domain.dependency
 
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -19,8 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.MpmTest
-import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.core.dependency.DependencyAnalyzer
+import party.morino.mpm.api.domain.config.PluginDirectory
+import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.model.dependency.DependencyError
 import java.io.File
 

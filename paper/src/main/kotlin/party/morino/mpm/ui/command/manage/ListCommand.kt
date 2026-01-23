@@ -12,8 +12,9 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginInfoManager
-import party.morino.mpm.api.model.plugin.PluginData
+import party.morino.mpm.api.application.model.PluginFilter
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -26,45 +27,45 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class ListCommand : KoinComponent {
     // KoinによるDI
-    private val infoManager: PluginInfoManager by inject()
+    private val infoService: PluginInfoService by inject()
 
     /**
      * 管理下のプラグインリストを表示するコマンド
      * @param sender コマンド送信者
      * @param showAll すべてのプラグインを表示するフラグ
-     * @param showEnabled 有効なプラグインのみ表示するフラグ
-     * @param showDisabled 無効なプラグインのみ表示するフラグ
+     * @param showManaged 管理中のプラグインのみ表示するフラグ
      * @param showUnmanaged 管理されていないプラグインを表示するフラグ
+     * @param showLocked ロックされているプラグインを表示するフラグ
      */
     @Subcommand("list")
     suspend fun list(
         sender: CommandSender,
         @Switch("all") showAll: Boolean = false,
-        @Switch("enabled") showEnabled: Boolean = false,
-        @Switch("disabled") showDisabled: Boolean = false,
-        @Switch("unmanaged") showUnmanaged: Boolean = false
+        @Switch("managed") showManaged: Boolean = false,
+        @Switch("unmanaged") showUnmanaged: Boolean = false,
+        @Switch("locked") showLocked: Boolean = false
     ) {
         // デフォルトですべてのプラグインを表示
-        val shouldShowAll = showAll || (!showEnabled && !showDisabled && !showUnmanaged)
+        val shouldShowAll = showAll || (!showManaged && !showUnmanaged && !showLocked)
 
         sender.sendRichMessage("===== プラグイン一覧 =====")
 
-        if (shouldShowAll || showEnabled) {
-            val enabledPlugins = infoManager.getEnabledPlugins()
-            sender.sendRichMessage("--- 有効なプラグイン (${enabledPlugins.size}) ---")
-            displayPlugins(sender, enabledPlugins)
-        }
-
-        if (shouldShowAll || showDisabled) {
-            val disabledPlugins = infoManager.getDisabledPlugins()
-            sender.sendRichMessage("--- 無効なプラグイン (${disabledPlugins.size}) ---")
-            displayPlugins(sender, disabledPlugins)
+        if (shouldShowAll || showManaged) {
+            val managedPlugins = infoService.list(PluginFilter.MANAGED)
+            sender.sendRichMessage("--- 管理中のプラグイン (${managedPlugins.size}) ---")
+            displayPlugins(sender, managedPlugins)
         }
 
         if (shouldShowAll || showUnmanaged) {
-            val unmanagedPlugins = infoManager.getUnmanagedPlugins()
+            val unmanagedPlugins = infoService.list(PluginFilter.UNMANAGED)
             sender.sendRichMessage("--- 管理されていないプラグイン (${unmanagedPlugins.size}) ---")
-            unmanagedPlugins.forEach { sender.sendMessage(" - $it") }
+            displayPlugins(sender, unmanagedPlugins)
+        }
+
+        if (shouldShowAll || showLocked) {
+            val lockedPlugins = infoService.list(PluginFilter.LOCKED)
+            sender.sendRichMessage("--- ロック中のプラグイン (${lockedPlugins.size}) ---")
+            displayPlugins(sender, lockedPlugins)
         }
 
         sender.sendRichMessage("=======================")
@@ -77,18 +78,11 @@ class ListCommand : KoinComponent {
      */
     private fun displayPlugins(
         sender: CommandSender,
-        plugins: List<PluginData>
+        plugins: List<ManagedPlugin>
     ) {
         plugins.forEach { plugin ->
-            when (plugin) {
-                is PluginData.BukkitPluginData -> {
-                    sender.sendRichMessage(" - ${plugin.name} (v${plugin.version})")
-                }
-
-                is PluginData.PaperPluginData -> {
-                    sender.sendRichMessage(" - ${plugin.name} (v${plugin.version})")
-                }
-            }
+            val lockIcon = if (plugin.isLocked) " 🔒" else ""
+            sender.sendRichMessage(" - ${plugin.name} (v${plugin.currentVersion.raw})$lockIcon")
         }
 
         if (plugins.isEmpty()) {

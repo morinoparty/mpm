@@ -12,8 +12,9 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.config.plugin.VersionSpecifier
-import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
@@ -28,7 +29,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class AddCommand : KoinComponent {
     // KoinによるDI
-    private val lifecycleManager: PluginLifecycleManager by inject()
+    private val lifecycleService: PluginLifecycleService by inject()
 
     /**
      * プラグインを管理対象に追加するコマンド（バージョン指定なし）
@@ -55,23 +56,23 @@ class AddCommand : KoinComponent {
         plugin: RepositoryPlugin,
         version: VersionSpecifier
     ) {
-        val pluginName = plugin.pluginId
-        sender.sendRichMessage("<gray>プラグイン '$pluginName' の情報を取得しています...")
+        val pluginId = plugin.pluginId
+        sender.sendRichMessage("<gray>プラグイン '$pluginId' の情報を取得しています...")
 
-        // PluginLifecycleManagerを実行
-        lifecycleManager.add(plugin, version).fold(
+        // PluginLifecycleServiceを実行
+        lifecycleService.add(PluginName(pluginId), version).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$pluginName' の情報を追加しました。")
-                sender.sendRichMessage("<gray>プラグイン '$pluginName' をインストールしています...")
+                sender.sendRichMessage("<green>プラグイン '$pluginId' の情報を追加しました。")
+                sender.sendRichMessage("<gray>プラグイン '$pluginId' をインストールしています...")
 
-                lifecycleManager.install(plugin).fold(
-                    { errorMessage ->
-                        sender.sendRichMessage("<red>$errorMessage")
+                lifecycleService.install(PluginName(pluginId)).fold(
+                    { error ->
+                        sender.sendRichMessage("<red>${error.message}")
                     },
                     { installResult ->
                         // 削除されたプラグイン情報を表示

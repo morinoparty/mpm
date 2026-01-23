@@ -12,7 +12,7 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.dependency.DependencyAnalyzer
+import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.model.dependency.DependencyNode
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command

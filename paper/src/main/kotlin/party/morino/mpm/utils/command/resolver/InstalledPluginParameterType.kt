@@ -9,11 +9,12 @@
 
 package party.morino.mpm.utils.command.resolver
 
+import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginInfoManager
+import party.morino.mpm.api.application.model.PluginFilter
+import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.model.plugin.InstalledPlugin
-import party.morino.mpm.api.model.plugin.PluginData
 import revxrsal.commands.autocomplete.SuggestionProvider
 import revxrsal.commands.bukkit.actor.BukkitCommandActor
 import revxrsal.commands.exception.CommandErrorException
@@ -26,13 +27,13 @@ import revxrsal.commands.stream.MutableStringStream
  * インストール済み管理対象プラグインのIDを解析する
  *
  * Lampフレームワークを使用してカスタムパラメータ型を処理する
- * KoinによるDIでPluginInfoManagerを注入
+ * KoinによるDIでPluginInfoServiceを注入
  */
 class InstalledPluginParameterType :
     ParameterType<BukkitCommandActor, InstalledPlugin>,
     KoinComponent {
-    // PluginInfoManagerをKoinから注入
-    private val pluginInfoManager: PluginInfoManager by inject()
+    // PluginInfoServiceをKoinから注入
+    private val infoService: PluginInfoService by inject()
 
     /**
      * コマンド引数からInstalledPluginを解析する
@@ -50,12 +51,9 @@ class InstalledPluginParameterType :
 
         // インストール済み管理対象プラグイン一覧を取得
         val installedPlugins =
-            kotlinx.coroutines.runBlocking {
-                pluginInfoManager.getAllManagedPlugins().map { pluginData ->
-                    when (pluginData) {
-                        is PluginData.BukkitPluginData -> pluginData.name
-                        is PluginData.PaperPluginData -> pluginData.name
-                    }
+            runBlocking {
+                infoService.list(PluginFilter.MANAGED).map { plugin ->
+                    plugin.name.value
                 }
             }
 
@@ -75,13 +73,10 @@ class InstalledPluginParameterType :
      */
     override fun defaultSuggestions(): SuggestionProvider<BukkitCommandActor> {
         // インストール済み管理対象プラグイン一覧を返すサジェストプロバイダー
-        return SuggestionProvider { context ->
-            kotlinx.coroutines.runBlocking {
-                pluginInfoManager.getAllManagedPlugins().map { pluginData ->
-                    when (pluginData) {
-                        is PluginData.BukkitPluginData -> pluginData.name
-                        is PluginData.PaperPluginData -> pluginData.name
-                    }
+        return SuggestionProvider { _ ->
+            runBlocking {
+                infoService.list(PluginFilter.MANAGED).map { plugin ->
+                    plugin.name.value
                 }
             }
         }

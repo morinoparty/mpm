@@ -10,7 +10,7 @@
 package party.morino.mpm.mock.config
 
 import java.io.File
-import party.morino.mpm.api.config.PluginDirectory
+import party.morino.mpm.api.domain.config.PluginDirectory
 
 class PluginDirectoryMock : PluginDirectory {
     private val rootDirectory: File = File("src/test/resources/plugins/mpm")

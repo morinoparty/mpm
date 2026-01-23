@@ -12,7 +12,7 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.backup.ServerBackupManager
+import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.model.backup.BackupReason
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand

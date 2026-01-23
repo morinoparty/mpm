@@ -9,14 +9,14 @@
 
 package party.morino.mpm.api
 
-import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.core.config.ConfigManager
-import party.morino.mpm.api.core.plugin.PluginInfoManager
-import party.morino.mpm.api.core.plugin.PluginLifecycleManager
-import party.morino.mpm.api.core.plugin.PluginMetadataManager
-import party.morino.mpm.api.core.plugin.PluginUpdateManager
-import party.morino.mpm.api.core.plugin.ProjectManager
-import party.morino.mpm.api.core.repository.RepositoryManager
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.domain.config.ConfigManager
+import party.morino.mpm.api.domain.config.PluginDirectory
+import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.repository.RepositoryManager
 
 /**
  * MinecraftPluginManagerのAPIインターフェース
@@ -44,31 +44,31 @@ interface MpmAPI {
     fun getPluginDirectory(): PluginDirectory
 
     /**
-     * プラグイン情報マネージャーを取得
+     * プラグイン情報サービスを取得
      *
-     * プラグインの情報取得やリスト表示を担当するマネージャー
+     * プラグインの情報取得やリスト表示を担当するサービス
      *
-     * @return PluginInfoManagerのインスタンス
+     * @return PluginInfoServiceのインスタンス
      */
-    fun getPluginInfoManager(): PluginInfoManager
+    fun getPluginInfoService(): PluginInfoService
 
     /**
-     * プラグインライフサイクルマネージャーを取得
+     * プラグインライフサイクルサービスを取得
      *
-     * プラグインのインストール・削除・有効化/無効化を担当するマネージャー
+     * プラグインのインストール・削除・有効化/無効化を担当するサービス
      *
-     * @return PluginLifecycleManagerのインスタンス
+     * @return PluginLifecycleServiceのインスタンス
      */
-    fun getPluginLifecycleManager(): PluginLifecycleManager
+    fun getPluginLifecycleService(): PluginLifecycleService
 
     /**
-     * プラグイン更新マネージャーを取得
+     * プラグイン更新サービスを取得
      *
-     * プラグインの更新チェックとアップデートを担当するマネージャー
+     * プラグインの更新チェックとアップデートを担当するサービス
      *
-     * @return PluginUpdateManagerのインスタンス
+     * @return PluginUpdateServiceのインスタンス
      */
-    fun getPluginUpdateManager(): PluginUpdateManager
+    fun getPluginUpdateService(): PluginUpdateService
 
     /**
      * プラグインメタデータマネージャーを取得
@@ -80,13 +80,13 @@ interface MpmAPI {
     fun getPluginMetadataManager(): PluginMetadataManager
 
     /**
-     * プロジェクトマネージャーを取得
+     * プロジェクトサービスを取得
      *
-     * プロジェクトの検索とメタデータ取得を担当するマネージャー
+     * プロジェクトの初期化と管理を担当するサービス
      *
-     * @return ProjectManagerのインスタンス
+     * @return ProjectServiceのインスタンス
      */
-    fun getProjectManager(): ProjectManager
+    fun getProjectService(): ProjectService
 
     /**
      * リポジトリマネージャーを取得

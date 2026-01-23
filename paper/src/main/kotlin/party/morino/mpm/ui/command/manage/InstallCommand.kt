@@ -12,7 +12,7 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import party.morino.mpm.api.application.plugin.PluginUpdateService
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class InstallCommand : KoinComponent {
     // KoinによるDI
-    private val updateManager: PluginUpdateManager by inject()
+    private val updateService: PluginUpdateService by inject()
 
     /**
      * mpm.jsonに定義されたプラグインを一括インストールするコマンド
@@ -36,11 +36,11 @@ class InstallCommand : KoinComponent {
     suspend fun install(sender: CommandSender) {
         sender.sendRichMessage("<gray>mpm.jsonを読み込んでいます...")
 
-        // PluginUpdateManagerを実行
-        updateManager.installAll().fold(
+        // PluginUpdateServiceを実行
+        updateService.installAll().fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             { result ->

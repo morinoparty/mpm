@@ -12,7 +12,8 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginLifecycleManager
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Description
@@ -28,7 +29,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class UninstallCommand : KoinComponent {
     // KoinによるDI
-    private val lifecycleManager: PluginLifecycleManager by inject()
+    private val lifecycleService: PluginLifecycleService by inject()
 
     @Subcommand("uninstall")
     @Description("指定されたプラグインをアンインストールします。")
@@ -36,16 +37,16 @@ class UninstallCommand : KoinComponent {
         sender: CommandSender,
         plugin: InstalledPlugin
     ) {
-        val pluginName = plugin.pluginId
-        // PluginLifecycleManagerを実行
-        lifecycleManager.uninstall(plugin).fold(
+        val pluginId = plugin.pluginId
+        // PluginLifecycleServiceを実行
+        lifecycleService.uninstall(PluginName(pluginId)).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$pluginName' をアンインストールしました。</green>")
+                sender.sendRichMessage("<green>プラグイン '$pluginId' をアンインストールしました。</green>")
                 sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
             }
         )

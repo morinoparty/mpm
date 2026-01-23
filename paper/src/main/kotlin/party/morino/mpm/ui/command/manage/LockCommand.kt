@@ -12,7 +12,8 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.core.plugin.PluginUpdateManager
+import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
@@ -28,7 +29,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class LockCommand : KoinComponent {
     // Koinによる依存性注入
-    private val updateManager: PluginUpdateManager by inject()
+    private val updateService: PluginUpdateService by inject()
 
     /**
      * プラグインをロックするコマンド
@@ -40,16 +41,16 @@ class LockCommand : KoinComponent {
         sender: CommandSender,
         plugin: InstalledPlugin
     ) {
-        val pluginName = plugin.pluginId
-        // PluginUpdateManagerを実行
-        updateManager.lock(plugin).fold(
+        val pluginId = plugin.pluginId
+        // PluginUpdateServiceを実行
+        updateService.lock(PluginName(pluginId)).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$pluginName' をロックしました。</green>")
+                sender.sendRichMessage("<green>プラグイン '$pluginId' をロックしました。</green>")
                 sender.sendRichMessage("<gray>このプラグインは自動更新されません。</gray>")
             }
         )
@@ -65,16 +66,16 @@ class LockCommand : KoinComponent {
         sender: CommandSender,
         plugin: InstalledPlugin
     ) {
-        val pluginName = plugin.pluginId
-        // PluginUpdateManagerを実行
-        updateManager.unlock(plugin).fold(
+        val pluginId = plugin.pluginId
+        // PluginUpdateServiceを実行
+        updateService.unlock(PluginName(pluginId)).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage</red>")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
             {
-                sender.sendRichMessage("<green>プラグイン '$pluginName' のロックを解除しました。</green>")
+                sender.sendRichMessage("<green>プラグイン '$pluginId' のロックを解除しました。</green>")
                 sender.sendRichMessage("<gray>このプラグインは自動更新の対象になります。</gray>")
             }
         )

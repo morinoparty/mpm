@@ -11,25 +11,34 @@ package party.morino.mpm
 
 import be.seeseemelk.mockbukkit.MockBukkit
 import be.seeseemelk.mockbukkit.ServerMock
+import org.bukkit.plugin.java.JavaPlugin
 import org.junit.jupiter.api.extension.AfterEachCallback
 import org.junit.jupiter.api.extension.BeforeEachCallback
 import org.junit.jupiter.api.extension.ExtensionContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
-import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.core.dependency.DependencyAnalyzer
-import party.morino.mpm.api.core.plugin.DownloaderRepository
-import party.morino.mpm.api.core.plugin.InitUseCase
-import party.morino.mpm.api.core.plugin.PluginInstallUseCase
-import party.morino.mpm.api.core.plugin.PluginListUseCase
-import party.morino.mpm.api.core.plugin.PluginRepository
-import party.morino.mpm.core.dependency.DependencyAnalyzerImpl
-import party.morino.mpm.core.plugin.infrastructure.DownloaderRepositoryImpl
-import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
-import party.morino.mpm.core.plugin.usecase.InitUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.PluginInstallUseCaseImpl
-import party.morino.mpm.core.plugin.usecase.PluginListUseCaseImpl
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.domain.config.PluginDirectory
+import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
+import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.plugin.repository.PluginRepository
+import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.project.repository.ProjectRepository
+import party.morino.mpm.api.domain.repository.RepositoryManager
+import party.morino.mpm.application.plugin.PluginInfoServiceImpl
+import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
+import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
+import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
+import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
+import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
+import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.mock.config.PluginDirectoryMock
 
 class MpmTest :
@@ -60,32 +69,31 @@ class MpmTest :
         val appModule =
             module {
                 single<Mpm> { plugin }
+                single<JavaPlugin> { plugin }
                 single<ServerMock> { server }
                 single<PluginDirectory> { PluginDirectoryMock() }
 
-                // リポジトリの登録
-                single<DownloaderRepository> {
-                    DownloaderRepositoryImpl()
-                }
-                single<PluginRepository> {
-                    PluginRepositoryImpl()
+                // リポジトリマネージャーの登録
+                single<RepositoryManager> {
+                    RepositorySourceManagerFactory.create(get(), get())
                 }
 
-                // ユースケースの登録
-                single<InitUseCase> {
-                    InitUseCaseImpl()
-                }
-                single<PluginInstallUseCase> {
-                    PluginInstallUseCaseImpl()
-                }
-                single<PluginListUseCase> {
-                    PluginListUseCaseImpl()
-                }
+                // リポジトリの登録
+                single<DownloaderRepository> { DownloaderRepositoryImpl() }
+                single<PluginRepository> { PluginRepositoryImpl() }
+                single<ProjectRepository> { ProjectRepositoryImpl() }
+
+                // メタデータマネージャーの登録
+                single<PluginMetadataManager> { PluginMetadataManagerImpl() }
 
                 // 依存関係解析の登録
-                single<DependencyAnalyzer> {
-                    DependencyAnalyzerImpl()
-                }
+                single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
+
+                // 新しいApplication Serviceの登録
+                single<PluginInfoService> { PluginInfoServiceImpl() }
+                single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
+                single<PluginUpdateService> { PluginUpdateServiceImpl() }
+                single<ProjectService> { ProjectServiceImpl() }
             }
 
         // テスト用のモジュールでKoinを初期化

@@ -14,35 +14,37 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
-import party.morino.mpm.api.config.PluginDirectory
-import party.morino.mpm.api.config.plugin.VersionSpecifier
-import party.morino.mpm.api.core.backup.ServerBackupManager
-import party.morino.mpm.api.core.config.ConfigManager
-import party.morino.mpm.api.core.dependency.DependencyAnalyzer
-import party.morino.mpm.api.core.dependency.DependencyInstallUseCase
-import party.morino.mpm.api.core.plugin.DownloaderRepository
-import party.morino.mpm.api.core.plugin.PluginInfoManager
-import party.morino.mpm.api.core.plugin.PluginLifecycleManager
-import party.morino.mpm.api.core.plugin.PluginMetadataManager
-import party.morino.mpm.api.core.plugin.PluginRepository
-import party.morino.mpm.api.core.plugin.PluginUpdateManager
-import party.morino.mpm.api.core.plugin.ProjectManager
-import party.morino.mpm.api.core.repository.RepositoryManager
+import party.morino.mpm.api.application.dependency.DependencyService
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.domain.backup.ServerBackupManager
+import party.morino.mpm.api.domain.config.ConfigManager
+import party.morino.mpm.api.domain.config.PluginDirectory
+import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
+import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.repository.PluginRepository
+import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.project.repository.ProjectRepository
+import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
-import party.morino.mpm.config.PluginDirectoryImpl
-import party.morino.mpm.core.backup.ServerBackupManagerImpl
-import party.morino.mpm.core.config.ConfigManagerImpl
-import party.morino.mpm.core.dependency.DependencyAnalyzerImpl
-import party.morino.mpm.core.dependency.DependencyInstallUseCaseImpl
-import party.morino.mpm.core.plugin.PluginInfoManagerImpl
-import party.morino.mpm.core.plugin.PluginLifecycleManagerImpl
-import party.morino.mpm.core.plugin.PluginUpdateManagerImpl
-import party.morino.mpm.core.plugin.ProjectManagerImpl
-import party.morino.mpm.core.plugin.infrastructure.DownloaderRepositoryImpl
-import party.morino.mpm.core.plugin.infrastructure.PluginMetadataManagerImpl
-import party.morino.mpm.core.plugin.infrastructure.PluginRepositoryImpl
-import party.morino.mpm.core.repository.RepositorySourceManagerFactory
+import party.morino.mpm.application.dependency.DependencyServiceImpl
+import party.morino.mpm.application.plugin.PluginInfoServiceImpl
+import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
+import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
+import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
+import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
+import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
+import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
+import party.morino.mpm.infrastructure.config.ConfigManagerImpl
+import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
+import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.AddCommand
 import party.morino.mpm.ui.command.manage.BackupCommand
@@ -69,15 +71,17 @@ import revxrsal.commands.bukkit.BukkitLamp
 open class Mpm :
     JavaPlugin(),
     MpmAPI {
-    // 各マネージャーのインスタンスをKoinから遅延初期化
+    // コア設定のインスタンスをKoinから遅延初期化
     private val _configManager: ConfigManager by lazy { GlobalContext.get().get() }
     private val _pluginDirectory: PluginDirectory by lazy { GlobalContext.get().get() }
-    private val _pluginInfoManager: PluginInfoManager by lazy { GlobalContext.get().get() }
-    private val _pluginLifecycleManager: PluginLifecycleManager by lazy { GlobalContext.get().get() }
-    private val _pluginUpdateManager: PluginUpdateManager by lazy { GlobalContext.get().get() }
     private val _pluginMetadataManager: PluginMetadataManager by lazy { GlobalContext.get().get() }
-    private val _projectManager: ProjectManager by lazy { GlobalContext.get().get() }
     private val _repositoryManager: RepositoryManager by lazy { GlobalContext.get().get() }
+
+    // Application Serviceのインスタンス
+    private val _pluginInfoService: PluginInfoService by lazy { GlobalContext.get().get() }
+    private val _pluginLifecycleService: PluginLifecycleService by lazy { GlobalContext.get().get() }
+    private val _pluginUpdateService: PluginUpdateService by lazy { GlobalContext.get().get() }
+    private val _projectService: ProjectService by lazy { GlobalContext.get().get() }
 
     /**
      * プラグイン有効化時の処理
@@ -127,22 +131,23 @@ open class Mpm :
                 // リポジトリの登録（依存性はKoinのinjectによって自動注入される）
                 single<DownloaderRepository> { DownloaderRepositoryImpl() }
                 single<PluginRepository> { PluginRepositoryImpl() }
+                single<ProjectRepository> { ProjectRepositoryImpl() }
 
                 // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
-
-                // ドメイン単位のManagerの登録（Facadeパターンで関連UseCaseをまとめる）
-                single<PluginLifecycleManager> { PluginLifecycleManagerImpl() }
-                single<PluginInfoManager> { PluginInfoManagerImpl() }
-                single<PluginUpdateManager> { PluginUpdateManagerImpl() }
-                single<ProjectManager> { ProjectManagerImpl() }
 
                 // バックアップ管理の登録
                 single<ServerBackupManager> { ServerBackupManagerImpl() }
 
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
-                single<DependencyInstallUseCase> { DependencyInstallUseCaseImpl() }
+                single<DependencyService> { DependencyServiceImpl() }
+
+                // Application Serviceの登録
+                single<PluginInfoService> { PluginInfoServiceImpl() }
+                single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
+                single<PluginUpdateService> { PluginUpdateServiceImpl() }
+                single<ProjectService> { ProjectServiceImpl() }
             }
 
         // Koinの開始（すでに開始されている場合は何もしない）
@@ -189,15 +194,15 @@ open class Mpm :
 
     override fun getPluginDirectory(): PluginDirectory = _pluginDirectory
 
-    override fun getPluginInfoManager(): PluginInfoManager = _pluginInfoManager
+    override fun getPluginInfoService(): PluginInfoService = _pluginInfoService
 
-    override fun getPluginLifecycleManager(): PluginLifecycleManager = _pluginLifecycleManager
+    override fun getPluginLifecycleService(): PluginLifecycleService = _pluginLifecycleService
 
-    override fun getPluginUpdateManager(): PluginUpdateManager = _pluginUpdateManager
+    override fun getPluginUpdateService(): PluginUpdateService = _pluginUpdateService
 
     override fun getPluginMetadataManager(): PluginMetadataManager = _pluginMetadataManager
 
-    override fun getProjectManager(): ProjectManager = _projectManager
+    override fun getProjectService(): ProjectService = _projectService
 
     override fun getRepositoryManager(): RepositoryManager = _repositoryManager
 }
