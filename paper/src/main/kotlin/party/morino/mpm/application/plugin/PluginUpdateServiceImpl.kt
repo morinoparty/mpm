@@ -49,6 +49,7 @@ import party.morino.mpm.event.PluginInstallEvent
 import party.morino.mpm.event.PluginLockEvent
 import party.morino.mpm.event.PluginUnlockEvent
 import party.morino.mpm.event.PluginUpdateEvent
+import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.Utils
 import java.io.File
@@ -137,13 +138,16 @@ class PluginUpdateServiceImpl :
             }
 
             // PluginUpdateEventを発火して、他のプラグインがキャンセルできるようにする
+            // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
             val updateEvent =
-                PluginUpdateEvent(
-                    installedPlugin = InstalledPlugin(outdatedInfo.pluginName),
-                    beforeVersion = VersionSpecifier.Fixed(outdatedInfo.currentVersion),
-                    targetVersion = VersionSpecifier.Fixed(outdatedInfo.latestVersion)
+                BukkitDispatcher.callEventSync(
+                    plugin,
+                    PluginUpdateEvent(
+                        installedPlugin = InstalledPlugin(outdatedInfo.pluginName),
+                        beforeVersion = VersionSpecifier.Fixed(outdatedInfo.currentVersion),
+                        targetVersion = VersionSpecifier.Fixed(outdatedInfo.latestVersion)
+                    )
                 )
-            plugin.server.pluginManager.callEvent(updateEvent)
 
             // イベントがキャンセルされた場合はスキップ
             if (updateEvent.isCancelled) {
@@ -344,12 +348,15 @@ class PluginUpdateServiceImpl :
         }
 
         // PluginLockEventを発火して、他のプラグインがキャンセルできるようにする
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val lockEvent =
-            PluginLockEvent(
-                installedPlugin = InstalledPlugin(name.value),
-                currentVersion = metadata.mpmInfo.version.current.raw
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginLockEvent(
+                    installedPlugin = InstalledPlugin(name.value),
+                    currentVersion = metadata.mpmInfo.version.current.raw
+                )
             )
-        plugin.server.pluginManager.callEvent(lockEvent)
 
         // イベントがキャンセルされた場合はスキップ
         if (lockEvent.isCancelled) {
@@ -391,12 +398,15 @@ class PluginUpdateServiceImpl :
         }
 
         // PluginUnlockEventを発火して、他のプラグインがキャンセルできるようにする
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val unlockEvent =
-            PluginUnlockEvent(
-                installedPlugin = InstalledPlugin(name.value),
-                currentVersion = metadata.mpmInfo.version.current.raw
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginUnlockEvent(
+                    installedPlugin = InstalledPlugin(name.value),
+                    currentVersion = metadata.mpmInfo.version.current.raw
+                )
             )
-        plugin.server.pluginManager.callEvent(unlockEvent)
 
         // イベントがキャンセルされた場合はスキップ
         if (unlockEvent.isCancelled) {
@@ -553,14 +563,17 @@ class PluginUpdateServiceImpl :
                 .getOrElse { return it.left() }
 
         // PluginInstallEventを発火
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val installEvent =
-            PluginInstallEvent(
-                repositoryPlugin = RepositoryPlugin(pluginName),
-                version = versionData.version,
-                repositoryType = repositoryInfo.type.name,
-                repositoryId = repositoryInfo.id
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginInstallEvent(
+                    repositoryPlugin = RepositoryPlugin(pluginName),
+                    version = versionData.version,
+                    repositoryType = repositoryInfo.type.name,
+                    repositoryId = repositoryInfo.id
+                )
             )
-        plugin.server.pluginManager.callEvent(installEvent)
 
         // イベントがキャンセルされた場合はスキップ
         if (installEvent.isCancelled) {

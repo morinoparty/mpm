@@ -18,7 +18,9 @@ import arrow.core.right
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.model.AddWithDependenciesResult
 import party.morino.mpm.api.application.model.InstallResult
+import party.morino.mpm.api.application.model.PluginAddResult
 import party.morino.mpm.api.application.model.PluginInstallInfo
 import party.morino.mpm.api.application.model.PluginRemovalInfo
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
@@ -43,6 +45,7 @@ import party.morino.mpm.event.PluginAddEvent
 import party.morino.mpm.event.PluginInstallEvent
 import party.morino.mpm.event.PluginRemoveEvent
 import party.morino.mpm.event.PluginUninstallEvent
+import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.PluginDataUtils
 import party.morino.mpm.utils.Utils
@@ -131,14 +134,17 @@ class PluginLifecycleServiceImpl :
                 .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
 
         // PluginAddEventを発火して、他のプラグインがキャンセルできるようにする
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val addEvent =
-            PluginAddEvent(
-                repositoryPlugin = RepositoryPlugin(pluginName),
-                versionSpecifier = legacyVersion,
-                repositoryType = firstRepository.type,
-                repositoryId = firstRepository.repositoryId
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginAddEvent(
+                    repositoryPlugin = RepositoryPlugin(pluginName),
+                    versionSpecifier = legacyVersion,
+                    repositoryType = firstRepository.type,
+                    repositoryId = firstRepository.repositoryId
+                )
             )
-        plugin.server.pluginManager.callEvent(addEvent)
 
         // イベントがキャンセルされた場合はスキップ
         if (addEvent.isCancelled) {
@@ -207,11 +213,14 @@ class PluginLifecycleServiceImpl :
         }
 
         // PluginRemoveEventを発火して、他のプラグインがキャンセルできるようにする
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val removeEvent =
-            PluginRemoveEvent(
-                installedPlugin = InstalledPlugin(pluginName)
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginRemoveEvent(
+                    installedPlugin = InstalledPlugin(pluginName)
+                )
             )
-        plugin.server.pluginManager.callEvent(removeEvent)
 
         // イベントがキャンセルされた場合はエラー
         if (removeEvent.isCancelled) {
@@ -296,14 +305,17 @@ class PluginLifecycleServiceImpl :
                 }
 
         // PluginInstallEventを発火して、他のプラグインがキャンセルできるようにする
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val installEvent =
-            PluginInstallEvent(
-                repositoryPlugin = RepositoryPlugin(pluginName),
-                version = versionData.version,
-                repositoryType = repositoryInfo.type.name,
-                repositoryId = repositoryInfo.id
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginInstallEvent(
+                    repositoryPlugin = RepositoryPlugin(pluginName),
+                    version = versionData.version,
+                    repositoryType = repositoryInfo.type.name,
+                    repositoryId = repositoryInfo.id
+                )
             )
-        plugin.server.pluginManager.callEvent(installEvent)
 
         // イベントがキャンセルされた場合はエラー
         if (installEvent.isCancelled) {
@@ -457,12 +469,15 @@ class PluginLifecycleServiceImpl :
         }
 
         // PluginUninstallEventを発火して、他のプラグインがキャンセルできるようにする
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val uninstallEvent =
-            PluginUninstallEvent(
-                installedPlugin = InstalledPlugin(pluginName),
-                jarFile = targetJarFile
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginUninstallEvent(
+                    installedPlugin = InstalledPlugin(pluginName),
+                    jarFile = targetJarFile
+                )
             )
-        plugin.server.pluginManager.callEvent(uninstallEvent)
 
         // イベントがキャンセルされた場合はエラー
         if (uninstallEvent.isCancelled) {
@@ -760,5 +775,145 @@ class PluginLifecycleServiceImpl :
             )
 
         return template.replaceTemplate(data)
+    }
+
+    /**
+     * プラグインを依存関係と共に追加・インストールする
+     *
+     * 依存関係を再帰的に解決し、必要なすべてのプラグインを追加・インストールする
+     * 依存関係は先にインストールされ、その後メインプラグインがインストールされる
+     *
+     * @param name プラグイン名
+     * @param version バージョン指定
+     * @param includeSoftDependencies softDependenciesも含めるかどうか
+     * @return 追加結果
+     */
+    override suspend fun addWithDependencies(
+        name: PluginName,
+        version: VersionSpecifier,
+        includeSoftDependencies: Boolean
+    ): Either<MpmError, AddWithDependenciesResult> {
+        val addedPlugins = mutableListOf<PluginAddResult>()
+        val skippedPlugins = mutableListOf<String>()
+        val failedPlugins = mutableMapOf<String, String>()
+        val notFoundPlugins = mutableListOf<String>()
+        // 処理済みプラグインを追跡（循環依存防止）
+        val processedPlugins = mutableSetOf<String>()
+
+        // 再帰的に依存関係を処理
+        addPluginRecursively(
+            pluginName = name.value,
+            version = version,
+            isDependency = false,
+            includeSoftDependencies = includeSoftDependencies,
+            processedPlugins = processedPlugins,
+            addedPlugins = addedPlugins,
+            skippedPlugins = skippedPlugins,
+            failedPlugins = failedPlugins,
+            notFoundPlugins = notFoundPlugins
+        )
+
+        return AddWithDependenciesResult(
+            addedPlugins = addedPlugins,
+            skippedPlugins = skippedPlugins,
+            failedPlugins = failedPlugins,
+            notFoundPlugins = notFoundPlugins
+        ).right()
+    }
+
+    /**
+     * プラグインを再帰的に追加する内部メソッド
+     *
+     * 依存関係を先に処理し、その後メインプラグインを処理する
+     */
+    private suspend fun addPluginRecursively(
+        pluginName: String,
+        version: VersionSpecifier,
+        isDependency: Boolean,
+        includeSoftDependencies: Boolean,
+        processedPlugins: MutableSet<String>,
+        addedPlugins: MutableList<PluginAddResult>,
+        skippedPlugins: MutableList<String>,
+        failedPlugins: MutableMap<String, String>,
+        notFoundPlugins: MutableList<String>
+    ) {
+        // 既に処理済みの場合はスキップ（循環依存防止）
+        if (pluginName in processedPlugins) {
+            return
+        }
+        processedPlugins.add(pluginName)
+
+        // リポジトリからプラグイン情報を取得
+        val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
+        if (repositoryFile == null) {
+            // 依存関係として必要だがリポジトリに存在しない場合
+            if (isDependency) {
+                notFoundPlugins.add(pluginName)
+            } else {
+                failedPlugins[pluginName] = "リポジトリに見つかりませんでした"
+            }
+            return
+        }
+
+        // 依存関係を先に処理（再帰）
+        val dependencies = repositoryFile.dependencies
+        val softDependencies = if (includeSoftDependencies) repositoryFile.softDependencies else emptyList()
+        val allDependencies = dependencies + softDependencies
+
+        for (depName in allDependencies) {
+            addPluginRecursively(
+                pluginName = depName,
+                version = VersionSpecifier.Latest,
+                isDependency = true,
+                includeSoftDependencies = includeSoftDependencies,
+                processedPlugins = processedPlugins,
+                addedPlugins = addedPlugins,
+                skippedPlugins = skippedPlugins,
+                failedPlugins = failedPlugins,
+                notFoundPlugins = notFoundPlugins
+            )
+        }
+
+        // mpm.jsonを確認して、既に追加済みかどうかチェック
+        val rootDir = pluginDirectory.getRootDirectory()
+        val configFile = File(rootDir, "mpm.json")
+        if (configFile.exists()) {
+            try {
+                val mpmConfig = Utils.json.decodeFromString<MpmConfig>(configFile.readText())
+                // 既に追加済み（unmanagedでない）の場合はスキップ
+                if (mpmConfig.plugins.containsKey(pluginName) && mpmConfig.plugins[pluginName] != "unmanaged") {
+                    skippedPlugins.add(pluginName)
+                    return
+                }
+            } catch (e: Exception) {
+                // 読み込みエラーの場合は続行
+            }
+        }
+
+        // プラグインを追加
+        val addResult = add(PluginName(pluginName), version)
+        addResult.fold(
+            { error ->
+                failedPlugins[pluginName] = error.message
+            },
+            {
+                // 追加成功後、インストール
+                val installResult = install(PluginName(pluginName))
+                installResult.fold(
+                    { error ->
+                        failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"
+                    },
+                    { result ->
+                        addedPlugins.add(
+                            PluginAddResult(
+                                pluginName = pluginName,
+                                installResult = result,
+                                isDependency = isDependency
+                            )
+                        )
+                    }
+                )
+            }
+        )
     }
 }

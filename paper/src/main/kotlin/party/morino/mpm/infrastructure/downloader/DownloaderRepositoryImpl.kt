@@ -80,6 +80,9 @@ class DownloaderRepositoryImpl :
                 val id = split[4]
                 UrlData.ModrinthUrlData(id)
             }
+
+            // UNKNOWNタイプはURLデータを生成できない
+            RepositoryType.UNKNOWN -> null
         }
     }
 
@@ -231,6 +234,9 @@ class DownloaderRepositoryImpl :
                 val latest = downloader.getLatestVersion(urlData as UrlData.ModrinthUrlData)
                 downloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
+
+            // UNKNOWNタイプはダウンロードできない
+            RepositoryType.UNKNOWN -> null
         }
     }
 }

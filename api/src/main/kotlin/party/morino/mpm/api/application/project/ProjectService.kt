@@ -28,9 +28,10 @@ interface ProjectService {
      * mpm.jsonファイルを作成し、必要なディレクトリ構造を整備する
      *
      * @param projectName プロジェクト名
+     * @param overwrite 既存のmpm.jsonを上書きするかどうか
      * @return 初期化されたプロジェクト
      */
-    suspend fun init(projectName: String): Either<MpmError, MpmProject>
+    suspend fun init(projectName: String, overwrite: Boolean = false): Either<MpmError, MpmProject>
 
     /**
      * 現在のプロジェクトを取得する

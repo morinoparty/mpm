@@ -43,8 +43,8 @@ class InitCommand : KoinComponent {
     ) {
         sender.sendMessage("プロジェクトを初期化しています...")
 
-        // ProjectServiceを実行
-        projectService.init("server").fold(
+        // ProjectServiceを実行（overwriteフラグを渡す）
+        projectService.init("server", overwrite).fold(
             // エラーの場合
             { error ->
                 sender.sendMessage("❌ エラー: ${error.message}")

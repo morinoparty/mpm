@@ -12,6 +12,7 @@
 package party.morino.mpm.api.application.plugin
 
 import arrow.core.Either
+import party.morino.mpm.api.application.model.AddWithDependenciesResult
 import party.morino.mpm.api.application.model.InstallResult
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
@@ -78,4 +79,21 @@ interface PluginLifecycleService {
      * @return 削除されたプラグイン数
      */
     suspend fun removeUnmanaged(): Either<MpmError, Int>
+
+    /**
+     * プラグインを依存関係と共に追加・インストールする
+     *
+     * リポジトリファイルのdependenciesを再帰的に解決し、
+     * すべての依存プラグインを追加・インストールする
+     *
+     * @param name プラグイン名
+     * @param version バージョン指定
+     * @param includeSoftDependencies softDependenciesも含めるかどうか
+     * @return 追加結果（追加されたプラグイン、スキップされたプラグイン、失敗したプラグイン）
+     */
+    suspend fun addWithDependencies(
+        name: PluginName,
+        version: VersionSpecifier,
+        includeSoftDependencies: Boolean = false
+    ): Either<MpmError, AddWithDependenciesResult>
 }

@@ -22,6 +22,7 @@ import party.morino.mpm.api.domain.plugin.dto.PluginInfoDto
 import party.morino.mpm.api.domain.plugin.dto.PluginSettings
 import party.morino.mpm.api.domain.plugin.dto.RepositoryInfo
 import party.morino.mpm.api.domain.plugin.dto.VersionDetailDto
+import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.plugin.dto.VersionManagementDto
 import party.morino.mpm.api.shared.error.MpmError
 
@@ -256,6 +257,55 @@ class ManagedPlugin private constructor(
                     website = dto.pluginInfo.website
                 )
             return ManagedPlugin(pluginInfo, dto.mpmInfo)
+        }
+
+        /**
+         * unmanagedプラグイン用のインスタンスを作成
+         *
+         * メタデータがないプラグイン向けに最小限の情報でインスタンスを生成する
+         *
+         * @param pluginName プラグイン名
+         * @return ManagedPluginインスタンス（unmanaged状態）
+         */
+        fun createUnmanaged(pluginName: String): ManagedPlugin {
+            val pluginInfo =
+                PluginInfo(
+                    name = pluginName,
+                    version = "unmanaged",
+                    description = null,
+                    main = null,
+                    author = null,
+                    website = null
+                )
+            // unmanagedプラグイン用のダミーMpmInfo
+            val unmanagedVersion =
+                VersionDetailDto(
+                    raw = "unmanaged",
+                    normalized = "unmanaged"
+                )
+            val mpmInfo =
+                MpmInfoDto(
+                    repository =
+                        RepositoryInfo(
+                            type = RepositoryType.UNKNOWN,
+                            id = ""
+                        ),
+                    version =
+                        VersionManagementDto(
+                            current = unmanagedVersion,
+                            latest = unmanagedVersion,
+                            lastChecked = ""
+                        ),
+                    download =
+                        MetadataDownloadInfoDto(
+                            downloadId = "",
+                            fileName = null,
+                            url = null
+                        ),
+                    settings = PluginSettings(),
+                    history = emptyList()
+                )
+            return ManagedPlugin(pluginInfo, mpmInfo)
         }
 
         /**

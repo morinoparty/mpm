@@ -33,6 +33,7 @@ import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.event.PluginOutdatedEvent
+import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.Utils
 import java.io.File
 
@@ -90,9 +91,8 @@ class PluginInfoServiceImpl :
                     PluginFilter.UNMANAGED -> {
                         // unmanagedのみを対象
                         if (!isUnmanaged) return@mapNotNull null
-                        // unmanagedプラグインはメタデータがないので、最小限のManagedPluginを作成しない
-                        // 現状はnullを返す（unmanagedプラグインのlist対応は別途検討）
-                        return@mapNotNull null
+                        // unmanagedプラグインはメタデータがないので、最小限のManagedPluginを作成
+                        return@mapNotNull ManagedPlugin.createUnmanaged(pluginName)
                     }
                     PluginFilter.MANAGED -> {
                         // managedのみを対象
@@ -243,14 +243,16 @@ class PluginInfoServiceImpl :
         val needsUpdate = currentVersion != latestVersion.version
 
         // 更新が必要な場合はBukkitイベントを発火
+        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         if (needsUpdate) {
-            val outdatedEvent =
+            BukkitDispatcher.callEventSync(
+                plugin,
                 PluginOutdatedEvent(
                     installedPlugin = InstalledPlugin(name.value),
                     currentVersion = currentVersion,
                     latestVersion = latestVersion.version
                 )
-            plugin.server.pluginManager.callEvent(outdatedEvent)
+            )
         }
 
         return OutdatedInfo(

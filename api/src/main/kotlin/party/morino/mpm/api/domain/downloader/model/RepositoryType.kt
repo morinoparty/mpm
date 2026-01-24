@@ -21,5 +21,8 @@ enum class RepositoryType(
     GITHUB("https://github.com"),
     SPIGOTMC("https://www.spigotmc.org"),
     HANGER("https://hangar.papermc.io"),
-    MODRINTH("https://modrinth.com")
+    MODRINTH("https://modrinth.com"),
+
+    // unmanagedプラグイン用の不明なリポジトリタイプ
+    UNKNOWN("")
 }

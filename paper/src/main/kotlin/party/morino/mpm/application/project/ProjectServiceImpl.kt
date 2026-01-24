@@ -46,9 +46,10 @@ class ProjectServiceImpl :
      * rootDirectory/mpm.jsonを生成し、pluginsディレクトリ内のすべてのプラグインをunmanagedとして追加する
      *
      * @param projectName プロジェクト名
+     * @param overwrite 既存のmpm.jsonを上書きするかどうか
      */
-    override suspend fun init(projectName: String): Either<MpmError, MpmProject> =
-        initializeInternal(projectName, overwrite = false).fold(
+    override suspend fun init(projectName: String, overwrite: Boolean): Either<MpmError, MpmProject> =
+        initializeInternal(projectName, overwrite = overwrite).fold(
             { error -> MpmError.ProjectError.InitializationFailed(error).left() },
             { MpmProject.create(projectName).right() }
         )

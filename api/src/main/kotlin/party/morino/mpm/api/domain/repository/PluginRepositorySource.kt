@@ -58,6 +58,8 @@ interface PluginRepositorySource {
  * @property source ソースコードのURL
  * @property license ライセンス（例: GPL-3.0, MIT）
  * @property repositories ダウンロード元のリポジトリ設定リスト
+ * @property dependencies 必須の依存プラグインリスト（リポジトリに登録されている名前）
+ * @property softDependencies オプションの依存プラグインリスト
  */
 @Serializable
 data class RepositoryFile(
@@ -65,7 +67,9 @@ data class RepositoryFile(
     val website: String? = null,
     val source: String? = null,
     val license: String? = null,
-    val repositories: List<RepositoryConfig>
+    val repositories: List<RepositoryConfig>,
+    val dependencies: List<String> = emptyList(),
+    val softDependencies: List<String> = emptyList()
 )
 
 /**
