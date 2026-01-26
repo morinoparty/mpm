@@ -43,7 +43,7 @@ jobs:
 
       - name: Build with Gradle
         continue-on-error: true
-        run: ./gradlew build --parallel
+        run: ./gradlew build
 
       - name: Publish test results
         id: publish-test-results
