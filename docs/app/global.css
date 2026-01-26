@@ -7,3 +7,15 @@
 
 @import "./mori.css";
 @import "./fumadocs-theme.css";
+
+/* Font settings */
+html, body {
+    font-family: 'Satoshi', 'GenJyuuGothicLP', system-ui, -apple-system, sans-serif;
+    font-weight: 500;
+}
+
+/* Headings with bold weight for Japanese */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Satoshi', 'GenJyuuGothicLP', system-ui, -apple-system, sans-serif;
+    font-weight: 700;
+}

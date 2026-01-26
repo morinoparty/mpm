@@ -3,6 +3,8 @@ title: Repository Management
 description: プラグインのダウンロード元を管理するリポジトリファイルを作成・管理するコマンドです
 ---
 
+import { Callout } from "fumadocs-ui/components/callout";
+
 プラグインのダウンロード元を管理するリポジトリファイルを作成・管理するコマンドです。
 
 ## コマンド一覧
@@ -15,11 +17,11 @@ description: プラグインのダウンロード元を管理するリポジト�
 
 ### 1. リポジトリファイルを作成
 
-```bash
-/mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
-```
+<Callout type="info">
+`mpm create-repo`コマンドは現在実装予定です。現時点では手動でJSONファイルを作成してください。
+</Callout>
 
-または、手動でJSONファイルを作成：
+手動でJSONファイルを作成：
 
 ```json
 {
@@ -28,7 +30,7 @@ description: プラグインのダウンロード元を管理するリポジト�
     "repositories": [
         {
             "type": "modrinth",
-            "repositoryId": "quickshop-hikari"
+            "id": "quickshop-hikari"
         }
     ]
 }
@@ -48,42 +50,21 @@ description: プラグインのダウンロード元を管理するリポジト�
 
 ## トラブルシューティング
 
-### リポジトリファイルの作成に失敗する
-
-1. **URLが正しいか確認**
-   ```bash
-   # 対応しているURL形式
-   https://modrinth.com/plugin/{project-id}
-   https://github.com/{owner}/{repository}
-   https://www.spigotmc.org/resources/{name}.{id}/
-   ```
-
-2. **プラグイン名が有効か確認**
-   - 英数字とアンダースコア、ハイフンのみ使用可能
-
-3. **同名ファイルが存在しないか確認**
-   ```bash
-   # 既存ファイルを削除してから再作成
-   rm plugins/MinecraftPluginManager/repository/QuickShop.json
-   /mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
-   ```
-
-### ファイル選択パターンが機能しない
+### ファイル選択パターン（fileNameRegex）が機能しない
 
 1. **正規表現の構文を確認**
-   ```bash
-   # 正しい例
-   "EssentialsX-.*\\.jar"
-   "QuickShop-Hikari-[0-9\\.]+\\.jar"
+   ```json
+   // 正しい例
+   "fileNameRegex": "EssentialsX-.*\\.jar"
+   "fileNameRegex": "QuickShop-Hikari-[0-9\\.]+\\.jar"
 
-   # エスケープを忘れないように
-   "\\.jar" ではなく ".*\\.jar"
+   // エスケープを忘れないように（ドットは \\.）
    ```
 
 2. **パターンをシンプルにしてテスト**
-   ```bash
-   # まずシンプルなパターンから
-   /mpm create-repo Test https://github.com/owner/repo ".*\\.jar"
+   ```json
+   // まずシンプルなパターンから
+   "fileNameRegex": ".*\\.jar"
    ```
 
 ### リポジトリファイルが見つからない

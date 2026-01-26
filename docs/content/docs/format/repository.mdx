@@ -162,20 +162,10 @@ SpigotMCリソースからプラグインをダウンロードします。
 
 ## ワークフローとの連携
 
-### 1. リポジトリファイルを作成するコマンド
+### 1. リポジトリファイルを作成
 
-`/mpm create-repo`コマンドでURLからリポジトリファイルを自動生成：
+手動でJSONファイルを作成します：
 
-```bash
-/mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
-```
-
-このコマンドは：
-- URLからリポジトリタイプを自動判定（GitHub、Modrinth、SpigotMC）
-- `repository/QuickShop.json`を自動生成
-- プラグインIDと作成パスを表示
-
-**結果:**
 ```json
 {
     "id": "QuickShop",
@@ -189,12 +179,19 @@ SpigotMCリソースからプラグインをダウンロードします。
 }
 ```
 
-### オプション: ファイル選択パターンを指定
-
 複数ファイルがある場合、`fileNameRegex`を指定：
 
-```bash
-/mpm create-repo EssentialsX https://github.com/EssentialsX/Essentials "EssentialsX-.*\\.jar"
+```json
+{
+    "id": "EssentialsX",
+    "repositories": [
+        {
+            "type": "github",
+            "id": "EssentialsX/Essentials",
+            "fileNameRegex": "EssentialsX-.*\\.jar"
+        }
+    ]
+}
 ```
 
 ### 2. プラグインを追加
@@ -206,7 +203,7 @@ SpigotMCリソースからプラグインをダウンロードします。
 このコマンドは：
 - `repository/QuickShop.json`を読み込む
 - プラグイン情報を検証
-- `mpm-config.json`に設定を追加
+- `mpm.json`に設定を追加
 
 ### 3. プラグインをインストール
 
@@ -215,7 +212,7 @@ SpigotMCリソースからプラグインをダウンロードします。
 ```
 
 このコマンドは：
-- `mpm-config.json`を読み込む
+- `mpm.json`を読み込む
 - 各プラグインのリポジトリ設定に基づいてダウンロード
 - `managed/`ディレクトリにメタデータを保存
 
@@ -270,19 +267,6 @@ repository/quickshop_plugin.json → { "id": "QuickShop" }
 最初のリポジトリ（Modrinth）からのダウンロードに失敗した場合、次のリポジトリ（GitHub）を試行します。
 
 ## トラブルシューティング
-
-### create-repoコマンドが失敗する
-
-1. **URLが正しいか確認**
-   ```bash
-   # 対応しているURL形式
-   https://modrinth.com/plugin/{project-id}
-   https://github.com/{owner}/{repository}
-   https://www.spigotmc.org/resources/{name}.{id}
-   ```
-
-2. **プラグイン名が有効か確認**
-   - 英数字とアンダースコア、ハイフンのみ使用可能
 
 ### リポジトリファイルが見つからない
 

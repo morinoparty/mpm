@@ -8,20 +8,20 @@ MinecraftPluginManagerは、他のプラグインやアドオンから利用で�
 
 ## API取得方法
 
-MinecraftPluginManagerのAPIは、`MinecraftPluginManagerAPI`インターフェースを通じて提供されます。
+MinecraftPluginManagerのAPIは、`MpmAPI`インターフェースを通じて提供されます。
 
 ### Bukkit APIを使用して取得
 
 ```kotlin
 import org.bukkit.Bukkit
-import party.morino.mpm.api.MinecraftPluginManagerAPI
+import party.morino.mpm.api.MpmAPI
 
 // プラグインインスタンスを取得
 val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
 
 // APIにキャスト
-if (mpmPlugin is MinecraftPluginManagerAPI) {
-    val api: MinecraftPluginManagerAPI = mpmPlugin
+if (mpmPlugin is MpmAPI) {
+    val api: MpmAPI = mpmPlugin
     // APIを使用
 }
 ```
@@ -53,12 +53,12 @@ dependencies:
       join-classpath: true
 ```
 
-## 利用可能なマネージャー
+## 利用可能なサービス・マネージャー
 
-MinecraftPluginManagerAPIは、以下のマネージャーへのアクセスを提供します：
+MpmAPIは、以下のサービス・マネージャーへのアクセスを提供します：
 
 ### ConfigManager
-設定ファイル（config.json）の読み込みと再読み込みを担当します。
+設定ファイル（mpm.json）の読み込みと再読み込みを担当します。
 
 ```kotlin
 val configManager = api.getConfigManager()
@@ -73,29 +73,29 @@ val pluginDirectory = api.getPluginDirectory()
 val dataDir = pluginDirectory.getDataDirectory()
 ```
 
-### PluginInfoManager
+### PluginInfoService
 プラグインの情報取得やリスト表示を担当します。
 
 ```kotlin
-val pluginInfoManager = api.getPluginInfoManager()
-val plugins = pluginInfoManager.getInstalledPlugins()
+val pluginInfoService = api.getPluginInfoService()
+val plugins = pluginInfoService.list()
 ```
 
-### PluginLifecycleManager
+### PluginLifecycleService
 プラグインのインストール、削除、有効化/無効化を担当します。
 
 ```kotlin
-val lifecycleManager = api.getPluginLifecycleManager()
+val lifecycleService = api.getPluginLifecycleService()
 // プラグインのインストール
-lifecycleManager.installPlugin("PluginName")
+lifecycleService.install(PluginName("PluginName"))
 ```
 
-### PluginUpdateManager
+### PluginUpdateService
 プラグインの更新チェックとアップデートを担当します。
 
 ```kotlin
-val updateManager = api.getPluginUpdateManager()
-val outdated = updateManager.checkOutdated()
+val updateService = api.getPluginUpdateService()
+val outdated = updateService.checkOutdatedAll()
 ```
 
 ### PluginMetadataManager
@@ -106,20 +106,20 @@ val metadataManager = api.getPluginMetadataManager()
 val metadata = metadataManager.getPluginMetadata("PluginName")
 ```
 
-### ProjectManager
-プロジェクトの検索とメタデータ取得を担当します。
+### ProjectService
+プロジェクトの初期化と管理を担当します。
 
 ```kotlin
-val projectManager = api.getProjectManager()
-val project = projectManager.searchProject("PluginName")
+val projectService = api.getProjectService()
+projectService.init("server", overwrite = false)
 ```
 
-### PluginRepositorySourceManager
+### RepositoryManager
 リポジトリソースの管理を担当します。
 
 ```kotlin
-val repositoryManager = api.getPluginRepositorySourceManager()
-val repositories = repositoryManager.getSources()
+val repositoryManager = api.getRepositoryManager()
+val availablePlugins = repositoryManager.getAvailablePlugins()
 ```
 
 ## 使用例
@@ -128,19 +128,22 @@ val repositories = repositoryManager.getSources()
 
 ```kotlin
 import org.bukkit.Bukkit
-import party.morino.mpm.api.MinecraftPluginManagerAPI
+import party.morino.mpm.api.MpmAPI
+import kotlinx.coroutines.runBlocking
 
 fun getPluginInfo(pluginName: String) {
     val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
 
-    if (mpmPlugin is MinecraftPluginManagerAPI) {
-        val pluginInfoManager = mpmPlugin.getPluginInfoManager()
-        val plugins = pluginInfoManager.getInstalledPlugins()
+    if (mpmPlugin is MpmAPI) {
+        val pluginInfoService = mpmPlugin.getPluginInfoService()
 
-        val plugin = plugins.find { it.name == pluginName }
-        if (plugin != null) {
-            println("プラグイン名: ${plugin.name}")
-            println("バージョン: ${plugin.version}")
+        runBlocking {
+            val plugins = pluginInfoService.list()
+            val plugin = plugins.find { it.name.value == pluginName }
+            if (plugin != null) {
+                println("プラグイン名: ${plugin.name.value}")
+                println("バージョン: ${plugin.currentVersion}")
+            }
         }
     }
 }
@@ -150,20 +153,21 @@ fun getPluginInfo(pluginName: String) {
 
 ```kotlin
 import org.bukkit.Bukkit
-import party.morino.mpm.api.MinecraftPluginManagerAPI
+import party.morino.mpm.api.MpmAPI
+import party.morino.mpm.api.domain.plugin.model.PluginName
 import kotlinx.coroutines.runBlocking
 
 fun installPlugin(pluginName: String) {
     val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
 
-    if (mpmPlugin is MinecraftPluginManagerAPI) {
-        val lifecycleManager = mpmPlugin.getPluginLifecycleManager()
+    if (mpmPlugin is MpmAPI) {
+        val lifecycleService = mpmPlugin.getPluginLifecycleService()
 
         runBlocking {
-            val result = lifecycleManager.installPlugin(pluginName)
+            val result = lifecycleService.install(PluginName(pluginName))
             result.fold(
-                { println("プラグインのインストールに成功しました") },
-                { error -> println("エラー: $error") }
+                { error -> println("エラー: ${error.message}") },
+                { println("プラグインのインストールに成功しました") }
             )
         }
     }
@@ -174,20 +178,25 @@ fun installPlugin(pluginName: String) {
 
 ```kotlin
 import org.bukkit.Bukkit
-import party.morino.mpm.api.MinecraftPluginManagerAPI
+import party.morino.mpm.api.MpmAPI
 import kotlinx.coroutines.runBlocking
 
 fun checkOutdatedPlugins() {
     val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
 
-    if (mpmPlugin is MinecraftPluginManagerAPI) {
-        val updateManager = mpmPlugin.getPluginUpdateManager()
+    if (mpmPlugin is MpmAPI) {
+        val updateService = mpmPlugin.getPluginUpdateService()
 
         runBlocking {
-            val outdated = updateManager.checkOutdated()
-            outdated.forEach { info ->
-                println("${info.pluginName}: ${info.currentVersion} -> ${info.latestVersion}")
-            }
+            val result = updateService.checkOutdatedAll()
+            result.fold(
+                { error -> println("エラー: ${error.message}") },
+                { outdatedList ->
+                    outdatedList.forEach { info ->
+                        println("${info.name}: ${info.currentVersion} -> ${info.latestVersion}")
+                    }
+                }
+            )
         }
     }
 }
