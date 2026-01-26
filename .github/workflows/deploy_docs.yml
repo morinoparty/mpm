@@ -22,12 +22,6 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Change wrapper permissions
-        run: chmod +x ./gradlew
-
-      - name: Build with Gradle
-        run: ./gradlew dokkaGenerate
-
       - uses: actions/setup-node@v6.2.0
         with:
           node-version: 22
@@ -40,7 +34,7 @@ jobs:
 
       - name: Install
         working-directory: docs
-        run: pnpm ci
+        run: pnpm i --frozen-lockfile
 
       - name: Build
         working-directory: docs

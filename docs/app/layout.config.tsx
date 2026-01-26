@@ -14,7 +14,7 @@ export function baseOptions(): BaseLayoutProps {
             enabled: true,
             mode: "light-dark",
         },
-        githubUrl: "https://github.com/morinoparty/MinecraftPluginManager",
+        githubUrl: "https://github.com/morinoparty/mpm",
         modrinthUrl: "https://modrinth.com/plugin/mpm-package",
     };
 }
