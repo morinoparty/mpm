@@ -57,14 +57,6 @@ jobs:
           after="${before//v/}"
           sed -i 's/VersionPlaceholder/$after/' ./gradle.properties
 
-      - name: Configure Docusaurus for preview
-        run: |
-          cd docs
-          # baseUrlを一時的に変更
-          sed -i 's#baseUrl: "/"#baseUrl: "/mpm/${{ env.COMMIT_SHORT_SHA }}/docs/"#g' docusaurus.config.ts
-          # urlを一時的に変更
-          sed -i 's#url: "https://mpm.plugin.morino.party"#url: "https://moripa-ci.nikomaru.dev"#g' docusaurus.config.ts
-
       - name: Install docs dependencies
         working-directory: docs
         run: pnpm install
@@ -92,7 +84,7 @@ jobs:
           mkdir -p ./upload/detekt
           cp -r ./build/reports/detekt/* ./upload/detekt/
           mkdir -p ./upload/docs
-          cp -r ./docs/build/* ./upload/docs/
+          cp -r ./docs/dist/* ./upload/docs/
           aws s3 cp ./upload --endpoint-url ${S3_ENDPOINT} s3://${{ env.S3_UPLOAD_BUCKET }}/mpm/${{ env.COMMIT_SHORT_SHA }} --recursive --checksum-algorithm=CRC32 || echo "S3 upload completed with warnings"
 
       - name: Publish test results

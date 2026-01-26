@@ -127,3 +127,15 @@ bin/
 **/node_modules
 
 **/.wrangler
+
+# Docs (fumadocs/vite)
+docs/.source
+docs/.tanstack
+docs/dist
+docs/app/routeTree.gen.ts
+
+# Playwright MCP
+.playwright-mcp/
+
+# Old docs backup
+docs_old/
