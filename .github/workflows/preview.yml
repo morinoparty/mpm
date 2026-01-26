@@ -149,7 +149,22 @@ jobs:
 
       - name: Upload to S3
         run: |
-          aws s3 cp ./upload --endpoint-url ${S3_ENDPOINT} s3://${{ env.S3_UPLOAD_BUCKET }}/mpm/${{ env.COMMIT_SHORT_SHA }} --recursive --checksum-algorithm=CRC32 || echo "S3 upload completed with warnings"
+          # AWS CLIの並列リクエスト数を増やす
+          aws configure set default.s3.max_concurrent_requests 50
+
+          S3_BASE="s3://${{ env.S3_UPLOAD_BUCKET }}/mpm/${{ env.COMMIT_SHORT_SHA }}"
+          S3_OPTS="--endpoint-url ${S3_ENDPOINT} --only-show-errors"
+
+          # 各ディレクトリを並列でアップロード
+          aws s3 cp ./upload/jars $S3_BASE/jars $S3_OPTS --recursive &
+          aws s3 cp ./upload/junit $S3_BASE/junit $S3_OPTS --recursive &
+          aws s3 cp ./upload/detekt $S3_BASE/detekt $S3_OPTS --recursive &
+          aws s3 cp ./upload/dokka $S3_BASE/dokka $S3_OPTS --recursive &
+          aws s3 cp ./upload/docs $S3_BASE/docs $S3_OPTS --recursive &
+
+          # 全ての並列アップロードを待機
+          wait
+          echo "S3 upload completed"
 
       - name: Get limit time
         id: limit-time
