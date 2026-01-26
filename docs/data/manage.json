@@ -1,15 +1,53 @@
 {
     "commands": [
         {
-            "command": "mpm add <pluginName>",
+            "command": "mpm init [[options]]",
+            "status": "newly",
+            "category": "manage",
+            "section": "初期化",
+            "description": "mpm.jsonを生成し、すべてのプラグインをunmanagedとして追加します",
+            "arguments": [
+                {
+                    "name": "--overwrite",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "command": "mpm add <pluginName> [[options]]",
             "status": "stable",
             "category": "manage",
             "section": "インストール・追加",
-            "description": "リポジトリファイルからプラグインを管理対象に追加します",
+            "description": "リポジトリファイルからプラグインを管理対象に追加します（依存関係も含む）",
             "arguments": [
                 {
                     "name": "pluginName",
                     "required": true
+                },
+                {
+                    "name": "--no-deps",
+                    "required": false
+                },
+                {
+                    "name": "--soft",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "command": "mpm adopt [[options]]",
+            "status": "newly",
+            "category": "manage",
+            "section": "インストール・追加",
+            "description": "unmanagedプラグインをリポジトリから検索してmanaged状態に変更します",
+            "arguments": [
+                {
+                    "name": "--soft",
+                    "required": false
+                },
+                {
+                    "name": "--dry-run",
+                    "required": false
                 }
             ]
         },
@@ -65,11 +103,7 @@
                     "required": false
                 },
                 {
-                    "name": "--enabled",
-                    "required": false
-                },
-                {
-                    "name": "--disabled",
+                    "name": "--managed",
                     "required": false
                 },
                 {
@@ -77,7 +111,7 @@
                     "required": false
                 },
                 {
-                    "name": "--managed",
+                    "name": "--locked",
                     "required": false
                 }
             ]

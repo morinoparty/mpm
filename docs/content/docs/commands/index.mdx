@@ -16,12 +16,9 @@ MinecraftPluginManagerのすべてのコマンドを確認できます。
 
 ## 📖 基本的な使い方
 
-### 新しいワークフロー（推奨）
+### ワークフロー
 
-1. **リポジトリファイルを作成**
-   ```bash
-   /mpm create-repo QuickShop https://modrinth.com/plugin/quickshop-hikari
-   ```
+1. **リポジトリファイルを作成**（手動でJSONファイルを作成）
 
 2. **プラグインを追加**
    ```bash
@@ -50,7 +47,7 @@ URLから直接インストール:
 <Callout type="warn" title="重要な変更">
 `mpm install`コマンドは引数なしで実行するように変更されました。
 URL指定のインストールは削除されました。
-新しいワークフロー（`mpm create-repo` → `mpm add` → `mpm install`）への移行をお願いします。
+新しいワークフロー（リポジトリファイル作成 → `mpm add` → `mpm install`）への移行をお願いします。
 </Callout>
 
 <Callout type="info" title="管理外プラグインについて">

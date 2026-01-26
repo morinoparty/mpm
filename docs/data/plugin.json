@@ -34,6 +34,13 @@
             "description": "ヘルプを表示します"
         },
         {
+            "command": "mpm reload",
+            "status": "newly",
+            "category": "plugin",
+            "section": "設定",
+            "description": "設定ファイルを再読み込みします"
+        },
+        {
             "command": "mpm version",
             "status": "proposal",
             "category": "plugin",
