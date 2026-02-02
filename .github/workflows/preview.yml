@@ -53,7 +53,7 @@ jobs:
           report_paths: './**/build/test-results/test/TEST-*.xml'
 
       - name: Upload JAR artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jar-artifacts
           retention-days: 1
@@ -82,7 +82,7 @@ jobs:
         run: ./gradlew dokkaGenerate
 
       - name: Upload Dokka artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dokka-artifacts
           retention-days: 1
@@ -124,7 +124,7 @@ jobs:
         run: pnpm run build
 
       - name: Upload docs artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docs-artifacts
           retention-days: 1
