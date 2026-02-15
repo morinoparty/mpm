@@ -33,7 +33,7 @@ jobs:
 
       - name: Publish test results
         id: publish-test-results
-        uses: mikepenz/action-junit-report@v6.1.0
+        uses: mikepenz/action-junit-report@v6.2.0
         if: success() || failure()
         with:
           report_paths: '**/build/test-results/test/TEST-*.xml'
