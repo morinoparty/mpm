@@ -27,4 +27,7 @@ data class GlobalSettings(
 
     // プラグインの一時保存ディレクトリ（mpm/配下のパス）
     val tempDir: String = "temp",
+
+    // GitHub APIの認証トークン（レート制限回避のため）
+    val githubToken: String? = null,
 )
