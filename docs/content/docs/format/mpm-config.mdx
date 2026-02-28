@@ -200,7 +200,20 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
         "autoUpdate": false,
         "autoCheck": false,
         "lock": false,
-        "tempDir": "temp"
+        "tempDir": "temp",
+        "webhook": {
+            "enabled": false,
+            "url": "",
+            "events": {
+                "install": true,
+                "update": true,
+                "remove": true,
+                "uninstall": true,
+                "lock": true,
+                "unlock": true,
+                "outdated": true
+            }
+        }
     }
 }
 ```
@@ -209,9 +222,51 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 - **autoCheck**: 自動バージョンチェックを有効にするか（デフォルト: `false`）
 - **lock**: デフォルトでバージョンをロックするか（デフォルト: `false`）
 - **tempDir**: 一時ファイルの保存ディレクトリ（デフォルト: `"temp"`）
+- **webhook**: Discord Webhook通知の設定（後述）
 
 <Callout type="info" title="優先順位">
 個別プラグインのメタデータ（`metadata/*.yaml`）で設定が指定されている場合、そちらがこのグローバル設定より優先されます。
+</Callout>
+
+#### 🔔 webhook（Discord Webhook通知）
+
+プラグインの管理イベントが発生した際に、Discord Webhookで通知を送信できます。
+
+```json
+{
+    "settings": {
+        "webhook": {
+            "enabled": true,
+            "url": "https://discord.com/api/webhooks/xxxx/yyyy",
+            "events": {
+                "install": true,
+                "update": true,
+                "remove": true,
+                "uninstall": true,
+                "lock": true,
+                "unlock": true,
+                "outdated": true
+            }
+        }
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | Webhook通知を有効にするか | `false` |
+| `url` | Discord WebhookのURL | `""` |
+| `events.install` | プラグインインストール時の通知 | `true` |
+| `events.update` | プラグイン更新時の通知 | `true` |
+| `events.remove` | プラグイン管理対象除外時の通知 | `true` |
+| `events.uninstall` | プラグインアンインストール時の通知 | `true` |
+| `events.lock` | プラグインロック時の通知 | `true` |
+| `events.unlock` | プラグインロック解除時の通知 | `true` |
+| `events.outdated` | プラグイン更新可能検出時の通知 | `true` |
+
+<Callout type="info" title="通知タイミング">
+通知はイベントがキャンセルされずに処理された場合にのみ送信されます。
+送信は非同期で行われるため、サーバーのパフォーマンスに影響はありません。
 </Callout>
 
 ## 使用例

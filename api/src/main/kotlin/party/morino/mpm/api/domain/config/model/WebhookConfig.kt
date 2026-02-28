@@ -12,22 +12,19 @@ package party.morino.mpm.api.domain.config.model
 import kotlinx.serialization.Serializable
 
 /**
- * グローバル設定
+ * Discord Webhook通知の設定
+ * @property enabled Webhook通知が有効かどうか
+ * @property url Discord WebhookのURL
+ * @property events 各イベントごとの通知有効/無効設定
  */
 @Serializable
-data class GlobalSettings(
-    // デフォルトの自動更新設定
-    val autoUpdate: Boolean = false,
+data class WebhookConfig(
+    // Webhook通知の有効/無効
+    val enabled: Boolean = false,
 
-    // デフォルトの自動バージョンチェック設定
-    val autoCheck: Boolean = false,
+    // Discord WebhookのURL
+    val url: String = "",
 
-    // デフォルトのバージョンロック設定
-    val lock: Boolean = false,
-
-    // プラグインの一時保存ディレクトリ（mpm/配下のパス）
-    val tempDir: String = "temp",
-
-    // Discord Webhook通知設定
-    val webhook: WebhookConfig = WebhookConfig(),
+    // イベントごとの通知設定
+    val events: WebhookEvents = WebhookEvents()
 )

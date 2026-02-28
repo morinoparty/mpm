@@ -25,6 +25,7 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.domain.plugin.repository.PluginRepository
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
@@ -42,6 +43,7 @@ import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
 import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
 import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
@@ -59,6 +61,7 @@ import party.morino.mpm.ui.command.manage.RemoveCommand
 import party.morino.mpm.ui.command.manage.UninstallCommand
 import party.morino.mpm.ui.command.manage.UpdateCommand
 import party.morino.mpm.ui.command.manage.VersionsCommand
+import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.ui.command.repo.RepositoryCommands
 import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
 import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
@@ -98,6 +101,9 @@ open class Mpm :
         // Lampコマンドハンドラーの初期化
         setupCommandHandler()
 
+        // Webhookイベントリスナーの登録
+        server.pluginManager.registerEvents(WebhookEventListener(), this)
+
         logger.info("mpm has been enabled!")
     }
 
@@ -105,6 +111,9 @@ open class Mpm :
      * プラグイン無効化時の処理
      */
     override fun onDisable() {
+        // Webhookリソースの解放（Koin未初期化時はスキップ）
+        GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
+
         logger.info("mpm has been disabled!")
     }
 
@@ -143,6 +152,9 @@ open class Mpm :
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
                 single<DependencyService> { DependencyServiceImpl() }
+
+                // Webhook通知の登録
+                single<WebhookNotifier> { DiscordWebhookNotifier() }
 
                 // Application Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }
