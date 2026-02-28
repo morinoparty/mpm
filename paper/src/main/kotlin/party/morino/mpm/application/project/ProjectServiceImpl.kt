@@ -14,6 +14,7 @@ package party.morino.mpm.application.project
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.project.ProjectService
@@ -38,6 +39,7 @@ class ProjectServiceImpl :
     KoinComponent {
     private val pluginDirectory: PluginDirectory by inject()
     private val projectRepository: ProjectRepository by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * プロジェクトを初期化する
@@ -94,8 +96,8 @@ class ProjectServiceImpl :
                             is PluginData.BukkitPluginData -> pluginData.name
                             is PluginData.PaperPluginData -> pluginData.name
                         }
-                    // プラグイン名が空でない場合のみ追加
-                    if (pluginName.isNotEmpty()) {
+                    // 自分自身（mpm）は除外し、プラグイン名が空でない場合のみ追加
+                    if (pluginName.isNotEmpty() && pluginName != plugin.name) {
                         unmanagedPlugins[pluginName] = "unmanaged"
                     }
                 }
