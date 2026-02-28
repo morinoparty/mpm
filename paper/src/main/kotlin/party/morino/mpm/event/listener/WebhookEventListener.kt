@@ -49,6 +49,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.INSTALL)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.INSTALL,
             title = "Plugin Installed",
             description = "プラグイン '${event.repositoryPlugin.pluginId}' がインストールされました",
             color = COLOR_GREEN,
@@ -68,6 +69,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.UPDATE)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.UPDATE,
             title = "Plugin Updated",
             description = "プラグイン '${event.installedPlugin.pluginId}' が更新されました",
             color = COLOR_BLUE,
@@ -87,6 +89,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.REMOVE)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.REMOVE,
             title = "Plugin Removed",
             description = "プラグイン '${event.installedPlugin.pluginId}' が管理対象から除外されました",
             color = COLOR_RED,
@@ -104,6 +107,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.UNINSTALL)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.UNINSTALL,
             title = "Plugin Uninstalled",
             description = "プラグイン '${event.installedPlugin.pluginId}' がアンインストールされました",
             color = COLOR_RED,
@@ -121,6 +125,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.LOCK)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.LOCK,
             title = "Plugin Locked",
             description = "プラグイン '${event.installedPlugin.pluginId}' がロックされました",
             color = COLOR_YELLOW,
@@ -139,6 +144,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.UNLOCK)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.UNLOCK,
             title = "Plugin Unlocked",
             description = "プラグイン '${event.installedPlugin.pluginId}' のロックが解除されました",
             color = COLOR_YELLOW,
@@ -158,6 +164,7 @@ class WebhookEventListener : Listener, KoinComponent {
         if (!webhookNotifier.isEventEnabled(WebhookEventType.OUTDATED)) return
 
         webhookNotifier.notify(
+            eventType = WebhookEventType.OUTDATED,
             title = "Plugin Outdated",
             description = "プラグイン '${event.installedPlugin.pluginId}' に新しいバージョンがあります",
             color = COLOR_ORANGE,

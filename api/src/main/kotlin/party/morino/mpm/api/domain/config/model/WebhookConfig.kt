@@ -13,18 +13,15 @@ import kotlinx.serialization.Serializable
 
 /**
  * Discord Webhook通知の設定
- * @property enabled Webhook通知が有効かどうか
- * @property url Discord WebhookのURL
- * @property events 各イベントごとの通知有効/無効設定
+ * 複数のエンドポイントを設定でき、各エンドポイントごとに通知するイベントを選択できる
+ * @property enabled Webhook通知のマスタースイッチ
+ * @property endpoints Webhookエンドポイントのリスト
  */
 @Serializable
 data class WebhookConfig(
-    // Webhook通知の有効/無効
+    // Webhook通知のマスタースイッチ（falseで全エンドポイントを無効化）
     val enabled: Boolean = false,
 
-    // Discord WebhookのURL
-    val url: String = "",
-
-    // イベントごとの通知設定
-    val events: WebhookEvents = WebhookEvents()
+    // Webhookエンドポイントのリスト（URLごとに通知イベントを設定）
+    val endpoints: List<WebhookEndpoint> = emptyList()
 )

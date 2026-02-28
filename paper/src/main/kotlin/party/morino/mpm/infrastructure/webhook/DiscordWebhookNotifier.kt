@@ -25,6 +25,8 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.ConfigManager
+import party.morino.mpm.api.domain.config.model.WebhookEndpoint
+import party.morino.mpm.api.domain.config.model.WebhookEvents
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.infrastructure.webhook.model.DiscordEmbed
@@ -74,9 +76,11 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
 
     /**
      * Discord Webhookへ通知を非同期で送信する
+     * 該当イベントが有効なエンドポイントにのみ送信する
      * 送信失敗時はログに記録するのみで、呼び出し元には影響しない
      */
     override fun notify(
+        eventType: WebhookEventType,
         title: String,
         description: String,
         color: Int,
@@ -84,14 +88,14 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
     ) {
         val config = configManager.getConfig().settings.webhook
 
-        // Webhookが無効またはURLが空の場合はスキップ
-        if (!config.enabled || config.url.isBlank()) return
+        // マスタースイッチが無効の場合はスキップ
+        if (!config.enabled) return
 
-        // URLのバリデーション（SSRF防止: httpsかつDiscordドメインのみ許可）
-        if (!isValidWebhookUrl(config.url)) {
-            plugin.logger.warning("Webhook URLが無効です。httpsでDiscordドメインのURLを指定してください: ${config.url}")
-            return
+        // 該当イベントが有効なエンドポイントをフィルタ
+        val targetEndpoints = config.endpoints.filter { endpoint ->
+            endpoint.url.isNotBlank() && isEventEnabledForEndpoint(endpoint.events, eventType)
         }
+        if (targetEndpoints.isEmpty()) return
 
         // Embedを構築（Discord仕様の文字数制限に従い切り詰め）
         val embed = DiscordEmbed(
@@ -109,26 +113,36 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
         )
 
         val payload = DiscordWebhookPayload(embeds = listOf(embed))
+        val payloadJson = json.encodeToString(payload)
 
-        // fire-and-forget: 非同期でPOSTリクエストを送信
-        scope.launch {
-            try {
-                val response = httpClient.post(config.url) {
-                    contentType(ContentType.Application.Json)
-                    setBody(json.encodeToString(payload))
-                }
+        // 各エンドポイントに非同期でPOSTリクエストを送信
+        for (endpoint in targetEndpoints) {
+            // URLのバリデーション（SSRF防止: httpsかつDiscordドメインのみ許可）
+            if (!isValidWebhookUrl(endpoint.url)) {
+                plugin.logger.warning("Webhook URLが無効です。httpsでDiscordドメインのURLを指定してください: ${endpoint.url}")
+                continue
+            }
 
-                // Discord Webhookは204 No Contentを返す
-                if (!response.status.isSuccess()) {
-                    // 429 Too Many Requests: レートリミット超過
-                    if (response.status.value == 429) {
-                        plugin.logger.warning("Webhook送信がレートリミットに達しました。しばらく待ってから再試行してください。")
-                    } else {
-                        plugin.logger.warning("Webhook送信に失敗しました: HTTP ${response.status}")
+            // fire-and-forget: 非同期でPOSTリクエストを送信
+            scope.launch {
+                try {
+                    val response = httpClient.post(endpoint.url) {
+                        contentType(ContentType.Application.Json)
+                        setBody(payloadJson)
                     }
+
+                    // Discord Webhookは204 No Contentを返す
+                    if (!response.status.isSuccess()) {
+                        // 429 Too Many Requests: レートリミット超過
+                        if (response.status.value == 429) {
+                            plugin.logger.warning("Webhook送信がレートリミットに達しました: ${endpoint.url}")
+                        } else {
+                            plugin.logger.warning("Webhook送信に失敗しました: HTTP ${response.status} (${endpoint.url})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    plugin.logger.warning("Webhook送信中にエラーが発生しました: ${e.message} (${endpoint.url})")
                 }
-            } catch (e: Exception) {
-                plugin.logger.warning("Webhook送信中にエラーが発生しました: ${e.message}")
             }
         }
     }
@@ -152,25 +166,39 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
     }
 
     /**
-     * 指定されたイベント種別の通知が有効かどうかを返す
+     * 指定されたイベント種別の通知が、いずれかのエンドポイントで有効かどうかを返す
      */
     override fun isEventEnabled(eventType: WebhookEventType): Boolean {
         val config = configManager.getConfig().settings.webhook
 
-        // Webhook自体が無効なら全イベント無効
-        if (!config.enabled || config.url.isBlank()) return false
+        // マスタースイッチが無効なら全イベント無効
+        if (!config.enabled) return false
 
-        // イベントごとの設定を確認
-        return when (eventType) {
-            WebhookEventType.INSTALL -> config.events.install
-            WebhookEventType.UPDATE -> config.events.update
-            WebhookEventType.REMOVE -> config.events.remove
-            WebhookEventType.UNINSTALL -> config.events.uninstall
-            WebhookEventType.LOCK -> config.events.lock
-            WebhookEventType.UNLOCK -> config.events.unlock
-            WebhookEventType.OUTDATED -> config.events.outdated
+        // いずれかのエンドポイントで該当イベントが有効ならtrue
+        return config.endpoints.any { endpoint ->
+            endpoint.url.isNotBlank() && isEventEnabledForEndpoint(endpoint.events, eventType)
         }
     }
+
+    /**
+     * 特定のエンドポイントで指定イベントが有効かどうかを判定する
+     * @param events エンドポイントのイベント設定
+     * @param eventType 判定するイベント種別
+     * @return 有効ならtrue
+     */
+    private fun isEventEnabledForEndpoint(
+        events: WebhookEvents,
+        eventType: WebhookEventType
+    ): Boolean =
+        when (eventType) {
+            WebhookEventType.INSTALL -> events.install
+            WebhookEventType.UPDATE -> events.update
+            WebhookEventType.REMOVE -> events.remove
+            WebhookEventType.UNINSTALL -> events.uninstall
+            WebhookEventType.LOCK -> events.lock
+            WebhookEventType.UNLOCK -> events.unlock
+            WebhookEventType.OUTDATED -> events.outdated
+        }
 
     /**
      * リソースを解放する

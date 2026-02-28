@@ -16,12 +16,15 @@ package party.morino.mpm.api.domain.webhook
 interface WebhookNotifier {
     /**
      * 通知を非同期で送信する（fire-and-forget）
+     * 該当イベントが有効なエンドポイントにのみ送信される
+     * @param eventType 通知対象のイベント種別
      * @param title Embed のタイトル
      * @param description Embed の説明文
      * @param color Embed の色（10進数）
      * @param fields フィールド一覧（name to value）
      */
     fun notify(
+        eventType: WebhookEventType,
         title: String,
         description: String,
         color: Int,

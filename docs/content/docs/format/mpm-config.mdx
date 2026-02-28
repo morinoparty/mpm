@@ -203,16 +203,7 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
         "tempDir": "temp",
         "webhook": {
             "enabled": false,
-            "url": "",
-            "events": {
-                "install": true,
-                "update": true,
-                "remove": true,
-                "uninstall": true,
-                "lock": true,
-                "unlock": true,
-                "outdated": true
-            }
+            "endpoints": []
         }
     }
 }
@@ -231,22 +222,39 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 #### 🔔 webhook（Discord Webhook通知）
 
 プラグインの管理イベントが発生した際に、Discord Webhookで通知を送信できます。
+複数のエンドポイントを設定でき、各エンドポイントごとに通知するイベントを選択できます。
 
 ```json
 {
     "settings": {
         "webhook": {
             "enabled": true,
-            "url": "https://discord.com/api/webhooks/xxxx/yyyy",
-            "events": {
-                "install": true,
-                "update": true,
-                "remove": true,
-                "uninstall": true,
-                "lock": true,
-                "unlock": true,
-                "outdated": true
-            }
+            "endpoints": [
+                {
+                    "url": "https://discord.com/api/webhooks/xxxx/yyyy",
+                    "events": {
+                        "install": true,
+                        "update": true,
+                        "remove": true,
+                        "uninstall": true,
+                        "lock": true,
+                        "unlock": true,
+                        "outdated": true
+                    }
+                },
+                {
+                    "url": "https://discord.com/api/webhooks/aaaa/bbbb",
+                    "events": {
+                        "install": false,
+                        "update": true,
+                        "remove": false,
+                        "uninstall": false,
+                        "lock": false,
+                        "unlock": false,
+                        "outdated": true
+                    }
+                }
+            ]
         }
     }
 }
@@ -254,15 +262,16 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 
 | フィールド | 説明 | デフォルト |
 |-----------|------|-----------|
-| `enabled` | Webhook通知を有効にするか | `false` |
-| `url` | Discord WebhookのURL | `""` |
-| `events.install` | プラグインインストール時の通知 | `true` |
-| `events.update` | プラグイン更新時の通知 | `true` |
-| `events.remove` | プラグイン管理対象除外時の通知 | `true` |
-| `events.uninstall` | プラグインアンインストール時の通知 | `true` |
-| `events.lock` | プラグインロック時の通知 | `true` |
-| `events.unlock` | プラグインロック解除時の通知 | `true` |
-| `events.outdated` | プラグイン更新可能検出時の通知 | `true` |
+| `enabled` | Webhook通知のマスタースイッチ | `false` |
+| `endpoints` | Webhookエンドポイントのリスト | `[]` |
+| `endpoints[].url` | Discord WebhookのURL | — |
+| `endpoints[].events.install` | プラグインインストール時の通知 | `true` |
+| `endpoints[].events.update` | プラグイン更新時の通知 | `true` |
+| `endpoints[].events.remove` | プラグイン管理対象除外時の通知 | `true` |
+| `endpoints[].events.uninstall` | プラグインアンインストール時の通知 | `true` |
+| `endpoints[].events.lock` | プラグインロック時の通知 | `true` |
+| `endpoints[].events.unlock` | プラグインロック解除時の通知 | `true` |
+| `endpoints[].events.outdated` | プラグイン更新可能検出時の通知 | `true` |
 
 <Callout type="info" title="通知タイミング">
 通知はイベントがキャンセルされずに処理された場合にのみ送信されます。

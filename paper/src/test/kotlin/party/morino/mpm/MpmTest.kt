@@ -95,6 +95,7 @@ class MpmTest :
                 single<WebhookNotifier> {
                     object : WebhookNotifier {
                         override fun notify(
+                            eventType: WebhookEventType,
                             title: String,
                             description: String,
                             color: Int,
