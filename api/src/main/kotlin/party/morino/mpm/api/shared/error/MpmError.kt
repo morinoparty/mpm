@@ -148,6 +148,17 @@ sealed class MpmError {
         ) : PluginError() {
             override val message: String = "Failed to update $pluginName: $reason"
         }
+
+        // APIバージョン非互換エラー
+        data class ApiVersionIncompatible(
+            val pluginName: String,
+            val pluginApiVersion: String,
+            val serverApiVersion: String
+        ) : PluginError() {
+            override val message: String =
+                "Plugin '$pluginName' requires api-version $pluginApiVersion, " +
+                    "but the server supports $serverApiVersion"
+        }
     }
 
     // プロジェクト関連のエラー

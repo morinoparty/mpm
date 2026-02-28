@@ -21,6 +21,8 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.model.BulkInstallResult
 import party.morino.mpm.api.application.model.InstallResult
+import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
+import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.application.model.PluginInstallInfo
 import party.morino.mpm.api.application.model.PluginRemovalInfo
 import party.morino.mpm.api.application.model.UpdateResult
@@ -70,13 +72,14 @@ class PluginUpdateServiceImpl :
     private val backupManager: ServerBackupManager by inject()
     private val infoService: PluginInfoService by inject()
     private val plugin: JavaPlugin by inject()
+    private val apiVersionChecker: ApiVersionChecker by inject()
 
     /**
      * 更新可能なすべてのプラグインを更新する
      *
      * UpdatePluginUseCaseImplから移行したロジック
      */
-    override suspend fun update(): Either<MpmError, List<UpdateResult>> {
+    override suspend fun update(force: Boolean): Either<MpmError, List<UpdateResult>> {
         // すべてのプラグインの更新情報を取得
         val outdatedInfoList =
             infoService.checkAllOutdated().getOrElse {
@@ -163,8 +166,8 @@ class PluginUpdateServiceImpl :
                 continue
             }
 
-            // プラグインをインストール（既存のファイルは上書きされる）
-            val installResult = installSinglePlugin(outdatedInfo.pluginName)
+            // プラグインをインストール（既存のファイルは上書きされる、forceフラグを伝播）
+            val installResult = installSinglePlugin(outdatedInfo.pluginName, force)
 
             installResult.fold(
                 // インストール失敗時
@@ -195,9 +198,9 @@ class PluginUpdateServiceImpl :
             )
         }
 
-        // Syncプラグインの連動更新
+        // Syncプラグインの連動更新（forceフラグを伝播）
         mpmConfig?.let { config ->
-            updateSyncPlugins(config, updatedPlugins, updateResults)
+            updateSyncPlugins(config, updatedPlugins, updateResults, force)
         }
 
         return updateResults.right()
@@ -206,9 +209,12 @@ class PluginUpdateServiceImpl :
     /**
      * 指定プラグインを更新する
      */
-    override suspend fun update(name: PluginName): Either<MpmError, UpdateResult> {
-        // プラグインをインストール
-        return installSinglePlugin(name.value).fold(
+    override suspend fun update(
+        name: PluginName,
+        force: Boolean
+    ): Either<MpmError, UpdateResult> {
+        // プラグインをインストール（forceフラグを伝播）
+        return installSinglePlugin(name.value, force).fold(
             { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
             {
                 UpdateResult(
@@ -227,7 +233,7 @@ class PluginUpdateServiceImpl :
      *
      * BulkInstallUseCaseImplから移行したロジック
      */
-    override suspend fun installAll(): Either<MpmError, BulkInstallResult> {
+    override suspend fun installAll(force: Boolean): Either<MpmError, BulkInstallResult> {
         // mpm.jsonを読み込む
         val rootDir = pluginDirectory.getRootDirectory()
         val configFile = File(rootDir, "mpm.json")
@@ -304,7 +310,7 @@ class PluginUpdateServiceImpl :
             }
 
             val versionToInstall = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
-            installPluginWithVersion(pluginName, versionToInstall).fold(
+            installPluginWithVersion(pluginName, versionToInstall, force).fold(
                 { failed[pluginName] = it },
                 { result ->
                     installed.add(
@@ -438,7 +444,8 @@ class PluginUpdateServiceImpl :
     private suspend fun updateSyncPlugins(
         mpmConfig: MpmConfig,
         updatedPlugins: Set<String>,
-        updateResults: MutableList<UpdateResult>
+        updateResults: MutableList<UpdateResult>,
+        force: Boolean = false
     ) {
         // 更新されたプラグインに同期しているプラグインを取得
         val syncPluginsToUpdate = mutableSetOf<String>()
@@ -479,8 +486,8 @@ class PluginUpdateServiceImpl :
                 continue
             }
 
-            // プラグインをインストール
-            val installResult = installSinglePlugin(syncPluginName)
+            // プラグインをインストール（forceフラグを伝播）
+            val installResult = installSinglePlugin(syncPluginName, force)
 
             installResult.fold(
                 // インストール失敗時
@@ -521,7 +528,10 @@ class PluginUpdateServiceImpl :
      *
      * PluginInstallUseCaseImplから移行したロジック
      */
-    private suspend fun installSinglePlugin(pluginName: String): Either<String, InstallResult> {
+    private suspend fun installSinglePlugin(
+        pluginName: String,
+        force: Boolean = false
+    ): Either<String, InstallResult> {
         val metadataDir = pluginDirectory.getMetadataDirectory()
         val metadataFile = File(metadataDir, "$pluginName.yaml")
 
@@ -595,6 +605,34 @@ class PluginUpdateServiceImpl :
             return "プラグインファイルのダウンロードに失敗しました。".left()
         }
 
+        // APIバージョンの互換性チェック
+        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
+        when (compatibilityResult) {
+            is CompatibilityResult.Incompatible -> {
+                if (!force) {
+                    // 非互換かつforceでない場合、一時ファイルを削除してエラーを返す
+                    downloadedFile.delete()
+                    return ("[API_VERSION_INCOMPATIBLE] api-version非互換: " +
+                        "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
+                        "サーバーは${compatibilityResult.serverApiVersion}です").left()
+                }
+                // forceの場合は警告ログを出して続行
+                plugin.logger.warning(
+                    "api-version incompatible ($pluginName): " +
+                        "plugin=${compatibilityResult.pluginApiVersion}, " +
+                        "server=${compatibilityResult.serverApiVersion}. Forced install."
+                )
+            }
+            is CompatibilityResult.Unknown -> {
+                plugin.logger.warning(
+                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
+                )
+            }
+            is CompatibilityResult.Compatible -> {
+                // 互換性あり、続行
+            }
+        }
+
         val template = mpmInfoDto.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
         val newFileName = generateFileName(template, pluginInfoDto.name, mpmInfoDto.version.current.normalized)
 
@@ -655,7 +693,8 @@ class PluginUpdateServiceImpl :
      */
     private suspend fun installPluginWithVersion(
         pluginName: String,
-        expectedVersion: String
+        expectedVersion: String,
+        force: Boolean = false
     ): Either<String, InstallResult> {
         // リポジトリファイルを取得
         val repositoryFile =
@@ -722,6 +761,34 @@ class PluginUpdateServiceImpl :
 
         if (downloadedFile == null) {
             return "プラグインファイルのダウンロードに失敗しました。".left()
+        }
+
+        // APIバージョンの互換性チェック
+        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
+        when (compatibilityResult) {
+            is CompatibilityResult.Incompatible -> {
+                if (!force) {
+                    // 非互換かつforceでない場合、一時ファイルを削除してエラーを返す
+                    downloadedFile.delete()
+                    return ("[API_VERSION_INCOMPATIBLE] api-version非互換: " +
+                        "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
+                        "サーバーは${compatibilityResult.serverApiVersion}です").left()
+                }
+                // forceの場合は警告ログを出して続行
+                plugin.logger.warning(
+                    "api-version incompatible ($pluginName): " +
+                        "plugin=${compatibilityResult.pluginApiVersion}, " +
+                        "server=${compatibilityResult.serverApiVersion}. Forced install."
+                )
+            }
+            is CompatibilityResult.Unknown -> {
+                plugin.logger.warning(
+                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
+                )
+            }
+            is CompatibilityResult.Compatible -> {
+                // 互換性あり、続行
+            }
         }
 
         // ファイル名を生成

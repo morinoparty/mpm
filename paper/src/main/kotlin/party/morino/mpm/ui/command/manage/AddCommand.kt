@@ -14,6 +14,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import revxrsal.commands.annotation.Command
@@ -44,9 +45,10 @@ class AddCommand : KoinComponent {
         sender: CommandSender,
         plugin: RepositoryPlugin,
         @Switch("no-deps") noDeps: Boolean = false,
-        @Switch("soft") soft: Boolean = false
+        @Switch("soft") soft: Boolean = false,
+        @Switch("force") force: Boolean = false
     ) {
-        addWithVersion(sender, plugin, VersionSpecifier.Latest, noDeps, soft)
+        addWithVersion(sender, plugin, VersionSpecifier.Latest, noDeps, soft, force)
     }
 
     /**
@@ -63,16 +65,17 @@ class AddCommand : KoinComponent {
         plugin: RepositoryPlugin,
         version: VersionSpecifier,
         @Switch("no-deps") noDeps: Boolean = false,
-        @Switch("soft") soft: Boolean = false
+        @Switch("soft") soft: Boolean = false,
+        @Switch("force") force: Boolean = false
     ) {
         val pluginId = plugin.pluginId
 
         if (noDeps) {
             // 依存関係なしで追加（従来の動作）
-            addSinglePlugin(sender, pluginId, version)
+            addSinglePlugin(sender, pluginId, version, force)
         } else {
             // 依存関係を含めて追加
-            addWithDependencies(sender, pluginId, version, soft)
+            addWithDependencies(sender, pluginId, version, soft, force)
         }
     }
 
@@ -82,7 +85,8 @@ class AddCommand : KoinComponent {
     private suspend fun addSinglePlugin(
         sender: CommandSender,
         pluginId: String,
-        version: VersionSpecifier
+        version: VersionSpecifier,
+        force: Boolean = false
     ) {
         sender.sendRichMessage("<gray>プラグイン '$pluginId' の情報を取得しています...")
 
@@ -94,9 +98,13 @@ class AddCommand : KoinComponent {
                 sender.sendRichMessage("<green>プラグイン '$pluginId' の情報を追加しました。")
                 sender.sendRichMessage("<gray>プラグイン '$pluginId' をインストールしています...")
 
-                lifecycleService.install(PluginName(pluginId)).fold(
+                lifecycleService.install(PluginName(pluginId), force).fold(
                     { error ->
                         sender.sendRichMessage("<red>${error.message}")
+                        // api-version非互換の場合は--forceフラグの案内を表示
+                        if (error is MpmError.PluginError.ApiVersionIncompatible) {
+                            sender.sendRichMessage("<yellow>--force フラグで強制インストールできます。")
+                        }
                     },
                     { installResult ->
                         displayInstallResult(sender, installResult)
@@ -114,14 +122,16 @@ class AddCommand : KoinComponent {
         sender: CommandSender,
         pluginId: String,
         version: VersionSpecifier,
-        includeSoftDependencies: Boolean
+        includeSoftDependencies: Boolean,
+        force: Boolean = false
     ) {
         sender.sendRichMessage("<gray>プラグイン '$pluginId' と依存関係を解決しています...")
 
         lifecycleService.addWithDependencies(
             PluginName(pluginId),
             version,
-            includeSoftDependencies
+            includeSoftDependencies,
+            force
         ).fold(
             { error ->
                 sender.sendRichMessage("<red>${error.message}")

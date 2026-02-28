@@ -16,6 +16,7 @@ import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
@@ -36,6 +37,7 @@ import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
@@ -139,6 +141,9 @@ open class Mpm :
 
                 // バックアップ管理の登録
                 single<ServerBackupManager> { ServerBackupManagerImpl() }
+
+                // APIバージョン互換性チェッカーの登録
+                single<ApiVersionChecker> { ApiVersionCheckerImpl() }
 
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }

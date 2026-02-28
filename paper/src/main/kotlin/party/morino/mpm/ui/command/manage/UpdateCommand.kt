@@ -15,6 +15,7 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
@@ -33,11 +34,14 @@ class UpdateCommand : KoinComponent {
      * @param sender コマンド送信者
      */
     @Subcommand("update")
-    suspend fun update(sender: CommandSender) {
+    suspend fun update(
+        sender: CommandSender,
+        @Switch("force") force: Boolean = false
+    ) {
         sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
 
-        // PluginUpdateServiceを実行
-        updateService.update().fold(
+        // PluginUpdateServiceを実行（forceフラグを伝播）
+        updateService.update(force).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
@@ -63,9 +67,22 @@ class UpdateCommand : KoinComponent {
 
                     // 失敗した更新を表示
                     if (failedResults.isNotEmpty()) {
+                        // api-version非互換エラーが含まれているか確認
+                        val hasApiVersionError = failedResults.any {
+                            it.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
+                        }
+
                         sender.sendRichMessage("<red>以下のプラグインの更新に失敗しました:</red>")
                         failedResults.forEach { result ->
-                            sender.sendRichMessage("  ✗ ${result.pluginName}: ${result.errorMessage}")
+                            // マーカーを除去して表示
+                            val displayMessage = result.errorMessage
+                                ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
+                            sender.sendRichMessage("  ✗ ${result.pluginName}: $displayMessage")
+                        }
+
+                        // api-version非互換がある場合は--force案内を表示
+                        if (hasApiVersionError) {
+                            sender.sendRichMessage("<yellow>--force フラグで強制更新できます。</yellow>")
                         }
                     }
 
