@@ -56,11 +56,16 @@ interface PluginLifecycleService {
      * プラグインをインストールする
      *
      * メタデータに基づいてプラグインファイルをダウンロード・配置する
+     * api-versionの互換性チェックを行い、非互換の場合はエラーを返す
      *
      * @param name プラグイン名
+     * @param force trueの場合、api-version非互換でも強制インストールする
      * @return インストール結果
      */
-    suspend fun install(name: PluginName): Either<MpmError, InstallResult>
+    suspend fun install(
+        name: PluginName,
+        force: Boolean = false
+    ): Either<MpmError, InstallResult>
 
     /**
      * プラグインをアンインストールする
@@ -95,7 +100,8 @@ interface PluginLifecycleService {
     suspend fun addWithDependencies(
         name: PluginName,
         version: VersionSpecifier,
-        includeSoftDependencies: Boolean = false
+        includeSoftDependencies: Boolean = false,
+        force: Boolean = false
     ): Either<MpmError, AddWithDependenciesResult>
 
     /**

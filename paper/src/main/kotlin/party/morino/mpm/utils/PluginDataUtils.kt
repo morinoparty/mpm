@@ -16,17 +16,19 @@ import java.util.jar.JarFile
 
 object PluginDataUtils {
     fun getPluginData(file: File): PluginData? {
-        val jarFile = JarFile(file)
-        // paper-plugin.ymlを先にチェック（Paperプラグインの場合、両方存在する可能性があるため）
-        val paperYml = jarFile.getEntry("paper-plugin.yml")
-        if (paperYml != null) {
-            return getPaperPluginData(jarFile)
+        // JarFileをuse{}で確実にクローズする（リソースリーク防止）
+        return JarFile(file).use { jarFile ->
+            // paper-plugin.ymlを先にチェック（Paperプラグインの場合、両方存在する可能性があるため）
+            val paperYml = jarFile.getEntry("paper-plugin.yml")
+            if (paperYml != null) {
+                return@use getPaperPluginData(jarFile)
+            }
+            val pluginYml = jarFile.getEntry("plugin.yml")
+            if (pluginYml != null) {
+                return@use getBukkitPluginData(jarFile)
+            }
+            null
         }
-        val pluginYml = jarFile.getEntry("plugin.yml")
-        if (pluginYml != null) {
-            return getBukkitPluginData(jarFile)
-        }
-        return null
     }
 
     private fun getPaperPluginData(jarFile: JarFile): PluginData.PaperPluginData {

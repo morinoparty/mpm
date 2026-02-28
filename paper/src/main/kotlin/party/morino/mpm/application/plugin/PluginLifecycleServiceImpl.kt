@@ -24,6 +24,8 @@ import party.morino.mpm.api.application.model.InstallResult
 import party.morino.mpm.api.application.model.PluginAddResult
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
+import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.application.model.PluginInstallInfo
 import party.morino.mpm.api.application.model.PluginRemovalInfo
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
@@ -70,6 +72,7 @@ class PluginLifecycleServiceImpl :
     private val metadataManager: PluginMetadataManager by inject()
     private val plugin: JavaPlugin by inject()
     private val infoService: PluginInfoService by inject()
+    private val apiVersionChecker: ApiVersionChecker by inject()
 
     /**
      * プラグインを管理対象に追加する
@@ -253,7 +256,10 @@ class PluginLifecycleServiceImpl :
      *
      * PluginInstallUseCaseImplから移行したロジック
      */
-    override suspend fun install(name: PluginName): Either<MpmError, InstallResult> {
+    override suspend fun install(
+        name: PluginName,
+        force: Boolean
+    ): Either<MpmError, InstallResult> {
         val pluginName = name.value
 
         // メタデータを読み込む
@@ -348,6 +354,37 @@ class PluginLifecycleServiceImpl :
                     pluginName,
                     "Download returned null"
                 ).left()
+        }
+
+        // APIバージョンの互換性チェック
+        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
+        when (compatibilityResult) {
+            is CompatibilityResult.Incompatible -> {
+                if (!force) {
+                    // 非互換かつforceでない場合、一時ファイルを削除してエラーを返す
+                    downloadedFile.delete()
+                    return MpmError.PluginError.ApiVersionIncompatible(
+                        pluginName,
+                        compatibilityResult.pluginApiVersion,
+                        compatibilityResult.serverApiVersion
+                    ).left()
+                }
+                // forceの場合は警告ログを出して続行
+                plugin.logger.warning(
+                    "api-version incompatible ($pluginName): " +
+                        "plugin=${compatibilityResult.pluginApiVersion}, " +
+                        "server=${compatibilityResult.serverApiVersion}. Forced install."
+                )
+            }
+            is CompatibilityResult.Unknown -> {
+                // 判定不能の場合はログに警告を出して続行
+                plugin.logger.warning(
+                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
+                )
+            }
+            is CompatibilityResult.Compatible -> {
+                // 互換性あり、続行
+            }
         }
 
         // ファイル名を生成
@@ -795,7 +832,8 @@ class PluginLifecycleServiceImpl :
     override suspend fun addWithDependencies(
         name: PluginName,
         version: VersionSpecifier,
-        includeSoftDependencies: Boolean
+        includeSoftDependencies: Boolean,
+        force: Boolean
     ): Either<MpmError, AddWithDependenciesResult> {
         val addedPlugins = mutableListOf<PluginAddResult>()
         val skippedPlugins = mutableListOf<String>()
@@ -810,6 +848,7 @@ class PluginLifecycleServiceImpl :
             version = version,
             isDependency = false,
             includeSoftDependencies = includeSoftDependencies,
+            force = force,
             processedPlugins = processedPlugins,
             addedPlugins = addedPlugins,
             skippedPlugins = skippedPlugins,
@@ -835,6 +874,7 @@ class PluginLifecycleServiceImpl :
         version: VersionSpecifier,
         isDependency: Boolean,
         includeSoftDependencies: Boolean,
+        force: Boolean,
         processedPlugins: MutableSet<String>,
         addedPlugins: MutableList<PluginAddResult>,
         skippedPlugins: MutableList<String>,
@@ -870,6 +910,7 @@ class PluginLifecycleServiceImpl :
                 version = VersionSpecifier.Latest,
                 isDependency = true,
                 includeSoftDependencies = includeSoftDependencies,
+                force = force,
                 processedPlugins = processedPlugins,
                 addedPlugins = addedPlugins,
                 skippedPlugins = skippedPlugins,
@@ -901,8 +942,8 @@ class PluginLifecycleServiceImpl :
                 failedPlugins[pluginName] = error.message
             },
             {
-                // 追加成功後、インストール
-                val installResult = install(PluginName(pluginName))
+                // 追加成功後、インストール（forceフラグを伝播）
+                val installResult = install(PluginName(pluginName), force)
                 installResult.fold(
                     { error ->
                         failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"
