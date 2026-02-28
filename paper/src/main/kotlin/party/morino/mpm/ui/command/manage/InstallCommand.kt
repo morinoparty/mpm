@@ -15,6 +15,7 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
@@ -33,11 +34,14 @@ class InstallCommand : KoinComponent {
      * @param sender コマンド送信者
      */
     @Subcommand("install")
-    suspend fun install(sender: CommandSender) {
+    suspend fun install(
+        sender: CommandSender,
+        @Switch("force") force: Boolean = false
+    ) {
         sender.sendRichMessage("<gray>mpm.jsonを読み込んでいます...")
 
-        // PluginUpdateServiceを実行
-        updateService.installAll().fold(
+        // PluginUpdateServiceを実行（forceフラグを伝播）
+        updateService.installAll(force).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}")
@@ -64,9 +68,21 @@ class InstallCommand : KoinComponent {
 
                 // 失敗したプラグイン一覧を表示
                 if (result.failed.isNotEmpty()) {
+                    // api-version非互換エラーが含まれているか確認
+                    val hasApiVersionError = result.failed.values.any {
+                        it.contains("[API_VERSION_INCOMPATIBLE]")
+                    }
+
                     sender.sendRichMessage("<red>以下のプラグインのインストールに失敗しました:")
                     for ((pluginName, errorMessage) in result.failed) {
-                        sender.sendRichMessage("<red>  - $pluginName: $errorMessage")
+                        // マーカーを除去して表示
+                        val displayMessage = errorMessage.replace("[API_VERSION_INCOMPATIBLE] ", "")
+                        sender.sendRichMessage("<red>  - $pluginName: $displayMessage")
+                    }
+
+                    // api-version非互換がある場合は--force案内を表示
+                    if (hasApiVersionError) {
+                        sender.sendRichMessage("<yellow>--force フラグで強制インストールできます。")
                     }
                 }
 

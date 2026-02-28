@@ -29,24 +29,30 @@ interface PluginUpdateService {
      *
      * ロックされていないプラグインを最新バージョンに更新する
      *
+     * @param force trueの場合、api-version非互換でも強制更新する
      * @return 更新結果一覧
      */
-    suspend fun update(): Either<MpmError, List<UpdateResult>>
+    suspend fun update(force: Boolean = false): Either<MpmError, List<UpdateResult>>
 
     /**
      * 指定プラグインを更新する
      *
      * @param name プラグイン名
+     * @param force trueの場合、api-version非互換でも強制更新する
      * @return 更新結果
      */
-    suspend fun update(name: PluginName): Either<MpmError, UpdateResult>
+    suspend fun update(
+        name: PluginName,
+        force: Boolean = false
+    ): Either<MpmError, UpdateResult>
 
     /**
      * mpm.jsonに記載されたすべてのプラグインを一括インストールする
      *
+     * @param force trueの場合、api-version非互換でも強制インストールする
      * @return 一括インストール結果
      */
-    suspend fun installAll(): Either<MpmError, BulkInstallResult>
+    suspend fun installAll(force: Boolean = false): Either<MpmError, BulkInstallResult>
 
     /**
      * プラグインをロックする
