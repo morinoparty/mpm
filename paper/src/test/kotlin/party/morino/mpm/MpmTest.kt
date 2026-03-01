@@ -38,6 +38,8 @@ import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
+import party.morino.mpm.api.domain.webhook.WebhookEventType
+import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.mock.config.PluginDirectoryMock
 
@@ -88,6 +90,23 @@ class MpmTest :
 
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
+
+                // Webhook通知の登録（テスト用no-op実装）
+                single<WebhookNotifier> {
+                    object : WebhookNotifier {
+                        override fun notify(
+                            eventType: WebhookEventType,
+                            title: String,
+                            description: String,
+                            color: Int,
+                            fields: List<Pair<String, String>>
+                        ) {}
+
+                        override fun isEventEnabled(eventType: WebhookEventType) = false
+
+                        override fun shutdown() {}
+                    }
+                }
 
                 // 新しいApplication Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }
