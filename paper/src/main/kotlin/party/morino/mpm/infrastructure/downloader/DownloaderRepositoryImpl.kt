@@ -12,6 +12,7 @@ package party.morino.mpm.infrastructure.downloader
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -29,8 +30,18 @@ import java.io.File
 class DownloaderRepositoryImpl :
     DownloaderRepository,
     KoinComponent {
-    // Koinによる依存性注入（現在は未使用だが、将来の拡張のために保持）
+    // Koinによる依存性注入
     private val plugin: JavaPlugin by inject()
+    private val configManager: ConfigManager by inject()
+
+    /**
+     * GitHubダウンローダーを生成する
+     * 設定にトークンがある場合は認証付きで生成する
+     */
+    private fun createGithubDownloader(): GithubDownloader {
+        val token = configManager.getConfig().settings.githubToken
+        return GithubDownloader(token)
+    }
 
     /**
      * URLからリポジトリタイプを判別
@@ -94,7 +105,7 @@ class DownloaderRepositoryImpl :
     override suspend fun getLatestVersion(urlData: UrlData): VersionData =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                GithubDownloader().getLatestVersion(urlData)
+                createGithubDownloader().getLatestVersion(urlData)
             }
 
             is UrlData.SpigotMcUrlData -> {
@@ -123,7 +134,7 @@ class DownloaderRepositoryImpl :
     ): VersionData =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                GithubDownloader().getVersionByName(urlData, versionName)
+                createGithubDownloader().getVersionByName(urlData, versionName)
             }
 
             is UrlData.SpigotMcUrlData -> {
@@ -148,7 +159,7 @@ class DownloaderRepositoryImpl :
     override suspend fun getAllVersions(urlData: UrlData): List<VersionData> =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                GithubDownloader().getAllVersions(urlData)
+                createGithubDownloader().getAllVersions(urlData)
             }
 
             is UrlData.SpigotMcUrlData -> {
@@ -179,7 +190,7 @@ class DownloaderRepositoryImpl :
     ): File? =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                GithubDownloader().downloadByVersion(urlData, version, fileNamePattern)
+                createGithubDownloader().downloadByVersion(urlData, version, fileNamePattern)
             }
 
             is UrlData.SpigotMcUrlData -> {
@@ -211,7 +222,7 @@ class DownloaderRepositoryImpl :
 
         return when (type) {
             RepositoryType.GITHUB -> {
-                val downloader = GithubDownloader()
+                val downloader = createGithubDownloader()
                 val latest = downloader.getLatestVersion(urlData as UrlData.GithubUrlData)
                 downloader.downloadByVersion(urlData, latest, fileNamePattern)
             }

@@ -9,6 +9,11 @@
 
 package party.morino.mpm.infrastructure.downloader.github
 
+import io.ktor.client.*
+import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
+import io.ktor.client.request.*
+import io.ktor.http.*
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -22,8 +27,29 @@ import java.time.LocalDateTime
 /**
  * GitHubからプラグインをダウンロードするクラス
  * テストのためにopenクラスとして定義
+ *
+ * @param githubToken GitHub APIの認証トークン（nullの場合は未認証でリクエスト）
  */
-open class GithubDownloader : AbstractPluginDownloader() {
+open class GithubDownloader(
+    private val githubToken: String? = null
+) : AbstractPluginDownloader() {
+    init {
+        // トークンが設定されている場合、認証ヘッダー付きのHTTPクライアントを使用
+        if (githubToken != null) {
+            httpClient =
+                HttpClient(CIO) {
+                    install(HttpTimeout) {
+                        requestTimeoutMillis = 60000
+                        connectTimeoutMillis = 60000
+                        socketTimeoutMillis = 60000
+                    }
+                    defaultRequest {
+                        header(HttpHeaders.Authorization, "Bearer $githubToken")
+                    }
+                }
+        }
+    }
+
     /**
      * リポジトリタイプの判定
      * @param url リポジトリURL
