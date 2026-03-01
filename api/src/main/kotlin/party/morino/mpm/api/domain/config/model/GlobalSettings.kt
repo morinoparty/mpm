@@ -30,4 +30,6 @@ data class GlobalSettings(
 
     // GitHub APIの認証トークン（レート制限回避のため）
     val githubToken: String? = null,
+    // Discord Webhook通知設定
+    val webhook: WebhookConfig = WebhookConfig(),
 )

@@ -27,7 +27,9 @@ class ConfigManagerImpl : ConfigManager, KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
 
-    private lateinit var configData : ConfigData
+    // Volatileでスレッド間の可視性を保証（reload時の変更が即座に他スレッドから見える）
+    @Volatile
+    private lateinit var configData: ConfigData
 
     /**
      * 現在の設定を取得する
