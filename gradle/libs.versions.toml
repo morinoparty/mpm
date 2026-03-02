@@ -41,7 +41,7 @@ ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-conte
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 
 commons-io = { group = "commons-io", name = "commons-io", version.ref = "commonsIo" }
-snakeyaml = { group = "org.yaml", name = "snakeyaml", version = "2.5" }
+snakeyaml = { group = "org.yaml", name = "snakeyaml", version = "2.6" }
 
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutine" }
 
