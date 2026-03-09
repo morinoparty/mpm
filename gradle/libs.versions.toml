@@ -12,7 +12,7 @@ mockBukkit = "3.93.2"
 commonsIo = "2.21.0"
 mockk = "1.14.9"
 kaml = "0.77.1"
-ktlint = "14.0.1"
+ktlint = "14.1.0"
 arrow = "2.2.2"
 
 [libraries]
