@@ -22,6 +22,7 @@ import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
@@ -33,6 +34,7 @@ import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
@@ -113,6 +115,9 @@ class MpmTest :
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
+
+                // スケジューラーの登録
+                single<UpdateScheduler> { UpdateSchedulerImpl() }
             }
 
         // テスト用のモジュールでKoinを初期化
