@@ -257,9 +257,9 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
                 val lockedInfos = needsUpdate.filter { it.pluginName in result.locked }
                 val unknownInfos = needsUpdate.filter { it.pluginName in result.unknown }
 
-                if (updatableInfos.isEmpty()) {
+                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty()) {
                     plugin.logger.info("[Scheduled/Dry-run] All plugins are up to date.")
-                } else {
+                } else if (updatableInfos.isNotEmpty()) {
                     plugin.logger.info(
                         "[Scheduled/Dry-run] ${updatableInfos.size} plugin(s) would be updated:"
                     )
