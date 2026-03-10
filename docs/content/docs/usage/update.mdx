@@ -61,12 +61,82 @@ mpm:
 `version.latest.*`が`version.current.*`に戻り、`outdated`実行前の状態に戻ります。
 </Callout>
 
-## 自動アップデート
+## 🔍 Dry-runモード
 
-```yaml
-mpm:
-    download:
-        auto_update: true
+実際の更新を行わずに、更新が必要なプラグインを確認できます。
+
+```bash
+/mpm update --dry-run
 ```
 
-`download.auto_update`がtrueの場合、起動時にプラグインの更新を確認し、更新がある場合は、プラグインを更新します。
+更新可能なプラグインの一覧と、現在のバージョンから最新バージョンへの差分が表示されます。
+実際のダウンロードやファイルの置き換えは行われません。
+
+## ⏰ スケジュール自動更新
+
+cron式を使用して、プラグインの自動更新をスケジュール実行できます。
+
+### 設定方法
+
+`config.json` の `settings.schedule` に以下の設定を追加します。
+
+```json
+{
+    "settings": {
+        "schedule": {
+            "enabled": true,
+            "cron": "0 4 * * *",
+            "checkOnStartup": true,
+            "dryRun": false
+        }
+    }
+}
+```
+
+| 設定項目 | 説明 | デフォルト |
+|---------|------|-----------|
+| `enabled` | スケジュール自動更新の有効/無効 | `false` |
+| `cron` | cron式（UNIX形式: 分 時 日 月 曜日） | `"0 4 * * *"` |
+| `checkOnStartup` | サーバー起動時に更新チェックのみ行うか | `true` |
+| `dryRun` | 更新チェックと通知のみ行い、実際の更新を行わないか | `false` |
+
+### 動作の流れ
+
+1. **サーバー起動時**（`checkOnStartup: true` の場合）
+   - 更新が必要なプラグインをチェックし、コンソールに結果を出力します
+   - Discord Webhook が設定されている場合、通知も送信されます
+   - 起動時は **更新チェックのみ** で、実際の更新は行いません
+
+2. **スケジュール実行時**（cron式のタイミング）
+   - `dryRun: false`: ロックされていないプラグインを自動更新します
+   - `dryRun: true`: 更新チェックと通知のみ行い、更新は行いません
+
+### cron式の例
+
+| cron式 | 説明 |
+|--------|------|
+| `0 4 * * *` | 毎日午前4時 |
+| `0 3 * * 0` | 毎週日曜日の午前3時 |
+| `0 */6 * * *` | 6時間ごと |
+| `30 2 1 * *` | 毎月1日の午前2時30分 |
+
+<Callout type="info" title="ロックされたプラグイン">
+`/mpm lock` でロックされたプラグインは、スケジュール自動更新の対象外です。
+重要なプラグインは事前にロックしておくことをおすすめします。
+</Callout>
+
+<Callout type="info" title="タイムゾーン">
+cron式の時刻は、サーバーのJVMが使用するタイムゾーンに基づきます。
+JVMのデフォルトタイムゾーンは `java -XshowSettings:all 2>&1 | grep timezone` で確認できます。
+必要に応じてサーバー起動時に `-Duser.timezone=Asia/Tokyo` などで指定してください。
+</Callout>
+
+<Callout type="info" title="設定の反映">
+スケジュール設定を変更した後は、`/mpm reload` コマンドで即座に反映されます。
+サーバーの再起動は不要です。
+</Callout>
+
+<Callout type="warn" title="注意">
+自動更新後はサーバーの再起動が必要です。
+自動更新は **プラグインファイルの置き換え** のみを行い、再起動は行いません。
+</Callout>

@@ -149,6 +149,11 @@ sealed class MpmError {
             override val message: String = "Failed to update $pluginName: $reason"
         }
 
+        // 更新処理が既に実行中
+        data object UpdateInProgress : PluginError() {
+            override val message: String = "An update is already in progress"
+        }
+
         // APIバージョン非互換エラー
         data class ApiVersionIncompatible(
             val pluginName: String,

@@ -12,7 +12,9 @@ package party.morino.mpm.ui.command.manage
 import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -28,16 +30,26 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class UpdateCommand : KoinComponent {
     // Koinによる依存性注入
     private val updateService: PluginUpdateService by inject()
+    private val infoService: PluginInfoService by inject()
+    private val pluginMetadataManager: PluginMetadataManager by inject()
 
     /**
      * 新しいバージョンがあるプラグインを更新するコマンド
      * @param sender コマンド送信者
+     * @param force api-version非互換でも強制更新する
+     * @param dryRun 更新チェックのみ行い、実際の更新は行わない
      */
     @Subcommand("update")
     suspend fun update(
         sender: CommandSender,
-        @Switch("force") force: Boolean = false
+        @Switch("force") force: Boolean = false,
+        @Switch("dry-run") dryRun: Boolean = false
     ) {
+        if (dryRun) {
+            executeDryRun(sender)
+            return
+        }
+
         sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
 
         // PluginUpdateServiceを実行（forceフラグを伝播）
@@ -87,6 +99,82 @@ class UpdateCommand : KoinComponent {
                     }
 
                     sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
+                }
+            }
+        )
+    }
+
+    /**
+     * dry-runモード: 更新チェックのみ行い、結果をプレイヤーに表示する
+     *
+     * ロック済みプラグインは更新対象から除外して別途表示する
+     * @param sender コマンド送信者
+     */
+    private suspend fun executeDryRun(sender: CommandSender) {
+        sender.sendRichMessage("<gray>[Dry-run] プラグインの更新を確認しています...</gray>")
+
+        infoService.checkAllOutdated().fold(
+            { error ->
+                sender.sendRichMessage("<red>[Dry-run] ${error.message}</red>")
+            },
+            { outdatedList ->
+                // 更新が必要なプラグインのみ抽出
+                val needsUpdate = outdatedList.filter { it.needsUpdate }
+
+                // ロック状態でフィルタリング（実際の更新と同じ条件で表示）
+                // メタデータ読み込み失敗はunknownとして警告表示
+                val updatable = mutableListOf<String>()
+                val locked = mutableListOf<String>()
+                val unknown = mutableListOf<String>()
+                for (info in needsUpdate) {
+                    pluginMetadataManager.loadMetadata(info.pluginName).fold(
+                        { unknown.add(info.pluginName) },
+                        { metadata ->
+                            if (metadata.mpmInfo.settings.lock == true) {
+                                locked.add(info.pluginName)
+                            } else {
+                                updatable.add(info.pluginName)
+                            }
+                        }
+                    )
+                }
+
+                val updatableInfos = needsUpdate.filter { it.pluginName in updatable }
+                val lockedInfos = needsUpdate.filter { it.pluginName in locked }
+                val unknownInfos = needsUpdate.filter { it.pluginName in unknown }
+
+                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty()) {
+                    sender.sendRichMessage("<green>[Dry-run] すべてのプラグインは最新です。</green>")
+                } else {
+                    if (updatableInfos.isNotEmpty()) {
+                        sender.sendRichMessage(
+                            "<yellow>[Dry-run] ${updatableInfos.size}個のプラグインが更新可能です:</yellow>"
+                        )
+                        updatableInfos.forEach { info ->
+                            sender.sendRichMessage(
+                                "  ↑ ${info.pluginName}: ${info.currentVersion} → ${info.latestVersion}"
+                            )
+                        }
+                    }
+                    if (lockedInfos.isNotEmpty()) {
+                        sender.sendRichMessage(
+                            "<gray>[Dry-run] ${lockedInfos.size}個のプラグインはロック中です (スキップ):</gray>"
+                        )
+                        lockedInfos.forEach { info ->
+                            sender.sendRichMessage(
+                                "  🔒 ${info.pluginName}: ${info.currentVersion} → ${info.latestVersion}"
+                            )
+                        }
+                    }
+                    if (unknownInfos.isNotEmpty()) {
+                        sender.sendRichMessage(
+                            "<red>[Dry-run] ${unknownInfos.size}個のプラグインのメタデータ読み込みに失敗:</red>"
+                        )
+                        unknownInfos.forEach { info ->
+                            sender.sendRichMessage("  ⚠ ${info.pluginName}")
+                        }
+                    }
+                    sender.sendRichMessage("<gray>[Dry-run] 実際の更新は行われていません。</gray>")
                 }
             }
         )

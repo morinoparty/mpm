@@ -16,6 +16,7 @@ import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
 import com.charleskorn.kaml.Yaml
+import kotlinx.coroutines.sync.Mutex
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -74,12 +75,30 @@ class PluginUpdateServiceImpl :
     private val plugin: JavaPlugin by inject()
     private val apiVersionChecker: ApiVersionChecker by inject()
 
+    // 並行更新を防止するためのMutex（スケジューラーとコマンドの競合回避）
+    private val updateMutex = Mutex()
+
     /**
      * 更新可能なすべてのプラグインを更新する
      *
      * UpdatePluginUseCaseImplから移行したロジック
      */
     override suspend fun update(force: Boolean): Either<MpmError, List<UpdateResult>> {
+        // 既に更新処理が実行中の場合はエラーを返す
+        if (!updateMutex.tryLock()) {
+            return MpmError.PluginError.UpdateInProgress.left()
+        }
+        try {
+            return executeUpdate(force)
+        } finally {
+            updateMutex.unlock()
+        }
+    }
+
+    /**
+     * 更新処理の本体（Mutex保護下で呼び出される）
+     */
+    private suspend fun executeUpdate(force: Boolean): Either<MpmError, List<UpdateResult>> {
         // すべてのプラグインの更新情報を取得
         val outdatedInfoList =
             infoService.checkAllOutdated().getOrElse {
@@ -213,19 +232,27 @@ class PluginUpdateServiceImpl :
         name: PluginName,
         force: Boolean
     ): Either<MpmError, UpdateResult> {
-        // プラグインをインストール（forceフラグを伝播）
-        return installSinglePlugin(name.value, force).fold(
-            { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
-            {
-                UpdateResult(
-                    pluginName = name.value,
-                    oldVersion = "unknown",
-                    newVersion = "latest",
-                    success = true,
-                    errorMessage = null
-                ).right()
-            }
-        )
+        // 並行更新を防止（jar/metadataファイルの競合回避）
+        if (!updateMutex.tryLock()) {
+            return MpmError.PluginError.UpdateInProgress.left()
+        }
+        try {
+            // プラグインをインストール（forceフラグを伝播）
+            return installSinglePlugin(name.value, force).fold(
+                { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
+                {
+                    UpdateResult(
+                        pluginName = name.value,
+                        oldVersion = "unknown",
+                        newVersion = "latest",
+                        success = true,
+                        errorMessage = null
+                    ).right()
+                }
+            )
+        } finally {
+            updateMutex.unlock()
+        }
     }
 
     /**
@@ -234,6 +261,21 @@ class PluginUpdateServiceImpl :
      * BulkInstallUseCaseImplから移行したロジック
      */
     override suspend fun installAll(force: Boolean): Either<MpmError, BulkInstallResult> {
+        // 並行更新を防止（jar/metadataファイルの競合回避）
+        if (!updateMutex.tryLock()) {
+            return MpmError.PluginError.UpdateInProgress.left()
+        }
+        try {
+            return executeInstallAll(force)
+        } finally {
+            updateMutex.unlock()
+        }
+    }
+
+    /**
+     * 一括インストール処理の本体（Mutex保護下で呼び出される）
+     */
+    private suspend fun executeInstallAll(force: Boolean): Either<MpmError, BulkInstallResult> {
         // mpm.jsonを読み込む
         val rootDir = pluginDirectory.getRootDirectory()
         val configFile = File(rootDir, "mpm.json")
