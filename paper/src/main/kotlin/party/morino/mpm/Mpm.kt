@@ -20,6 +20,7 @@ import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
@@ -38,6 +39,7 @@ import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
@@ -106,6 +108,9 @@ open class Mpm :
         // Webhookイベントリスナーの登録
         server.pluginManager.registerEvents(WebhookEventListener(), this)
 
+        // 自動更新スケジューラーの起動
+        GlobalContext.get().get<UpdateScheduler>().start()
+
         logger.info("mpm has been enabled!")
     }
 
@@ -113,6 +118,9 @@ open class Mpm :
      * プラグイン無効化時の処理
      */
     override fun onDisable() {
+        // スケジューラーの停止（Koin未初期化時はスキップ）
+        GlobalContext.getOrNull()?.get<UpdateScheduler>()?.stop()
+
         // Webhookリソースの解放（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
 
@@ -166,6 +174,9 @@ open class Mpm :
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
+
+                // スケジューラーの登録
+                single<UpdateScheduler> { UpdateSchedulerImpl() }
             }
 
         // Koinの開始（すでに開始されている場合は何もしない）

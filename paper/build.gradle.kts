@@ -49,6 +49,9 @@ dependencies {
     // SnakeYAML
     implementation(libs.snakeyaml)
 
+    // Cron expression parser
+    implementation(libs.cron.utils)
+
     // Test dependencies
     testImplementation(libs.kotlinx.coroutines.test)
 

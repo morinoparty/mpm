@@ -32,4 +32,6 @@ data class GlobalSettings(
     val githubToken: String? = null,
     // Discord Webhook通知設定
     val webhook: WebhookConfig = WebhookConfig(),
+    // スケジュール自動更新設定
+    val schedule: ScheduleConfig = ScheduleConfig(),
 )

@@ -219,6 +219,55 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 個別プラグインのメタデータ（`metadata/*.yaml`）で設定が指定されている場合、そちらがこのグローバル設定より優先されます。
 </Callout>
 
+#### ⏰ schedule（スケジュール自動更新）
+
+cron式を使用して、プラグインの自動更新をスケジュール実行できます。
+
+```json
+{
+    "settings": {
+        "schedule": {
+            "enabled": true,
+            "cron": "0 4 * * *",
+            "checkOnStartup": true,
+            "dryRun": false
+        }
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | スケジュール自動更新の有効/無効 | `false` |
+| `cron` | cron式（UNIX形式: 分 時 日 月 曜日） | `"0 4 * * *"` |
+| `checkOnStartup` | サーバー起動時に更新チェックを行うか | `true` |
+| `dryRun` | trueの場合、更新チェックと通知のみ行い、実際の更新は行わない | `false` |
+
+**cron式の例:**
+
+| cron式 | 説明 |
+|--------|------|
+| `0 4 * * *` | 毎日午前4時に実行 |
+| `0 3 * * 0` | 毎週日曜日の午前3時に実行 |
+| `0 */6 * * *` | 6時間ごとに実行 |
+| `30 2 1 * *` | 毎月1日の午前2時30分に実行 |
+
+<Callout type="info" title="起動時チェック">
+`checkOnStartup` が有効な場合、サーバー起動時に更新が必要なプラグインをチェックし、コンソールとDiscord Webhook（設定されている場合）に通知します。
+起動時には更新チェックのみ行い、実際の更新は行いません。
+</Callout>
+
+<Callout type="info" title="dry-runモード">
+`dryRun` を `true` に設定すると、スケジュール実行時に更新チェックと通知のみを行い、実際のプラグイン更新は行いません。
+本番環境に導入する前のテストや、更新の頻度を把握するために便利です。
+コマンドからも `/mpm update --dry-run` で同様の動作が可能です。
+</Callout>
+
+<Callout type="info" title="タイムゾーン">
+cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づきます。
+必要に応じてサーバー起動時に `-Duser.timezone=Asia/Tokyo` で変更してください。
+</Callout>
+
 #### 🔔 webhook（Discord Webhook通知）
 
 プラグインの管理イベントが発生した際に、Discord Webhookで通知を送信できます。
