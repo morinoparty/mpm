@@ -100,7 +100,7 @@ jobs:
         with:
           node-version: '22'
 
-      - uses: pnpm/action-setup@b9e1dbc72ff7358f971cc0b7c62c7a0d83f1068b # v4.0.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.0.0
         name: Install pnpm
         with:
           version: 10
