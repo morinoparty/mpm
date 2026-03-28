@@ -2,7 +2,7 @@
     "commands": [
         {
             "command": "mpm create-repo <pluginName> <url> [fileNameRegex]",
-            "status": "proposal",
+            "status": "not_implemented",
             "category": "repo",
             "description": "URLからリポジトリファイルを自動生成します（GitHub, Modrinth, SpigotMC対応）",
             "arguments": [
