@@ -121,7 +121,8 @@ class ServerBackupManagerImpl :
             try {
                 val backupsDir = pluginDirectory.getBackupsDirectory()
                 val pluginsDir = pluginDirectory.getPluginsDirectory()
-                val pluginsDirCanonical = pluginsDir.canonicalPath
+                // Zip Slip対策: セパレータ付きプレフィックスで兄弟ディレクトリ攻撃を防止
+                val pluginsDirPrefix = pluginsDir.canonicalPath + File.separator
 
                 // インデックスからバックアップ情報を取得
                 val index = loadIndex()
@@ -134,45 +135,88 @@ class ServerBackupManagerImpl :
                     return@withContext "バックアップファイルが見つかりません: ${backupInfo.fileName}".left()
                 }
 
-                // リストア前に既存ファイルを削除（MinecraftPluginManagerディレクトリは除外）
-                cleanupPluginsDir(pluginsDir)
-
-                val restoredPlugins = mutableListOf<String>()
-                val restoredConfigs = mutableListOf<String>()
-
-                // ZIPファイルを展開
+                // Phase 1: ZIPエントリを事前検証（破壊的操作の前にすべてのパスを確認）
                 ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
                     var entry: ZipEntry? = zipIn.nextEntry
                     while (entry != null) {
                         val targetFile = File(pluginsDir, entry.name)
-
-                        // Zip Slip攻撃対策: 展開先がplugins/ディレクトリ内であることを確認
-                        if (!targetFile.canonicalPath.startsWith(pluginsDirCanonical)) {
+                        if (!targetFile.canonicalPath.startsWith(pluginsDirPrefix) &&
+                            targetFile.canonicalPath != pluginsDir.canonicalPath
+                        ) {
                             return@withContext "不正なZIPエントリが検出されました: ${entry.name}".left()
-                        }
-
-                        if (entry.isDirectory) {
-                            // ディレクトリを作成
-                            targetFile.mkdirs()
-                            // 設定フォルダとして記録
-                            val topLevelDir = entry.name.split("/").first()
-                            if (!restoredConfigs.contains(topLevelDir) && !topLevelDir.endsWith(".jar")) {
-                                restoredConfigs.add(topLevelDir)
-                            }
-                        } else {
-                            // 親ディレクトリを作成
-                            targetFile.parentFile?.mkdirs()
-                            // ファイルを展開
-                            FileOutputStream(targetFile).use { fos ->
-                                zipIn.copyTo(fos)
-                            }
-                            // jarファイルとして記録
-                            if (entry.name.endsWith(".jar")) {
-                                restoredPlugins.add(entry.name)
-                            }
                         }
                         entry = zipIn.nextEntry
                     }
+                }
+
+                // Phase 2: 一時ディレクトリに展開（pluginsディレクトリをまだ削除しない）
+                val tempDir = File(pluginsDir.parentFile, ".mpm-restore-${System.currentTimeMillis()}")
+                tempDir.mkdirs()
+
+                val restoredPlugins = mutableListOf<String>()
+                val restoredConfigs = mutableListOf<String>()
+                // 一時ディレクトリのプレフィックス
+                val tempDirPrefix = tempDir.canonicalPath + File.separator
+
+                try {
+                    ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
+                        var entry: ZipEntry? = zipIn.nextEntry
+                        while (entry != null) {
+                            val targetFile = File(tempDir, entry.name)
+
+                            // 一時ディレクトリ内であることを再確認
+                            if (!targetFile.canonicalPath.startsWith(tempDirPrefix) &&
+                                targetFile.canonicalPath != tempDir.canonicalPath
+                            ) {
+                                return@withContext "不正なZIPエントリが検出されました: ${entry.name}".left()
+                            }
+
+                            if (entry.isDirectory) {
+                                targetFile.mkdirs()
+                                val topLevelDir = entry.name.split("/").first()
+                                if (!restoredConfigs.contains(topLevelDir) && !topLevelDir.endsWith(".jar")) {
+                                    restoredConfigs.add(topLevelDir)
+                                }
+                            } else {
+                                targetFile.parentFile?.mkdirs()
+                                FileOutputStream(targetFile).use { fos ->
+                                    zipIn.copyTo(fos)
+                                }
+                                if (entry.name.endsWith(".jar")) {
+                                    restoredPlugins.add(entry.name)
+                                }
+                            }
+                            entry = zipIn.nextEntry
+                        }
+                    }
+
+                    // Phase 3: 展開成功後にリネームベースでディレクトリを安全にスワップ
+                    val backupDir = File(pluginsDir.parentFile, ".mpm-plugins-backup-${System.currentTimeMillis()}")
+
+                    // MinecraftPluginManagerディレクトリを一時ディレクトリにコピー（復元対象外のため保持）
+                    val mpmDir = File(pluginsDir, "MinecraftPluginManager")
+                    if (mpmDir.exists()) {
+                        mpmDir.copyRecursively(File(tempDir, "MinecraftPluginManager"), overwrite = true)
+                    }
+
+                    // pluginsディレクトリをバックアップ名にリネーム
+                    if (!pluginsDir.renameTo(backupDir)) {
+                        return@withContext "pluginsディレクトリのリネームに失敗しました".left()
+                    }
+
+                    // 一時ディレクトリをpluginsディレクトリにリネーム
+                    if (!tempDir.renameTo(pluginsDir)) {
+                        // 失敗時はバックアップを復元
+                        backupDir.renameTo(pluginsDir)
+                        return@withContext "復元ディレクトリのリネームに失敗しました".left()
+                    }
+
+                    // スワップ成功後に旧pluginsディレクトリを削除
+                    backupDir.deleteRecursively()
+                } catch (e: Exception) {
+                    // 展開中のエラー時は一時ディレクトリをクリーンアップ
+                    tempDir.deleteRecursively()
+                    throw e
                 }
 
                 RestoreResult(
