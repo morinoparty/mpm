@@ -116,7 +116,7 @@ class DependencyServiceImpl :
             if (repositoryFile == null) {
                 // リポジトリに見つからない場合
                 unavailablePlugins[depName] =
-                    "リポジトリに見つかりません。'mpm create-repo $depName <URL>' で追加してください"
+                    "リポジトリに見つかりません。config.jsonにリポジトリを追加してください"
                 continue
             }
 
