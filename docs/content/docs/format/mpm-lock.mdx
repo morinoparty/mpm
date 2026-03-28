@@ -7,13 +7,13 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 ## 概要
 
+<Callout type="warn" title="⚠️ 未実装機能">
+mpm-lock.yamlは現在未実装です。この仕様は将来のバージョンで実装される予定です。
+現在はmetadata/*.yamlファイルが同等の役割を果たしています。
+</Callout>
+
 `mpm-lock.yaml`は、MinecraftPluginManagerのロックファイルです。
 npmの`package-lock.json`に相当し、実際にインストールされたプラグインの正確なバージョンとダウンロード情報を記録します。
-
-<Callout type="warn" title="自動生成ファイル">
-このファイルは`mpm install`や`mpm add`コマンドによって自動的に生成・更新されます。
-手動で編集する必要はありません。
-</Callout>
 
 ## ファイルの配置
 
