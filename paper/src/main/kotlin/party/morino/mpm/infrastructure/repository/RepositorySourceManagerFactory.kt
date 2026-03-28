@@ -36,8 +36,14 @@ object RepositorySourceManagerFactory {
         val config = configManager.getConfig()
         val repositoryConfigs = config.repositories
 
+        // リポジトリソースを生成するファクトリーラムダ（reload時に再利用）
+        val sourceFactory = {
+            val currentConfig = configManager.getConfig()
+            RepositorySourceFactory.createAll(currentConfig.repositories, rootDir)
+        }
+
         // リポジトリソースのリストを生成してマネージャーを作成
-        val sources = RepositorySourceFactory.createAll(repositoryConfigs, rootDir)
-        return RepositoryManagerImpl(sources)
+        val sources = sourceFactory()
+        return RepositoryManagerImpl(sources, sourceFactory)
     }
 }

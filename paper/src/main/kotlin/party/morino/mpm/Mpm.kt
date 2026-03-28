@@ -124,6 +124,9 @@ open class Mpm :
         // Webhookリソースの解放（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
 
+        // Koin DIコンテナを停止（リソースリーク防止）
+        GlobalContext.stopKoin()
+
         logger.info("mpm has been disabled!")
     }
 
@@ -179,8 +182,9 @@ open class Mpm :
                 single<UpdateScheduler> { UpdateSchedulerImpl() }
             }
 
-        // Koinの開始（すでに開始されている場合は何もしない）
-        GlobalContext.getOrNull() ?: GlobalContext.startKoin {
+        // 既存のKoinコンテキストが残っている場合は停止してから再起動
+        GlobalContext.stopKoin()
+        GlobalContext.startKoin {
             modules(appModule)
         }
     }

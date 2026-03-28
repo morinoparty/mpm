@@ -18,7 +18,8 @@ import party.morino.mpm.api.domain.repository.RepositoryManager
  * 複数のリポジトリソースを優先順位順に管理する
  */
 class RepositoryManagerImpl(
-    private val sources: List<PluginRepositorySource>
+    private var sources: List<PluginRepositorySource>,
+    private val sourceFactory: (() -> List<PluginRepositorySource>)? = null
 ) : RepositoryManager {
     // キャッシュ用のプロパティ
     private var cachedPlugins: List<String>? = null
@@ -109,4 +110,16 @@ class RepositoryManagerImpl(
                 false
             }
         }
+
+    /**
+     * リポジトリソースを再構築し、キャッシュをクリアする
+     */
+    override fun reload() {
+        sourceFactory?.let { factory ->
+            sources = factory()
+        }
+        // キャッシュをクリア
+        cachedPlugins = null
+        cacheExpirationTime = 0
+    }
 }

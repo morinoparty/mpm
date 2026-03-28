@@ -14,6 +14,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.config.ConfigManager
+import party.morino.mpm.api.domain.repository.RepositoryManager
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
@@ -22,11 +23,14 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class ReloadCommand : KoinComponent {
     private val configManager: ConfigManager by inject()
+    private val repositoryManager: RepositoryManager by inject()
     private val updateScheduler: UpdateScheduler by inject()
 
     @Subcommand("reload")
     suspend fun reload(sender: CommandSender) {
         configManager.reload()
+        // リポジトリマネージャーを再構築して新しいリポジトリ設定を反映
+        repositoryManager.reload()
         // スケジューラーを再起動して新しい設定を反映
         updateScheduler.restart()
         sender.sendRichMessage("<green>設定ファイルを再読み込みしました。")
