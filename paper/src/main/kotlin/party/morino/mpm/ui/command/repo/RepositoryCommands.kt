@@ -16,12 +16,9 @@ import party.morino.mpm.api.domain.repository.RepositoryManager
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
-import sun.jvmstat.perfdata.monitor.protocol.local.PerfDataFile.fileNamePattern
-
 /**
- * リポジトリファイルを作成するコマンドのコントローラー
- * URLからリポジトリタイプを判定し、repository/{pluginName}.jsonを生成する
- * mpm create-repo <pluginName> <url> [fileNamePattern]
+ * リポジトリ管理コマンドのコントローラー
+ * リポジトリの一覧表示を担当する
  */
 @Command("mpm")
 @CommandPermission("mpm.command")
@@ -55,7 +52,7 @@ class RepositoryCommands : KoinComponent {
         // 結果を表示
         if (allPlugins.isEmpty()) {
             sender.sendRichMessage("<yellow>利用可能なリポジトリファイルが見つかりませんでした。")
-            sender.sendRichMessage("<gray>'mpm create-repo' コマンドでリポジトリファイルを作成できます。")
+            sender.sendRichMessage("<gray>config.jsonにリポジトリを追加した後、'/mpm reload'で反映してください。")
             return
         }
 

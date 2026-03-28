@@ -684,10 +684,10 @@ class PluginLifecycleServiceImpl :
                 }
             }
             is LegacyVersionSpecifier.Tag -> {
-                MpmError.PluginError.VersionResolutionFailed(pluginName, "Tag is not supported").left()
+                MpmError.PluginError.VersionResolutionFailed(pluginName, "tag: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
             }
             is LegacyVersionSpecifier.Pattern -> {
-                MpmError.PluginError.VersionResolutionFailed(pluginName, "Pattern is not supported").left()
+                MpmError.PluginError.VersionResolutionFailed(pluginName, "pattern: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
             }
             is LegacyVersionSpecifier.Sync -> {
                 resolveSyncVersion(version, urlData, mpmConfig, pluginName)
