@@ -42,4 +42,10 @@ interface RepositoryManager {
      * @return リポジトリソースのリスト
      */
     fun getRepositorySources(): List<PluginRepositorySource>
+
+    /**
+     * 設定を再読み込みしてリポジトリソースを再構築する
+     * デフォルト実装は何もしない（後方互換性のため）
+     */
+    fun reload() {}
 }
