@@ -26,7 +26,6 @@ import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
-import party.morino.mpm.api.domain.plugin.repository.PluginRepository
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
@@ -37,7 +36,6 @@ import party.morino.mpm.application.project.ProjectServiceImpl
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
-import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.api.domain.webhook.WebhookEventType
@@ -84,7 +82,6 @@ class MpmTest :
 
                 // リポジトリの登録
                 single<DownloaderRepository> { DownloaderRepositoryImpl() }
-                single<PluginRepository> { PluginRepositoryImpl() }
                 single<ProjectRepository> { ProjectRepositoryImpl() }
 
                 // メタデータマネージャーの登録
