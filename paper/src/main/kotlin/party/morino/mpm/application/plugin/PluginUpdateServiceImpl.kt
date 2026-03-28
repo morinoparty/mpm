@@ -185,8 +185,8 @@ class PluginUpdateServiceImpl :
                 continue
             }
 
-            // プラグインをインストール（既存のファイルは上書きされる、forceフラグを伝播）
-            val installResult = installSinglePlugin(outdatedInfo.pluginName, force)
+            // 最新バージョンでインストール（既存のファイルは上書きされる、forceフラグを伝播）
+            val installResult = installSinglePlugin(outdatedInfo.pluginName, force, useLatest = true)
 
             installResult.fold(
                 // インストール失敗時
@@ -227,6 +227,8 @@ class PluginUpdateServiceImpl :
 
     /**
      * 指定プラグインを更新する
+     *
+     * 最新バージョンを確認してからインストールする
      */
     override suspend fun update(
         name: PluginName,
@@ -237,14 +239,52 @@ class PluginUpdateServiceImpl :
             return MpmError.PluginError.UpdateInProgress.left()
         }
         try {
-            // プラグインをインストール（forceフラグを伝播）
-            return installSinglePlugin(name.value, force).fold(
+            // 更新が必要かチェック
+            val outdatedInfo = infoService.checkOutdated(name).getOrElse {
+                return it.left()
+            }
+
+            // 更新が不要かつforceでない場合はスキップ
+            if (outdatedInfo == null || (!outdatedInfo.needsUpdate && !force)) {
+                return UpdateResult(
+                    pluginName = name.value,
+                    oldVersion = outdatedInfo?.currentVersion ?: "unknown",
+                    newVersion = outdatedInfo?.latestVersion ?: "unknown",
+                    success = true,
+                    errorMessage = null
+                ).right()
+            }
+
+            // ロック状態を確認
+            val metadata = pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                return MpmError.PluginError.MetadataNotFound(name.value).left()
+            }
+            if (metadata.mpmInfo.settings.lock == true && !force) {
+                return MpmError.PluginError.Locked(name.value).left()
+            }
+
+            // PluginUpdateEventを発火して、キャンセル可能にする
+            val updateEvent =
+                BukkitDispatcher.callEventSync(
+                    plugin,
+                    PluginUpdateEvent(
+                        installedPlugin = InstalledPlugin(name.value),
+                        beforeVersion = VersionSpecifier.Fixed(outdatedInfo.currentVersion),
+                        targetVersion = VersionSpecifier.Fixed(outdatedInfo.latestVersion)
+                    )
+                )
+            if (updateEvent.isCancelled) {
+                return MpmError.PluginError.OperationCancelled(name.value, "update").left()
+            }
+
+            // 最新バージョンをtargetVersionとして渡してインストール
+            return installSinglePlugin(name.value, force, useLatest = true).fold(
                 { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
                 {
                     UpdateResult(
                         pluginName = name.value,
-                        oldVersion = "unknown",
-                        newVersion = "latest",
+                        oldVersion = outdatedInfo.currentVersion,
+                        newVersion = outdatedInfo.latestVersion,
                         success = true,
                         errorMessage = null
                     ).right()
@@ -572,7 +612,8 @@ class PluginUpdateServiceImpl :
      */
     private suspend fun installSinglePlugin(
         pluginName: String,
-        force: Boolean = false
+        force: Boolean = false,
+        useLatest: Boolean = false
     ): Either<String, InstallResult> {
         val metadataDir = pluginDirectory.getMetadataDirectory()
         val metadataFile = File(metadataDir, "$pluginName.yaml")
@@ -605,13 +646,18 @@ class PluginUpdateServiceImpl :
                 return "最新バージョン情報の取得に失敗しました: ${e.message}".left()
             }
 
-        // メタデータからバージョン情報を作成
-        val versionData = VersionData(mpmInfoDto.download.downloadId, mpmInfoDto.version.current.raw)
+        // useLatestの場合は最新バージョンでDL、そうでなければメタデータの現在バージョンでDL
+        val versionData = if (useLatest) {
+            latestVersionData
+        } else {
+            VersionData(mpmInfoDto.download.downloadId, mpmInfoDto.version.current.raw)
+        }
+        val action = if (useLatest) "update" else "install"
 
         // メタデータを更新（最新バージョン情報を反映）
         val updatedMetadataWithLatest =
             pluginMetadataManager
-                .updateMetadata(pluginName, versionData, latestVersionData, "install")
+                .updateMetadata(pluginName, versionData, latestVersionData, action)
                 .getOrElse { return it.left() }
 
         // PluginInstallEventを発火
@@ -675,8 +721,10 @@ class PluginUpdateServiceImpl :
             }
         }
 
+        // 更新後のメタデータからバージョン情報を取得してファイル名を生成
         val template = mpmInfoDto.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
-        val newFileName = generateFileName(template, pluginInfoDto.name, mpmInfoDto.version.current.normalized)
+        val updatedVersion = updatedMetadataWithLatest.mpmInfo.version.current.normalized
+        val newFileName = generateFileName(template, pluginInfoDto.name, updatedVersion)
 
         // 古いファイルを削除（存在する場合）
         val oldFileName = mpmInfoDto.download.fileName
