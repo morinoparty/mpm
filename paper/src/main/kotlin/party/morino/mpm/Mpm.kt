@@ -28,7 +28,6 @@ import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
-import party.morino.mpm.api.domain.plugin.repository.PluginRepository
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
@@ -48,7 +47,6 @@ import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
 import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
-import party.morino.mpm.infrastructure.persistence.PluginRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.ui.command.ReloadCommand
@@ -153,7 +151,6 @@ open class Mpm :
 
                 // リポジトリの登録（依存性はKoinのinjectによって自動注入される）
                 single<DownloaderRepository> { DownloaderRepositoryImpl() }
-                single<PluginRepository> { PluginRepositoryImpl() }
                 single<ProjectRepository> { ProjectRepositoryImpl() }
 
                 // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
