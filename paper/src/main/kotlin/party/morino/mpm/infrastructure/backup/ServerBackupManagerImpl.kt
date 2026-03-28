@@ -121,7 +121,8 @@ class ServerBackupManagerImpl :
             try {
                 val backupsDir = pluginDirectory.getBackupsDirectory()
                 val pluginsDir = pluginDirectory.getPluginsDirectory()
-                val pluginsDirCanonical = pluginsDir.canonicalPath
+                // Zip Slip対策: セパレータ付きプレフィックスで兄弟ディレクトリ攻撃を防止
+                val pluginsDirPrefix = pluginsDir.canonicalPath + File.separator
 
                 // インデックスからバックアップ情報を取得
                 val index = loadIndex()
@@ -134,45 +135,71 @@ class ServerBackupManagerImpl :
                     return@withContext "バックアップファイルが見つかりません: ${backupInfo.fileName}".left()
                 }
 
-                // リストア前に既存ファイルを削除（MinecraftPluginManagerディレクトリは除外）
-                cleanupPluginsDir(pluginsDir)
-
-                val restoredPlugins = mutableListOf<String>()
-                val restoredConfigs = mutableListOf<String>()
-
-                // ZIPファイルを展開
+                // Phase 1: ZIPエントリを事前検証（破壊的操作の前にすべてのパスを確認）
                 ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
                     var entry: ZipEntry? = zipIn.nextEntry
                     while (entry != null) {
                         val targetFile = File(pluginsDir, entry.name)
-
-                        // Zip Slip攻撃対策: 展開先がplugins/ディレクトリ内であることを確認
-                        if (!targetFile.canonicalPath.startsWith(pluginsDirCanonical)) {
+                        if (!targetFile.canonicalPath.startsWith(pluginsDirPrefix) &&
+                            targetFile.canonicalPath != pluginsDir.canonicalPath
+                        ) {
                             return@withContext "不正なZIPエントリが検出されました: ${entry.name}".left()
-                        }
-
-                        if (entry.isDirectory) {
-                            // ディレクトリを作成
-                            targetFile.mkdirs()
-                            // 設定フォルダとして記録
-                            val topLevelDir = entry.name.split("/").first()
-                            if (!restoredConfigs.contains(topLevelDir) && !topLevelDir.endsWith(".jar")) {
-                                restoredConfigs.add(topLevelDir)
-                            }
-                        } else {
-                            // 親ディレクトリを作成
-                            targetFile.parentFile?.mkdirs()
-                            // ファイルを展開
-                            FileOutputStream(targetFile).use { fos ->
-                                zipIn.copyTo(fos)
-                            }
-                            // jarファイルとして記録
-                            if (entry.name.endsWith(".jar")) {
-                                restoredPlugins.add(entry.name)
-                            }
                         }
                         entry = zipIn.nextEntry
                     }
+                }
+
+                // Phase 2: 一時ディレクトリに展開（pluginsディレクトリをまだ削除しない）
+                val tempDir = File(pluginsDir.parentFile, ".mpm-restore-${System.currentTimeMillis()}")
+                tempDir.mkdirs()
+
+                val restoredPlugins = mutableListOf<String>()
+                val restoredConfigs = mutableListOf<String>()
+                // 一時ディレクトリのプレフィックス
+                val tempDirPrefix = tempDir.canonicalPath + File.separator
+
+                try {
+                    ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
+                        var entry: ZipEntry? = zipIn.nextEntry
+                        while (entry != null) {
+                            val targetFile = File(tempDir, entry.name)
+
+                            // 一時ディレクトリ内であることを再確認
+                            if (!targetFile.canonicalPath.startsWith(tempDirPrefix) &&
+                                targetFile.canonicalPath != tempDir.canonicalPath
+                            ) {
+                                return@withContext "不正なZIPエントリが検出されました: ${entry.name}".left()
+                            }
+
+                            if (entry.isDirectory) {
+                                targetFile.mkdirs()
+                                val topLevelDir = entry.name.split("/").first()
+                                if (!restoredConfigs.contains(topLevelDir) && !topLevelDir.endsWith(".jar")) {
+                                    restoredConfigs.add(topLevelDir)
+                                }
+                            } else {
+                                targetFile.parentFile?.mkdirs()
+                                FileOutputStream(targetFile).use { fos ->
+                                    zipIn.copyTo(fos)
+                                }
+                                if (entry.name.endsWith(".jar")) {
+                                    restoredPlugins.add(entry.name)
+                                }
+                            }
+                            entry = zipIn.nextEntry
+                        }
+                    }
+
+                    // Phase 3: 展開成功後にplugsディレクトリをクリーンアップして一時ディレクトリから移動
+                    cleanupPluginsDir(pluginsDir)
+
+                    // 一時ディレクトリの内容をpluginsディレクトリに移動
+                    tempDir.listFiles()?.forEach { file ->
+                        file.copyRecursively(File(pluginsDir, file.name), overwrite = true)
+                    }
+                } finally {
+                    // 一時ディレクトリを常にクリーンアップ
+                    tempDir.deleteRecursively()
                 }
 
                 RestoreResult(

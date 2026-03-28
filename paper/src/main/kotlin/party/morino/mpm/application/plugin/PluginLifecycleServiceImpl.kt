@@ -205,6 +205,11 @@ class PluginLifecycleServiceImpl :
     }
 
     /**
+     * プラグインを管理対象から削除する（forceなし）
+     */
+    override suspend fun remove(name: PluginName): Either<MpmError, Unit> = remove(name, force = false)
+
+    /**
      * プラグインを管理対象から削除する
      *
      * RemovePluginUseCaseImpl から移行したロジック
