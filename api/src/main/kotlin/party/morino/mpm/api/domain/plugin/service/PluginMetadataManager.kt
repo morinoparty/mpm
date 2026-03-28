@@ -72,4 +72,12 @@ interface PluginMetadataManager {
         pluginName: String,
         metadata: ManagedPluginDto
     ): Either<String, Unit>
+
+    /**
+     * プラグインメタデータファイルを削除する
+     *
+     * @param pluginName プラグイン名
+     * @return 成功時はUnit、失敗時はエラーメッセージ
+     */
+    fun deleteMetadata(pluginName: String): Either<String, Unit>
 }

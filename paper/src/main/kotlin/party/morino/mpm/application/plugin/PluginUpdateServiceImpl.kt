@@ -100,10 +100,24 @@ class PluginUpdateServiceImpl :
      */
     private suspend fun executeUpdate(force: Boolean): Either<MpmError, List<UpdateResult>> {
         // すべてのプラグインの更新情報を取得
-        val outdatedInfoList =
+        val checkResult =
             infoService.checkAllOutdated().getOrElse {
                 return it.left()
             }
+
+        val outdatedInfoList = checkResult.outdatedPlugins
+
+        // チェックに失敗したプラグインを警告表示し、UpdateResultとしても記録
+        val checkFailResults = checkResult.errors.map { checkError ->
+            plugin.logger.warning("Failed to check update for ${checkError.pluginName}: ${checkError.errorMessage}")
+            UpdateResult(
+                pluginName = checkError.pluginName,
+                oldVersion = "unknown",
+                newVersion = "unknown",
+                success = false,
+                errorMessage = checkError.errorMessage
+            )
+        }
 
         // 更新が必要なプラグインがある場合、バックアップを作成
         val hasUpdates = outdatedInfoList.any { it.needsUpdate }
@@ -222,7 +236,7 @@ class PluginUpdateServiceImpl :
             updateSyncPlugins(config, updatedPlugins, updateResults, force)
         }
 
-        return updateResults.right()
+        return (checkFailResults + updateResults).right()
     }
 
     /**

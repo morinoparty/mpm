@@ -12,6 +12,7 @@
 package party.morino.mpm.api.application.plugin
 
 import arrow.core.Either
+import party.morino.mpm.api.application.model.OutdatedCheckResult
 import party.morino.mpm.api.application.model.OutdatedInfo
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
@@ -53,7 +54,7 @@ interface PluginInfoService {
     /**
      * すべてのプラグインの更新情報を取得する
      *
-     * @return 更新情報一覧
+     * @return 更新が必要なプラグインの情報と、チェックに失敗したプラグインのエラー情報
      */
-    suspend fun checkAllOutdated(): Either<MpmError, List<OutdatedInfo>>
+    suspend fun checkAllOutdated(): Either<MpmError, OutdatedCheckResult>
 }

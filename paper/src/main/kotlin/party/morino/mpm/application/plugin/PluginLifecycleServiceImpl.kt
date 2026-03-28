@@ -172,18 +172,33 @@ class PluginLifecycleServiceImpl :
         // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
         val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
 
-        // mpm.jsonを保存
+        // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
+        val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
+
+        // メタデータを先に保存（mpm.jsonより先に保存することで、メタデータ保存失敗時の不整合を防ぐ）
+        metadataManager
+            .saveMetadata(pluginName, metadata)
+            .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
+
+        // メタデータ保存成功後にmpm.jsonを保存
         try {
             val jsonString = Utils.json.encodeToString(updatedConfig)
             configFile.writeText(jsonString)
         } catch (e: Exception) {
-            return MpmError.PluginError.AddFailed(pluginName, "Failed to save mpm.json: ${e.message}").left()
+            // mpm.json保存失敗時はメタデータをロールバック（以前の状態に復元）
+            val rollbackError = if (previousMetadata != null) {
+                metadataManager.saveMetadata(pluginName, previousMetadata).fold(
+                    { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
+                    { "" }
+                )
+            } else {
+                metadataManager.deleteMetadata(pluginName).fold(
+                    { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
+                    { "" }
+                )
+            }
+            return MpmError.PluginError.AddFailed(pluginName, "Failed to save mpm.json: ${e.message}$rollbackError").left()
         }
-
-        // mpm.jsonの保存が成功した後にメタデータを保存
-        metadataManager
-            .saveMetadata(pluginName, metadata)
-            .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
 
         // ManagedPluginを返す（メタデータから構築）
         return ManagedPlugin.fromDto(metadata).right()
