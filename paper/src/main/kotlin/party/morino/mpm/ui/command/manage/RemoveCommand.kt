@@ -17,6 +17,7 @@ import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
@@ -38,11 +39,12 @@ class RemoveCommand : KoinComponent {
     @Subcommand("remove")
     suspend fun remove(
         sender: CommandSender,
-        plugin: InstalledPlugin
+        plugin: InstalledPlugin,
+        @Switch("force") force: Boolean = false
     ) {
         val pluginId = plugin.pluginId
         // PluginLifecycleServiceを実行
-        lifecycleService.remove(PluginName(pluginId)).fold(
+        lifecycleService.remove(PluginName(pluginId), force).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
