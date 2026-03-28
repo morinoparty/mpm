@@ -9,6 +9,7 @@
 
 package party.morino.mpm.utils.command.resolver
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -62,9 +63,9 @@ class VersionSpecifierParameterType :
             val plugin = ctx.getResolvedArgumentOrNull(RepositoryPlugin::class.java)
             return@SuggestionProvider plugin?.let {
                 // プラグインの利用可能なバージョンを取得
-                // Note: getVersions()はsuspend関数のため、runBlockingを使用
+                // getVersions()はsuspend関数のため、Dispatchers.IOで実行
                 val versions =
-                    runBlocking {
+                    runBlocking(Dispatchers.IO) {
                         infoService.getVersions(PluginName(plugin.pluginId)).fold(
                             // エラーの場合は空リストを返す
                             { emptyList() },

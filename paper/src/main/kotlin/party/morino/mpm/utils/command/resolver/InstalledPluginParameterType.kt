@@ -9,6 +9,7 @@
 
 package party.morino.mpm.utils.command.resolver
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -51,7 +52,7 @@ class InstalledPluginParameterType :
 
         // インストール済み管理対象プラグイン一覧を取得
         val installedPlugins =
-            runBlocking {
+            runBlocking(Dispatchers.IO) {
                 infoService.list(PluginFilter.MANAGED).map { plugin ->
                     plugin.name.value
                 }
@@ -74,7 +75,7 @@ class InstalledPluginParameterType :
     override fun defaultSuggestions(): SuggestionProvider<BukkitCommandActor> {
         // インストール済み管理対象プラグイン一覧を返すサジェストプロバイダー
         return SuggestionProvider { _ ->
-            runBlocking {
+            runBlocking(Dispatchers.IO) {
                 infoService.list(PluginFilter.MANAGED).map { plugin ->
                     plugin.name.value
                 }

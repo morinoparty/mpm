@@ -48,10 +48,9 @@ class RepositoryPluginParameterType :
         val pluginId = input.readString()
 
         // リポジトリから取得可能なプラグイン一覧を取得
-        // Note: RepositoryManager.getAvailablePlugins()はsuspend関数
-        // ParameterType.parse()はsuspend関数ではないため、runBlockingを使用
+        // ParameterType.parse()はsuspend関数ではないため、Dispatchers.IOで実行
         val availablePlugins =
-            kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                 repositoryManager.getAvailablePlugins()
             }
 
@@ -73,7 +72,7 @@ class RepositoryPluginParameterType :
         // リポジトリから取得可能なプラグイン一覧を返すサジェストプロバイダー
         return SuggestionProvider { context ->
 
-            kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                 repositoryManager.getAvailablePlugins().toList()
             }
         }
