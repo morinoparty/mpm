@@ -20,7 +20,7 @@ import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.reload")
 class ReloadCommand : KoinComponent {
     private val configManager: ConfigManager by inject()
     private val repositoryManager: RepositoryManager by inject()

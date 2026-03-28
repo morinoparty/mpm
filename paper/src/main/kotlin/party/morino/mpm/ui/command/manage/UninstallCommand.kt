@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm uninstall <pluginName> - プラグインをアンインストール
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.uninstall")
 class UninstallCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleService: PluginLifecycleService by inject()

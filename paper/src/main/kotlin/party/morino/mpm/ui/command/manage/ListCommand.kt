@@ -24,7 +24,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * プラグインリスト表示コマンドのコントローラー
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.list")
 class ListCommand : KoinComponent {
     // KoinによるDI
     private val infoService: PluginInfoService by inject()

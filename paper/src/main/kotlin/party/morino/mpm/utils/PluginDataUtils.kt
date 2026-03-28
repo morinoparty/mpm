@@ -9,7 +9,9 @@
 
 package party.morino.mpm.utils
 
+import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import party.morino.mpm.api.model.plugin.PluginData
 import java.io.File
 import java.util.jar.JarFile
@@ -35,7 +37,7 @@ object PluginDataUtils {
         val paperYml = jarFile.getEntry("paper-plugin.yml")
         val paperYmlStream = jarFile.getInputStream(paperYml)
         val paperYmlReader = paperYmlStream.bufferedReader()
-        val yaml = Yaml()
+        val yaml = Yaml(SafeConstructor(LoaderOptions()))
         val yamlData = yaml.load<Map<String, Any>>(paperYmlReader)
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
@@ -103,7 +105,7 @@ object PluginDataUtils {
         val pluginYml = jarFile.getEntry("plugin.yml")
         val pluginYmlStream = jarFile.getInputStream(pluginYml)
         val pluginYmlReader = pluginYmlStream.bufferedReader()
-        val yaml = Yaml()
+        val yaml = Yaml(SafeConstructor(LoaderOptions()))
         val yamlData = yaml.load<Map<String, Any>>(pluginYmlReader)
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()

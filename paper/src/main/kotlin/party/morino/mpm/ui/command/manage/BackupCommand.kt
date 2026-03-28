@@ -24,7 +24,7 @@ import java.text.DecimalFormat
  * plugins/ディレクトリ全体のバックアップ・リストア機能を提供
  */
 @Command("mpm", "mpm backup")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.backup")
 class BackupCommand : KoinComponent {
     // KoinによるDI
     private val backupManager: ServerBackupManager by inject()

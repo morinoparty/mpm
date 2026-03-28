@@ -24,7 +24,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm init - mpm.jsonを生成し、すべてのプラグインをunmanagedとして追加
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.init")
 class InitCommand : KoinComponent {
     // KoinによるDI
     private val projectService: ProjectService by inject()
