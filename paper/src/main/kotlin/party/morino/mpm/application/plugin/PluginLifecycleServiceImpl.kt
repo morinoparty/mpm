@@ -645,11 +645,8 @@ class PluginLifecycleServiceImpl :
             }
             is LegacyVersionSpecifier.Fixed -> {
                 try {
-                    val latestVersionData = downloaderRepository.getLatestVersion(urlData)
-                    VersionData(
-                        downloadId = latestVersionData.downloadId,
-                        version = version.version
-                    ).right()
+                    // 指定されたバージョンのdownloadIdを正しく取得する
+                    downloaderRepository.getVersionByName(urlData, version.version).right()
                 } catch (e: Exception) {
                     MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
                 }
