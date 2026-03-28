@@ -141,16 +141,23 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
                 { error ->
                     plugin.logger.warning("Startup update check failed: ${error.message}")
                 },
-                { outdatedList ->
+                { checkResult ->
+                    // チェックに失敗したプラグインを警告表示
+                    checkResult.errors.forEach { checkError ->
+                        plugin.logger.warning(
+                            "Failed to check update for ${checkError.pluginName}: ${checkError.errorMessage}"
+                        )
+                    }
+
                     // 更新が必要なプラグインをロック状態で分類
-                    val needsUpdate = outdatedList.filter { it.needsUpdate }
-                    val result = classifyByLockStatus(needsUpdate.map { it.pluginName })
+                    val needsUpdate = checkResult.outdatedPlugins.filter { it.needsUpdate }
+                    val lockResult = classifyByLockStatus(needsUpdate.map { it.pluginName })
 
-                    val updatableInfos = needsUpdate.filter { it.pluginName in result.updatable }
-                    val lockedInfos = needsUpdate.filter { it.pluginName in result.locked }
-                    val unknownInfos = needsUpdate.filter { it.pluginName in result.unknown }
+                    val updatableInfos = needsUpdate.filter { it.pluginName in lockResult.updatable }
+                    val lockedInfos = needsUpdate.filter { it.pluginName in lockResult.locked }
+                    val unknownInfos = needsUpdate.filter { it.pluginName in lockResult.unknown }
 
-                    if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty()) {
+                    if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty() && checkResult.errors.isEmpty()) {
                         plugin.logger.info("All plugins are up to date.")
                     } else {
                         if (updatableInfos.isNotEmpty()) {
@@ -248,16 +255,23 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
             { error ->
                 plugin.logger.warning("[Scheduled/Dry-run] Update check failed: ${error.message}")
             },
-            { outdatedList ->
-                val needsUpdate = outdatedList.filter { it.needsUpdate }
+            { checkResult ->
+                // チェックに失敗したプラグインを警告表示
+                checkResult.errors.forEach { checkError ->
+                    plugin.logger.warning(
+                        "[Scheduled/Dry-run] Failed to check: ${checkError.pluginName}: ${checkError.errorMessage}"
+                    )
+                }
+
+                val needsUpdate = checkResult.outdatedPlugins.filter { it.needsUpdate }
                 // ロック状態でフィルタリング
-                val result = classifyByLockStatus(needsUpdate.map { it.pluginName })
+                val lockResult = classifyByLockStatus(needsUpdate.map { it.pluginName })
 
-                val updatableInfos = needsUpdate.filter { it.pluginName in result.updatable }
-                val lockedInfos = needsUpdate.filter { it.pluginName in result.locked }
-                val unknownInfos = needsUpdate.filter { it.pluginName in result.unknown }
+                val updatableInfos = needsUpdate.filter { it.pluginName in lockResult.updatable }
+                val lockedInfos = needsUpdate.filter { it.pluginName in lockResult.locked }
+                val unknownInfos = needsUpdate.filter { it.pluginName in lockResult.unknown }
 
-                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty()) {
+                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty() && checkResult.errors.isEmpty()) {
                     plugin.logger.info("[Scheduled/Dry-run] All plugins are up to date.")
                 } else if (updatableInfos.isNotEmpty()) {
                     plugin.logger.info(

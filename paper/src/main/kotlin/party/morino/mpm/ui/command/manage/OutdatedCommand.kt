@@ -80,20 +80,29 @@ class OutdatedCommand : KoinComponent {
                 sender.sendRichMessage("<red>${error.message}</red>")
             },
             // 成功時の処理
-            { outdatedInfoList ->
-                // 更新が必要なプラグインのみフィルタリング
-                val needsUpdateList = outdatedInfoList.filter { it.needsUpdate }
+            { result ->
+                // チェックに失敗したプラグインを警告表示
+                result.errors.forEach { checkError ->
+                    sender.sendRichMessage(
+                        "<red>${checkError.pluginName}: ${checkError.errorMessage}</red>"
+                    )
+                }
 
-                if (needsUpdateList.isEmpty()) {
+                // 更新が必要なプラグインのみフィルタリング
+                val needsUpdateList = result.outdatedPlugins.filter { it.needsUpdate }
+
+                if (needsUpdateList.isEmpty() && result.errors.isEmpty()) {
                     sender.sendRichMessage("<green>すべてのプラグインは最新です。</green>")
                 } else {
-                    sender.sendRichMessage("<yellow>以下のプラグインに更新があります:</yellow>")
-                    needsUpdateList.forEach { outdatedInfo ->
-                        sender.sendRichMessage(
-                            "  - ${outdatedInfo.pluginName}: ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion}"
-                        )
+                    if (needsUpdateList.isNotEmpty()) {
+                        sender.sendRichMessage("<yellow>以下のプラグインに更新があります:</yellow>")
+                        needsUpdateList.forEach { outdatedInfo ->
+                            sender.sendRichMessage(
+                                "  - ${outdatedInfo.pluginName}: ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion}"
+                            )
+                        }
+                        sender.sendRichMessage("<gray>更新するには 'mpm update' を実行してください。</gray>")
                     }
-                    sender.sendRichMessage("<gray>更新するには 'mpm update' を実行してください。</gray>")
                 }
             }
         )

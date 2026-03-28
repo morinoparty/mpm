@@ -117,9 +117,16 @@ class UpdateCommand : KoinComponent {
             { error ->
                 sender.sendRichMessage("<red>[Dry-run] ${error.message}</red>")
             },
-            { outdatedList ->
+            { result ->
+                // チェックに失敗したプラグインを警告表示
+                result.errors.forEach { checkError ->
+                    sender.sendRichMessage(
+                        "<red>[Dry-run] ${checkError.pluginName}: ${checkError.errorMessage}</red>"
+                    )
+                }
+
                 // 更新が必要なプラグインのみ抽出
-                val needsUpdate = outdatedList.filter { it.needsUpdate }
+                val needsUpdate = result.outdatedPlugins.filter { it.needsUpdate }
 
                 // ロック状態でフィルタリング（実際の更新と同じ条件で表示）
                 // メタデータ読み込み失敗はunknownとして警告表示
@@ -143,7 +150,7 @@ class UpdateCommand : KoinComponent {
                 val lockedInfos = needsUpdate.filter { it.pluginName in locked }
                 val unknownInfos = needsUpdate.filter { it.pluginName in unknown }
 
-                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty()) {
+                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty() && result.errors.isEmpty()) {
                     sender.sendRichMessage("<green>[Dry-run] すべてのプラグインは最新です。</green>")
                 } else {
                     if (updatableInfos.isNotEmpty()) {

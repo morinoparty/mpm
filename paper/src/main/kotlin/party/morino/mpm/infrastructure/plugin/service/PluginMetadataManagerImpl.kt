@@ -232,4 +232,19 @@ class PluginMetadataManagerImpl :
             "メタデータの保存に失敗しました: ${e.message}".left()
         }
     }
+
+    override fun deleteMetadata(pluginName: String): Either<String, Unit> {
+        // メタデータディレクトリからファイルを削除
+        val metadataDir = pluginDirectory.getMetadataDirectory()
+        val metadataFile = File(metadataDir, "$pluginName.yaml")
+
+        return try {
+            if (metadataFile.exists() && !metadataFile.delete()) {
+                return "メタデータファイルの削除に失敗しました: $pluginName.yaml".left()
+            }
+            Unit.right()
+        } catch (e: Exception) {
+            "メタデータの削除に失敗しました: ${e.message}".left()
+        }
+    }
 }

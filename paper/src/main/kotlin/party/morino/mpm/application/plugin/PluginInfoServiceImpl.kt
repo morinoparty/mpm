@@ -18,7 +18,9 @@ import arrow.core.right
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.model.OutdatedCheckResult
 import party.morino.mpm.api.application.model.OutdatedInfo
+import party.morino.mpm.api.application.model.PluginCheckError
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.domain.config.PluginDirectory
@@ -268,7 +270,7 @@ class PluginInfoServiceImpl :
      *
      * CheckOutdatedUseCaseImplから移行したロジック
      */
-    override suspend fun checkAllOutdated(): Either<MpmError, List<OutdatedInfo>> {
+    override suspend fun checkAllOutdated(): Either<MpmError, OutdatedCheckResult> {
         // rootディレクトリを取得
         val rootDir = pluginDirectory.getRootDirectory()
         val configFile = File(rootDir, "mpm.json")
@@ -289,6 +291,8 @@ class PluginInfoServiceImpl :
 
         // すべての管理対象プラグインの更新情報を収集
         val outdatedInfoList = mutableListOf<OutdatedInfo>()
+        // チェックに失敗したプラグインのエラーを収集
+        val checkErrors = mutableListOf<PluginCheckError>()
 
         for (pluginName in mpmConfig.plugins.keys) {
             // "unmanaged"の場合はスキップ
@@ -296,15 +300,20 @@ class PluginInfoServiceImpl :
                 continue
             }
 
-            // 各プラグインの更新情報を取得
-            checkOutdated(PluginName(pluginName)).onRight { outdatedInfo ->
-                if (outdatedInfo != null) {
-                    outdatedInfoList.add(outdatedInfo)
+            // 各プラグインの更新情報を取得し、エラーも記録する
+            checkOutdated(PluginName(pluginName)).fold(
+                { error ->
+                    checkErrors.add(PluginCheckError(pluginName, error.message))
+                },
+                { outdatedInfo ->
+                    if (outdatedInfo != null) {
+                        outdatedInfoList.add(outdatedInfo)
+                    }
                 }
-            }
+            )
         }
 
-        return outdatedInfoList.right()
+        return OutdatedCheckResult(outdatedInfoList, checkErrors).right()
     }
 
     /**
