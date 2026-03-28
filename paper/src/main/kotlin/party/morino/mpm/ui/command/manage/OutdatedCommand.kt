@@ -27,7 +27,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm outdatedAll - すべてのプラグインの更新を確認
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.list")
 class OutdatedCommand : KoinComponent {
     // Koinによる依存性注入
     private val infoService: PluginInfoService by inject()

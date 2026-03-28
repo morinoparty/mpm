@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm update - 新しいバージョンがあるプラグインを更新
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.update")
 class UpdateCommand : KoinComponent {
     // Koinによる依存性注入
     private val updateService: PluginUpdateService by inject()

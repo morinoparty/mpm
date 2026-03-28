@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm versions <plugin> [--limit <数>] - プラグインの利用可能なバージョン一覧を表示
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.list")
 class VersionsCommand : KoinComponent {
     // Koinによる依存性注入
     private val infoService: PluginInfoService by inject()

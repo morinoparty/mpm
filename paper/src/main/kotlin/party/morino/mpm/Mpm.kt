@@ -100,6 +100,9 @@ open class Mpm :
             _configManager.reload()
         }
 
+        // パーミッション階層の登録（mpm.commandが全子パーミッションを含む）
+        registerPermissions()
+
         // Lampコマンドハンドラーの初期化
         setupCommandHandler()
 
@@ -126,6 +129,34 @@ open class Mpm :
         GlobalContext.stopKoin()
 
         logger.info("mpm has been disabled!")
+    }
+
+    /**
+     * パーミッション階層の登録
+     * mpm.commandが全子パーミッションを含むように設定する（後方互換性）
+     */
+    private fun registerPermissions() {
+        val childPermissions = listOf(
+            "mpm.command.add",
+            "mpm.command.remove",
+            "mpm.command.install",
+            "mpm.command.uninstall",
+            "mpm.command.update",
+            "mpm.command.list",
+            "mpm.command.backup",
+            "mpm.command.lock",
+            "mpm.command.init",
+            "mpm.command.reload"
+        )
+        // 子パーミッションを登録
+        val children = childPermissions.associateWith { true }
+        val parentPermission = org.bukkit.permissions.Permission(
+            "mpm.command",
+            "All mpm commands",
+            org.bukkit.permissions.PermissionDefault.OP,
+            children
+        )
+        server.pluginManager.addPermission(parentPermission)
     }
 
     /**

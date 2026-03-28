@@ -28,7 +28,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm add <pluginName> - プラグインを管理対象に追加（依存関係も含む）
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.add")
 class AddCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleService: PluginLifecycleService by inject()

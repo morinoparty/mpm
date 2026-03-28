@@ -34,7 +34,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm adopt --soft    - softDependenciesも含める
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.add")
 class AdoptCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleService: PluginLifecycleService by inject()

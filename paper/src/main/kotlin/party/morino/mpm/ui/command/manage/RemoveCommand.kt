@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm remove <pluginName> - プラグインを管理対象から除外（ファイルは削除しない）
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.remove")
 class RemoveCommand : KoinComponent {
     // Koinによる依存性注入
     private val lifecycleService: PluginLifecycleService by inject()

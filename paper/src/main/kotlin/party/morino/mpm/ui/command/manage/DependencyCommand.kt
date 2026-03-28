@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * プラグインの依存関係を解析・表示する機能を提供
  */
 @Command("mpm", "mpm deps")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.list")
 class DependencyCommand : KoinComponent {
     // KoinによるDI
     private val dependencyAnalyzer: DependencyAnalyzer by inject()

@@ -24,7 +24,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm install - mpm.jsonに定義されたプラグインを一括インストール
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.install")
 class InstallCommand : KoinComponent {
     // KoinによるDI
     private val updateService: PluginUpdateService by inject()

@@ -26,7 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm unlock <plugin> - プラグインのロックを解除
  */
 @Command("mpm")
-@CommandPermission("mpm.command")
+@CommandPermission("mpm.command.lock")
 class LockCommand : KoinComponent {
     // Koinによる依存性注入
     private val updateService: PluginUpdateService by inject()
