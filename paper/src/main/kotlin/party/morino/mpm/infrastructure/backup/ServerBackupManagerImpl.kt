@@ -190,16 +190,33 @@ class ServerBackupManagerImpl :
                         }
                     }
 
-                    // Phase 3: 展開成功後にplugsディレクトリをクリーンアップして一時ディレクトリから移動
-                    cleanupPluginsDir(pluginsDir)
+                    // Phase 3: 展開成功後にリネームベースでディレクトリを安全にスワップ
+                    val backupDir = File(pluginsDir.parentFile, ".mpm-plugins-backup-${System.currentTimeMillis()}")
 
-                    // 一時ディレクトリの内容をpluginsディレクトリに移動
-                    tempDir.listFiles()?.forEach { file ->
-                        file.copyRecursively(File(pluginsDir, file.name), overwrite = true)
+                    // MinecraftPluginManagerディレクトリを一時ディレクトリにコピー（復元対象外のため保持）
+                    val mpmDir = File(pluginsDir, "MinecraftPluginManager")
+                    if (mpmDir.exists()) {
+                        mpmDir.copyRecursively(File(tempDir, "MinecraftPluginManager"), overwrite = true)
                     }
-                } finally {
-                    // 一時ディレクトリを常にクリーンアップ
+
+                    // pluginsディレクトリをバックアップ名にリネーム
+                    if (!pluginsDir.renameTo(backupDir)) {
+                        return@withContext "pluginsディレクトリのリネームに失敗しました".left()
+                    }
+
+                    // 一時ディレクトリをpluginsディレクトリにリネーム
+                    if (!tempDir.renameTo(pluginsDir)) {
+                        // 失敗時はバックアップを復元
+                        backupDir.renameTo(pluginsDir)
+                        return@withContext "復元ディレクトリのリネームに失敗しました".left()
+                    }
+
+                    // スワップ成功後に旧pluginsディレクトリを削除
+                    backupDir.deleteRecursively()
+                } catch (e: Exception) {
+                    // 展開中のエラー時は一時ディレクトリをクリーンアップ
                     tempDir.deleteRecursively()
+                    throw e
                 }
 
                 RestoreResult(

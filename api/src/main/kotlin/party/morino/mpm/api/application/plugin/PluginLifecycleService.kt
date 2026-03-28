@@ -50,7 +50,7 @@ interface PluginLifecycleService {
      * @param name プラグイン名
      * @return 成功時はUnit
      */
-    suspend fun remove(name: PluginName): Either<MpmError, Unit>
+    suspend fun remove(name: PluginName): Either<MpmError, Unit> = remove(name, force = false)
 
     /**
      * プラグインを削除する（forceオプション付き）
@@ -66,7 +66,7 @@ interface PluginLifecycleService {
     suspend fun remove(
         name: PluginName,
         force: Boolean
-    ): Either<MpmError, Unit> = remove(name)
+    ): Either<MpmError, Unit>
 
     /**
      * プラグインをインストールする
