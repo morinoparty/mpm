@@ -10,12 +10,12 @@
 package party.morino.mpm.infrastructure.downloader
 
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.get
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -64,8 +64,14 @@ abstract class AbstractPluginDownloader : PluginDownloader {
                     throw Exception("ファイルのダウンロードに失敗しました: ${fileResponse.status}")
                 }
 
+                // ストリーミングでファイルに書き込み（メモリに全体をロードしない）
                 val tempFile = File.createTempFile("plugin-", "-$fileName")
-                tempFile.writeBytes(fileResponse.body())
+                val channel = fileResponse.bodyAsChannel()
+                tempFile.outputStream().use { output ->
+                    channel.toInputStream().use { input ->
+                        input.copyTo(output)
+                    }
+                }
 
                 tempFile
             } catch (e: Exception) {

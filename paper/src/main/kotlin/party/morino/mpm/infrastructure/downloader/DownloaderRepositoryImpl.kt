@@ -34,6 +34,11 @@ class DownloaderRepositoryImpl :
     private val plugin: JavaPlugin by inject()
     private val configManager: ConfigManager by inject()
 
+    // ダウンローダーインスタンスを再利用（HttpClientリーク防止）
+    private val spigotDownloader: SpigotDownloader by lazy { SpigotDownloader() }
+    private val modrinthDownloader: ModrinthDownloader by lazy { ModrinthDownloader() }
+    private val githubDownloader: GithubDownloader by lazy { createGithubDownloader() }
+
     /**
      * GitHubダウンローダーを生成する
      * 設定にトークンがある場合は認証付きで生成する
@@ -105,15 +110,15 @@ class DownloaderRepositoryImpl :
     override suspend fun getLatestVersion(urlData: UrlData): VersionData =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                createGithubDownloader().getLatestVersion(urlData)
+                githubDownloader.getLatestVersion(urlData)
             }
 
             is UrlData.SpigotMcUrlData -> {
-                SpigotDownloader().getLatestVersion(urlData)
+                spigotDownloader.getLatestVersion(urlData)
             }
 
             is UrlData.ModrinthUrlData -> {
-                ModrinthDownloader().getLatestVersion(urlData)
+                modrinthDownloader.getLatestVersion(urlData)
             }
 
             else -> {
@@ -134,15 +139,15 @@ class DownloaderRepositoryImpl :
     ): VersionData =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                createGithubDownloader().getVersionByName(urlData, versionName)
+                githubDownloader.getVersionByName(urlData, versionName)
             }
 
             is UrlData.SpigotMcUrlData -> {
-                SpigotDownloader().getVersionByName(urlData, versionName)
+                spigotDownloader.getVersionByName(urlData, versionName)
             }
 
             is UrlData.ModrinthUrlData -> {
-                ModrinthDownloader().getVersionByName(urlData, versionName)
+                modrinthDownloader.getVersionByName(urlData, versionName)
             }
 
             else -> {
@@ -159,15 +164,15 @@ class DownloaderRepositoryImpl :
     override suspend fun getAllVersions(urlData: UrlData): List<VersionData> =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                createGithubDownloader().getAllVersions(urlData)
+                githubDownloader.getAllVersions(urlData)
             }
 
             is UrlData.SpigotMcUrlData -> {
-                SpigotDownloader().getAllVersions(urlData)
+                spigotDownloader.getAllVersions(urlData)
             }
 
             is UrlData.ModrinthUrlData -> {
-                ModrinthDownloader().getAllVersions(urlData)
+                modrinthDownloader.getAllVersions(urlData)
             }
 
             else -> {
@@ -190,15 +195,15 @@ class DownloaderRepositoryImpl :
     ): File? =
         when (urlData) {
             is UrlData.GithubUrlData -> {
-                createGithubDownloader().downloadByVersion(urlData, version, fileNamePattern)
+                githubDownloader.downloadByVersion(urlData, version, fileNamePattern)
             }
 
             is UrlData.SpigotMcUrlData -> {
-                SpigotDownloader().downloadByVersion(urlData, version, fileNamePattern)
+                spigotDownloader.downloadByVersion(urlData, version, fileNamePattern)
             }
 
             is UrlData.ModrinthUrlData -> {
-                ModrinthDownloader().downloadByVersion(urlData, version, fileNamePattern)
+                modrinthDownloader.downloadByVersion(urlData, version, fileNamePattern)
             }
 
             else -> {
@@ -222,16 +227,13 @@ class DownloaderRepositoryImpl :
 
         return when (type) {
             RepositoryType.GITHUB -> {
-                val downloader = createGithubDownloader()
-                val latest = downloader.getLatestVersion(urlData as UrlData.GithubUrlData)
-                downloader.downloadByVersion(urlData, latest, fileNamePattern)
+                val latest = githubDownloader.getLatestVersion(urlData as UrlData.GithubUrlData)
+                githubDownloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
             RepositoryType.SPIGOTMC -> {
-                // SpigotMCのダウンロード実装
-                val downloader = SpigotDownloader()
-                val latest = downloader.getLatestVersion(urlData as UrlData.SpigotMcUrlData)
-                downloader.downloadByVersion(urlData, latest, fileNamePattern)
+                val latest = spigotDownloader.getLatestVersion(urlData as UrlData.SpigotMcUrlData)
+                spigotDownloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
             RepositoryType.HANGER -> {
@@ -240,10 +242,8 @@ class DownloaderRepositoryImpl :
             }
 
             RepositoryType.MODRINTH -> {
-                // Modrinthのダウンロード実装
-                val downloader = ModrinthDownloader()
-                val latest = downloader.getLatestVersion(urlData as UrlData.ModrinthUrlData)
-                downloader.downloadByVersion(urlData, latest, fileNamePattern)
+                val latest = modrinthDownloader.getLatestVersion(urlData as UrlData.ModrinthUrlData)
+                modrinthDownloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
             // UNKNOWNタイプはダウンロードできない
