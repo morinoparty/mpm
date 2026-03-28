@@ -50,7 +50,23 @@ interface PluginLifecycleService {
      * @param name プラグイン名
      * @return 成功時はUnit
      */
-    suspend fun remove(name: PluginName): Either<MpmError, Unit>
+    suspend fun remove(name: PluginName): Either<MpmError, Unit> = remove(name, force = false)
+
+    /**
+     * プラグインを削除する（forceオプション付き）
+     *
+     * mpm.jsonから依存関係を削除し、メタデータを削除する
+     * プラグインファイル自体は削除しない
+     * 逆依存関係がある場合はforceなしでは削除を拒否する
+     *
+     * @param name プラグイン名
+     * @param force trueの場合、逆依存関係があっても強制削除する
+     * @return 成功時はUnit
+     */
+    suspend fun remove(
+        name: PluginName,
+        force: Boolean
+    ): Either<MpmError, Unit>
 
     /**
      * プラグインをインストールする

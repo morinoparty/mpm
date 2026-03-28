@@ -125,6 +125,16 @@ sealed class MpmError {
             override val message: String = "Failed to add $pluginName: $reason"
         }
 
+        // 逆依存関係が存在するため削除できない
+        data class HasDependents(
+            val pluginName: String,
+            val dependents: List<String>
+        ) : PluginError() {
+            override val message: String =
+                "Cannot remove $pluginName: the following plugins depend on it: ${dependents.joinToString(", ")}. " +
+                    "Use --force to remove anyway."
+        }
+
         // 削除エラー
         data class RemoveFailed(
             val pluginName: String,

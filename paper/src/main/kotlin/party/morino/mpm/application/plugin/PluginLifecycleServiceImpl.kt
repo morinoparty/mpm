@@ -39,6 +39,7 @@ import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.dto.MpmConfig
+import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
 import party.morino.mpm.api.domain.project.dto.withSortedPlugins
 import party.morino.mpm.api.domain.repository.RepositoryConfig
 import party.morino.mpm.api.domain.repository.RepositoryManager
@@ -193,7 +194,10 @@ class PluginLifecycleServiceImpl :
      *
      * RemovePluginUseCaseImpl から移行したロジック
      */
-    override suspend fun remove(name: PluginName): Either<MpmError, Unit> {
+    override suspend fun remove(
+        name: PluginName,
+        force: Boolean
+    ): Either<MpmError, Unit> {
         val pluginName = name.value
 
         // rootディレクトリを取得
@@ -217,6 +221,19 @@ class PluginLifecycleServiceImpl :
         // プラグインが管理対象に含まれているか確認
         if (!mpmConfig.plugins.containsKey(pluginName)) {
             return MpmError.PluginError.NotFound(pluginName).left()
+        }
+
+        // 逆依存関係チェック（このプラグインにsyncしているプラグインがあるか）
+        val dependents = mpmConfig.getPluginsSyncingTo(pluginName)
+        if (dependents.isNotEmpty()) {
+            if (!force) {
+                return MpmError.PluginError.HasDependents(pluginName, dependents).left()
+            }
+            // forceの場合は警告を出して続行（sync設定がdanglingになる）
+            plugin.logger.warning(
+                "Force removing '$pluginName' which has dependents: ${dependents.joinToString(", ")}. " +
+                    "Their sync configuration will be broken."
+            )
         }
 
         // PluginRemoveEventを発火して、他のプラグインがキャンセルできるようにする
