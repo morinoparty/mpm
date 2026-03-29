@@ -43,6 +43,7 @@ import party.morino.mpm.api.domain.project.dto.MpmConfig
 import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
 import party.morino.mpm.api.domain.project.dto.topologicalSortPlugins
 import party.morino.mpm.api.domain.project.dto.validateSyncDependencies
+import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
@@ -54,7 +55,6 @@ import party.morino.mpm.event.PluginUnlockEvent
 import party.morino.mpm.event.PluginUpdateEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
-import party.morino.mpm.utils.Utils
 import java.io.File
 
 /**
@@ -67,6 +67,7 @@ class PluginUpdateServiceImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
+    private val projectRepository: ProjectRepository by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
     private val repositoryManager: RepositoryManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
@@ -330,21 +331,10 @@ class PluginUpdateServiceImpl :
      * 一括インストール処理の本体（Mutex保護下で呼び出される）
      */
     private suspend fun executeInstallAll(force: Boolean): Either<MpmError, BulkInstallResult> {
-        // mpm.jsonを読み込む
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        if (!configFile.exists()) {
-            return MpmError.ProjectError.ConfigNotFound.left()
-        }
-
-        val mpmConfig =
-            try {
-                val jsonString = configFile.readText()
-                Utils.json.decodeFromString<MpmConfig>(jsonString)
-            } catch (e: Exception) {
-                return MpmError.ProjectError.ConfigParseError(e.message ?: "不明なエラー").left()
-            }
+        // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
+        val mpmConfig = projectRepository.findOrError()
+            .map { it.toDto() }
+            .getOrElse { return it.left() }
 
         // Sync依存関係のバリデーション
         mpmConfig.validateSyncDependencies().onLeft { error ->
@@ -955,22 +945,10 @@ class PluginUpdateServiceImpl :
     }
 
     /**
-     * mpm.jsonを読み込む
+     * mpm.jsonを読み込む（ProjectRepository経由）
      */
-    private fun loadMpmConfig(): MpmConfig? {
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        if (!configFile.exists()) {
-            return null
-        }
-
-        return try {
-            val jsonString = configFile.readText()
-            Utils.json.decodeFromString<MpmConfig>(jsonString)
-        } catch (e: Exception) {
-            null
-        }
+    private suspend fun loadMpmConfig(): MpmConfig? {
+        return projectRepository.find()?.toDto()
     }
 
     /**

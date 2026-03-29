@@ -19,15 +19,13 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.domain.config.PluginDirectory
-import party.morino.mpm.api.domain.project.dto.MpmConfig
-import party.morino.mpm.api.domain.project.dto.withSortedPlugins
+import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.utils.PluginDataUtils
-import party.morino.mpm.utils.Utils
-import java.io.File
 
 /**
  * プロジェクト管理を行うApplication Service実装
@@ -67,12 +65,8 @@ class ProjectServiceImpl :
         projectName: String,
         overwrite: Boolean
     ): Either<String, Unit> {
-        // rootディレクトリを取得
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        // 既存のmpm.jsonが存在する場合のチェック
-        if (configFile.exists() && !overwrite) {
+        // ProjectRepositoryを通じて既存プロジェクトの存在を確認
+        if (projectRepository.exists() && !overwrite) {
             return "既にmpm.jsonが存在します。上書きする場合は --overwrite フラグを使用してください。".left()
         }
 
@@ -84,8 +78,8 @@ class ProjectServiceImpl :
                 file.isFile && file.extension == "jar"
             } ?: emptyArray()
 
-        // 各JARファイルからプラグイン名を取得してunmanagedマップを作成
-        val unmanagedPlugins = mutableMapOf<String, String>()
+        // MpmProjectを作成し、各JARファイルのプラグインをunmanagedとして追加
+        var project = MpmProject.create(projectName)
         pluginFiles.forEach { jarFile ->
             try {
                 // JARファイルからプラグイン情報を取得
@@ -98,7 +92,8 @@ class ProjectServiceImpl :
                         }
                     // 自分自身（mpm）は除外し、プラグイン名が空でない場合のみ追加
                     if (pluginName.isNotEmpty() && pluginName != plugin.name) {
-                        unmanagedPlugins[pluginName] = "unmanaged"
+                        project.addPlugin(PluginSpec.Unmanaged(PluginName(pluginName)))
+                            .onRight { project = it }
                     }
                 }
             } catch (e: Exception) {
@@ -106,18 +101,12 @@ class ProjectServiceImpl :
             }
         }
 
-        // MpmConfigを作成し、pluginsをa-Z順にソート
-        val mpmConfig =
-            MpmConfig(
-                name = projectName,
-                version = "1.0.0",
-                plugins = unmanagedPlugins
-            ).withSortedPlugins()
+        // pluginsをa-Z順にソートして保存
+        val sortedProject = project.withSortedPlugins()
 
-        // JSONとして保存
+        // ProjectRepositoryを通じて保存
         return try {
-            val jsonString = Utils.json.encodeToString(mpmConfig)
-            configFile.writeText(jsonString)
+            projectRepository.save(sortedProject)
             Unit.right()
         } catch (e: Exception) {
             "mpm.jsonの作成に失敗しました: ${e.message}".left()
