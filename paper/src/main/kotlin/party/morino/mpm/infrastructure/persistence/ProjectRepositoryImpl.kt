@@ -11,6 +11,9 @@
 
 package party.morino.mpm.infrastructure.persistence
 
+import arrow.core.Either
+import arrow.core.left
+import arrow.core.right
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.PluginDirectory
@@ -18,6 +21,7 @@ import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.project.dto.MpmConfig
 import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
+import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.utils.Utils
 import java.io.File
 
@@ -52,6 +56,28 @@ class ProjectRepositoryImpl :
             }
         } catch (e: Exception) {
             null
+        }
+    }
+
+    /**
+     * プロジェクトを取得（エラー情報付き）
+     *
+     * ファイル未存在とパースエラーを区別して返す
+     */
+    override suspend fun findOrError(): Either<MpmError, MpmProject> {
+        val configFile = getConfigFile()
+        if (!configFile.exists()) {
+            return MpmError.ProjectError.ConfigNotFound.left()
+        }
+
+        return try {
+            val jsonString = configFile.readText()
+            val config = Utils.json.decodeFromString<MpmConfig>(jsonString)
+            MpmProject.fromDto(config) { versionString ->
+                VersionSpecifierParser.parse(versionString)
+            }.right()
+        } catch (e: Exception) {
+            MpmError.ProjectError.ConfigParseError(e.message ?: "Unknown error").left()
         }
     }
 

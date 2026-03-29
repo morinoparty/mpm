@@ -35,12 +35,12 @@ import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
-import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
-import party.morino.mpm.api.domain.project.dto.MpmConfig
 import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
-import party.morino.mpm.api.domain.project.dto.withSortedPlugins
+import party.morino.mpm.api.domain.project.model.MpmProject
+import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryConfig
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
@@ -54,7 +54,6 @@ import party.morino.mpm.event.PluginUninstallEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.PluginDataUtils
-import party.morino.mpm.utils.Utils
 import java.io.File
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier as LegacyVersionSpecifier
 
@@ -68,6 +67,7 @@ class PluginLifecycleServiceImpl :
     KoinComponent {
     // 直接依存する infrastructure/domain コンポーネント
     private val pluginDirectory: PluginDirectory by inject()
+    private val projectRepository: ProjectRepository by inject()
     private val repositoryManager: RepositoryManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
     private val metadataManager: PluginMetadataManager by inject()
@@ -87,13 +87,12 @@ class PluginLifecycleServiceImpl :
         val pluginName = name.value
         val legacyVersion = toLegacyVersionSpecifier(version)
 
-        // rootディレクトリを取得
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        // mpm.jsonが存在しない場合はエラー
-        if (!configFile.exists()) {
-            return MpmError.ProjectError.NotInitialized.left()
+        // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
+        val project = projectRepository.findOrError().getOrElse { error ->
+            return when (error) {
+                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                else -> error.left()
+            }
         }
 
         // リポジトリソースからプラグインが存在するか確認
@@ -111,17 +110,9 @@ class PluginLifecycleServiceImpl :
             createUrlData(firstRepository)
                 ?: return MpmError.DownloadError.RepositoryNotFound(firstRepository.type, pluginName).left()
 
-        // mpm.jsonを読み込む
-        val mpmConfig =
-            try {
-                val jsonString = configFile.readText()
-                Utils.json.decodeFromString<MpmConfig>(jsonString)
-            } catch (e: Exception) {
-                return MpmError.ProjectError.ConfigParseError(e.message ?: "Unknown error").left()
-            }
-
         // 既に追加されているか確認（unmanagedの場合は除外）
-        if (mpmConfig.plugins.containsKey(pluginName) && mpmConfig.plugins[pluginName] != "unmanaged") {
+        val existingSpec = project.getPluginSpec(name)
+        if (existingSpec != null && existingSpec !is PluginSpec.Unmanaged) {
             return MpmError.PluginError.AlreadyExists(pluginName).left()
         }
 
@@ -130,8 +121,7 @@ class PluginLifecycleServiceImpl :
             resolveVersionData(
                 legacyVersion,
                 urlData,
-                firstRepository,
-                mpmConfig,
+                project,
                 pluginName
             ).getOrElse { return it.left() }
 
@@ -159,18 +149,25 @@ class PluginLifecycleServiceImpl :
             return MpmError.PluginError.AddFailed(pluginName, "Cancelled by event").left()
         }
 
-        // pluginsマップに追加
-        val updatedPlugins = mpmConfig.plugins.toMutableMap()
-        val versionToSave =
-            when (legacyVersion) {
-                is LegacyVersionSpecifier.Sync -> VersionSpecifierParser.toVersionString(legacyVersion)
-                is LegacyVersionSpecifier.Latest -> "latest"
-                else -> versionData.version
+        // MpmProjectのプラグインマップを更新
+        // Fixed指定時はリポジトリから解決された正規バージョン名を使用する
+        val resolvedVersionSpec = when (version) {
+            is VersionSpecifier.Fixed -> VersionSpecifier.Fixed(versionData.version)
+            else -> version
+        }
+        val newSpec = PluginSpec.Managed(name, resolvedVersionSpec)
+        val updatedProject = if (existingSpec != null) {
+            // unmanagedからの変換
+            project.updatePlugin(name, newSpec).getOrElse {
+                return MpmError.PluginError.AddFailed(pluginName, it.message).left()
             }
-        updatedPlugins[pluginName] = versionToSave
-
-        // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
-        val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
+        } else {
+            // 新規追加
+            project.addPlugin(newSpec).getOrElse {
+                return MpmError.PluginError.AddFailed(pluginName, it.message).left()
+            }
+        }
+        val sortedProject = updatedProject.withSortedPlugins()
 
         // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
         val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
@@ -180,12 +177,11 @@ class PluginLifecycleServiceImpl :
             .saveMetadata(pluginName, metadata)
             .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
 
-        // メタデータ保存成功後にmpm.jsonを保存
+        // メタデータ保存成功後にProjectRepositoryを通じて保存
         try {
-            val jsonString = Utils.json.encodeToString(updatedConfig)
-            configFile.writeText(jsonString)
+            projectRepository.save(sortedProject)
         } catch (e: Exception) {
-            // mpm.json保存失敗時はメタデータをロールバック（以前の状態に復元）
+            // 保存失敗時はメタデータをロールバック（以前の状態に復元）
             val rollbackError = if (previousMetadata != null) {
                 metadataManager.saveMetadata(pluginName, previousMetadata).fold(
                     { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
@@ -215,31 +211,21 @@ class PluginLifecycleServiceImpl :
     ): Either<MpmError, Unit> {
         val pluginName = name.value
 
-        // rootディレクトリを取得
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        // mpm.jsonが存在しない場合はエラー
-        if (!configFile.exists()) {
-            return MpmError.ProjectError.NotInitialized.left()
+        // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
+        val project = projectRepository.findOrError().getOrElse { error ->
+            return when (error) {
+                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                else -> error.left()
+            }
         }
 
-        // mpm.jsonを読み込む
-        val mpmConfig =
-            try {
-                val jsonString = configFile.readText()
-                Utils.json.decodeFromString<MpmConfig>(jsonString)
-            } catch (e: Exception) {
-                return MpmError.ProjectError.ConfigParseError(e.message ?: "Unknown error").left()
-            }
-
         // プラグインが管理対象に含まれているか確認
-        if (!mpmConfig.plugins.containsKey(pluginName)) {
+        if (project.getPluginSpec(name) == null) {
             return MpmError.PluginError.NotFound(pluginName).left()
         }
 
         // 逆依存関係チェック（このプラグインにsyncしているプラグインがあるか）
-        val dependents = mpmConfig.getPluginsSyncingTo(pluginName)
+        val dependents = project.toDto().getPluginsSyncingTo(pluginName)
         if (dependents.isNotEmpty()) {
             if (!force) {
                 return MpmError.PluginError.HasDependents(pluginName, dependents).left()
@@ -266,17 +252,15 @@ class PluginLifecycleServiceImpl :
             return MpmError.PluginError.RemoveFailed(pluginName, "Cancelled by event").left()
         }
 
-        // mpm.jsonからプラグインを削除
-        val updatedPlugins = mpmConfig.plugins.toMutableMap()
-        updatedPlugins.remove(pluginName)
+        // MpmProjectからプラグインを削除
+        val updatedProject = project.removePlugin(name).getOrElse {
+            return MpmError.PluginError.RemoveFailed(pluginName, it.message).left()
+        }
+        val sortedProject = updatedProject.withSortedPlugins()
 
-        // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
-        val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
-
-        // JSONとして保存
+        // ProjectRepositoryを通じて保存
         return try {
-            val jsonString = Utils.json.encodeToString(updatedConfig)
-            configFile.writeText(jsonString)
+            projectRepository.save(sortedProject)
             Unit.right()
         } catch (e: Exception) {
             MpmError.PluginError.RemoveFailed(pluginName, "Failed to save mpm.json: ${e.message}").left()
@@ -489,26 +473,16 @@ class PluginLifecycleServiceImpl :
     override suspend fun uninstall(name: PluginName): Either<MpmError, Unit> {
         val pluginName = name.value
 
-        // rootディレクトリを取得
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        // mpm.jsonが存在しない場合はエラー
-        if (!configFile.exists()) {
-            return MpmError.ProjectError.NotInitialized.left()
+        // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
+        val project = projectRepository.findOrError().getOrElse { error ->
+            return when (error) {
+                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                else -> error.left()
+            }
         }
 
-        // mpm.jsonを読み込む
-        val mpmConfig =
-            try {
-                val jsonString = configFile.readText()
-                Utils.json.decodeFromString<MpmConfig>(jsonString)
-            } catch (e: Exception) {
-                return MpmError.ProjectError.ConfigParseError(e.message ?: "Unknown error").left()
-            }
-
         // プラグインが管理対象に含まれているか確認
-        if (!mpmConfig.plugins.containsKey(pluginName)) {
+        if (project.getPluginSpec(name) == null) {
             return MpmError.PluginError.NotFound(pluginName).left()
         }
 
@@ -560,17 +534,15 @@ class PluginLifecycleServiceImpl :
         // JARファイルを削除
         targetJarFile?.delete()
 
-        // mpm.jsonからプラグインを削除
-        val updatedPlugins = mpmConfig.plugins.toMutableMap()
-        updatedPlugins.remove(pluginName)
+        // MpmProjectからプラグインを削除
+        val updatedProject = project.removePlugin(name).getOrElse {
+            return MpmError.PluginError.UninstallFailed(pluginName, it.message).left()
+        }
+        val sortedProject = updatedProject.withSortedPlugins()
 
-        // 更新されたMpmConfigを作成し、pluginsをa-Z順にソート
-        val updatedConfig = mpmConfig.copy(plugins = updatedPlugins).withSortedPlugins()
-
-        // JSONとして保存
+        // ProjectRepositoryを通じて保存
         return try {
-            val jsonString = Utils.json.encodeToString(updatedConfig)
-            configFile.writeText(jsonString)
+            projectRepository.save(sortedProject)
             Unit.right()
         } catch (e: Exception) {
             MpmError.PluginError
@@ -588,26 +560,16 @@ class PluginLifecycleServiceImpl :
      * mpm.jsonに含まれていないプラグインのJARファイルを削除する
      */
     override suspend fun removeUnmanaged(): Either<MpmError, Int> {
-        // rootディレクトリを取得
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-
-        // mpm.jsonが存在しない場合はエラー
-        if (!configFile.exists()) {
-            return MpmError.ProjectError.NotInitialized.left()
+        // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
+        val project = projectRepository.findOrError().getOrElse { error ->
+            return when (error) {
+                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                else -> error.left()
+            }
         }
 
-        // mpm.jsonを読み込む
-        val mpmConfig =
-            try {
-                val jsonString = configFile.readText()
-                Utils.json.decodeFromString<MpmConfig>(jsonString)
-            } catch (e: Exception) {
-                return MpmError.ProjectError.ConfigParseError(e.message ?: "Unknown error").left()
-            }
-
         // 管理対象のプラグイン名セット
-        val managedPlugins = mpmConfig.plugins.keys
+        val managedPlugins = project.plugins.keys.map { it.value }.toSet()
 
         // pluginsディレクトリからJARファイルを取得
         val pluginsDir = pluginDirectory.getPluginsDirectory()
@@ -617,6 +579,7 @@ class PluginLifecycleServiceImpl :
             } ?: emptyArray()
 
         // localディレクトリを取得（localディレクトリ内のプラグインは削除対象外）
+        val rootDir = pluginDirectory.getRootDirectory()
         val localDir = File(rootDir, "local")
 
         // 削除されたプラグイン数
@@ -663,8 +626,7 @@ class PluginLifecycleServiceImpl :
     private suspend fun resolveVersionData(
         version: LegacyVersionSpecifier,
         urlData: UrlData,
-        firstRepository: RepositoryConfig,
-        mpmConfig: MpmConfig,
+        project: MpmProject,
         pluginName: String
     ): Either<MpmError, VersionData> =
         when (version) {
@@ -690,7 +652,7 @@ class PluginLifecycleServiceImpl :
                 MpmError.PluginError.VersionResolutionFailed(pluginName, "pattern: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
             }
             is LegacyVersionSpecifier.Sync -> {
-                resolveSyncVersion(version, urlData, mpmConfig, pluginName)
+                resolveSyncVersion(version, urlData, project, pluginName)
             }
         }
 
@@ -700,12 +662,12 @@ class PluginLifecycleServiceImpl :
     private suspend fun resolveSyncVersion(
         version: LegacyVersionSpecifier.Sync,
         urlData: UrlData,
-        mpmConfig: MpmConfig,
+        project: MpmProject,
         pluginName: String
     ): Either<MpmError, VersionData> {
-        // ターゲットプラグインがmpm.jsonに存在するか確認
-        val targetVersion =
-            mpmConfig.plugins[version.targetPlugin]
+        // ターゲットプラグインがプロジェクトに存在するか確認
+        val targetSpec =
+            project.getPluginSpec(PluginName(version.targetPlugin))
                 ?: return MpmError.PluginError
                     .VersionResolutionFailed(
                         pluginName,
@@ -713,7 +675,7 @@ class PluginLifecycleServiceImpl :
                     ).left()
 
         // ターゲットがunmanagedの場合はエラー
-        if (targetVersion == "unmanaged") {
+        if (targetSpec is PluginSpec.Unmanaged) {
             return MpmError.PluginError
                 .VersionResolutionFailed(
                     pluginName,
@@ -721,8 +683,11 @@ class PluginLifecycleServiceImpl :
                 ).left()
         }
 
+        // ターゲットのバージョン指定を取得
+        val targetManaged = targetSpec as PluginSpec.Managed
+
         // ターゲットもSync指定の場合はエラー
-        if (VersionSpecifierParser.isSyncFormat(targetVersion)) {
+        if (targetManaged.versionRequirement is VersionSpecifier.Sync) {
             return MpmError.PluginError
                 .VersionResolutionFailed(
                     pluginName,
@@ -732,7 +697,7 @@ class PluginLifecycleServiceImpl :
 
         // ターゲットのバージョンを解決
         val resolvedVersion =
-            if (targetVersion == "latest") {
+            if (targetManaged.versionRequirement is VersionSpecifier.Latest) {
                 metadataManager.loadMetadata(version.targetPlugin).fold(
                     {
                         // メタデータがない場合はターゲットのリポジトリから最新バージョンを取得
@@ -766,7 +731,10 @@ class PluginLifecycleServiceImpl :
                     { it.mpmInfo.version.current.raw }
                 )
             } else {
-                targetVersion
+                // Fixed, Tag, Patternの場合はバージョン文字列をDTO経由で取得
+                val dto = project.toDto()
+                dto.plugins[version.targetPlugin] ?: return MpmError.PluginError
+                    .VersionResolutionFailed(pluginName, "Target version not found").left()
             }
 
         // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
@@ -948,19 +916,14 @@ class PluginLifecycleServiceImpl :
             )
         }
 
-        // mpm.jsonを確認して、既に追加済みかどうかチェック
-        val rootDir = pluginDirectory.getRootDirectory()
-        val configFile = File(rootDir, "mpm.json")
-        if (configFile.exists()) {
-            try {
-                val mpmConfig = Utils.json.decodeFromString<MpmConfig>(configFile.readText())
-                // 既に追加済み（unmanagedでない）の場合はスキップ
-                if (mpmConfig.plugins.containsKey(pluginName) && mpmConfig.plugins[pluginName] != "unmanaged") {
-                    skippedPlugins.add(pluginName)
-                    return
-                }
-            } catch (e: Exception) {
-                // 読み込みエラーの場合は続行
+        // ProjectRepositoryを通じて、既に追加済みかどうかチェック
+        val currentProject = projectRepository.find()
+        if (currentProject != null) {
+            val existingSpec = currentProject.getPluginSpec(PluginName(pluginName))
+            // 既に追加済み（unmanagedでない）の場合はスキップ
+            if (existingSpec != null && existingSpec !is PluginSpec.Unmanaged) {
+                skippedPlugins.add(pluginName)
+                return
             }
         }
 

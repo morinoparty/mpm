@@ -11,7 +11,9 @@
 
 package party.morino.mpm.api.domain.project.repository
 
+import arrow.core.Either
 import party.morino.mpm.api.domain.project.model.MpmProject
+import party.morino.mpm.api.shared.error.MpmError
 
 /**
  * プロジェクトリポジトリのインターフェース
@@ -26,6 +28,15 @@ interface ProjectRepository {
      * @return プロジェクト、存在しない場合はnull
      */
     suspend fun find(): MpmProject?
+
+    /**
+     * プロジェクトを取得（エラー情報付き）
+     *
+     * find()と異なり、ファイル未存在とパースエラーを区別する
+     *
+     * @return Right(project) パース成功時、Left(ConfigNotFound) ファイル未存在時、Left(ConfigParseError) パース失敗時
+     */
+    suspend fun findOrError(): Either<MpmError, MpmProject>
 
     /**
      * プロジェクトを保存
