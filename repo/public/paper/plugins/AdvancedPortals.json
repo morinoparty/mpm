@@ -1,0 +1,11 @@
+{
+  "id": "AdvancedPortals",
+  "license": "LGPL-3.0-only",
+  "website": "https://modrinth.com/plugin/advanced-portals",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "axTqSWQA"
+    }
+  ]
+}

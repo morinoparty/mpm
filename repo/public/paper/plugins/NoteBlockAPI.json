@@ -1,0 +1,11 @@
+{
+  "id": "NoteBlockAPI",
+  "license": "LGPL-3.0-only",
+  "website": "https://modrinth.com/plugin/noteblockapi",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "7FN5Qhm4"
+    }
+  ]
+}

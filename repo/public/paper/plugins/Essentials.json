@@ -1,0 +1,11 @@
+{
+  "id": "Essentials",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/essentialsx",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "hXiIvTyT"
+    }
+  ]
+}

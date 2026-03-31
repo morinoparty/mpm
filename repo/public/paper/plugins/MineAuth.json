@@ -1,0 +1,17 @@
+{
+  "id": "MineAuth",
+  "license": "GPL-3.0-or-later",
+  "website": "https://modrinth.com/plugin/mineauth",
+  "source": "https://github.com/morinoparty/MineAuth",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "9LoU3yUC"
+    },
+    {
+      "type": "github",
+      "id": "morinoparty/MineAuth",
+      "fileNameRegex": "MineAuth-core_.*\\.jar$"
+    }
+  ]
+}

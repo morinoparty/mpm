@@ -7,8 +7,7 @@
     {
       "type": "github",
       "id": "morinoparty/MinecraftPluginManager",
-      "fileNameRegex": "MinecraftPluginManager_.*\\.jar$",
-      "versionModifier": "v?(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      "fileNameRegex": "MinecraftPluginManager_.*\\.jar$"
     }
   ]
 }

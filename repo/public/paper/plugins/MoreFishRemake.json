@@ -1,0 +1,11 @@
+{
+  "id": "MoreFishRemake",
+  "source": "https://github.com/Nlkomaru/MoreFishRemake",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "Nlkomaru/MoreFishRemake",
+      "fileNameRegex": ".*\\.jar$"
+    }
+  ]
+}

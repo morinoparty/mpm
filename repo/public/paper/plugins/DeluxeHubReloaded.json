@@ -1,0 +1,11 @@
+{
+  "id": "DeluxeHubReloaded",
+  "license": "GPL-3.0-or-later",
+  "website": "https://modrinth.com/plugin/deluxehubreloaded",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "oFhgZ1sL"
+    }
+  ]
+}

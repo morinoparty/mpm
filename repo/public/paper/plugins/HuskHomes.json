@@ -1,0 +1,11 @@
+{
+  "id": "HuskHomes",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/huskhomes",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "J6U9o3JG"
+    }
+  ]
+}

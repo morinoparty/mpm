@@ -1,0 +1,11 @@
+{
+  "id": "WorldEdit",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/worldedit",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "1u6JkXh5"
+    }
+  ]
+}

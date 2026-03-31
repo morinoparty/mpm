@@ -1,0 +1,11 @@
+{
+  "id": "PAPIProxyBridge",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/papiproxybridge",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "bEIUEGTX"
+    }
+  ]
+}

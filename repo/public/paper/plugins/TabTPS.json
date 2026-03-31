@@ -1,0 +1,11 @@
+{
+  "id": "TabTPS",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/tabtps",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "cUhi3iB2"
+    }
+  ]
+}

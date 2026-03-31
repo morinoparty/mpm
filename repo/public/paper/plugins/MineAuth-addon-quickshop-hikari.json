@@ -1,0 +1,14 @@
+{
+  "id": "MineAuth-addon-quickshop-hikari",
+  "source": "https://github.com/morinoparty/MineAuth",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/MineAuth",
+      "fileNameRegex": "MineAuth-addon-quickshop-hikari-.*\\.jar$"
+    }
+  ],
+  "dependencies": [
+    "MineAuth"
+  ]
+}

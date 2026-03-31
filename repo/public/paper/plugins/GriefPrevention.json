@@ -1,0 +1,11 @@
+{
+  "id": "GriefPrevention",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/griefprevention",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "O4o4mKaq"
+    }
+  ]
+}

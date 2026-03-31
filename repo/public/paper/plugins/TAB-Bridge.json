@@ -1,0 +1,11 @@
+{
+  "id": "TAB-Bridge",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/tab-bridge",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "kG3hVbBX"
+    }
+  ]
+}

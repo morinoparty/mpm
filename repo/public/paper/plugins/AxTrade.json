@@ -1,0 +1,11 @@
+{
+  "id": "AxTrade",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/axtrade",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "nZSk44a8"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "DecentHolograms",
+  "license": "GPL-3.0-or-later",
+  "website": "https://modrinth.com/plugin/decentholograms",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "w02MKsTg"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "RaceAssist",
+  "source": "https://github.com/RaceAssist/RaceAssist-core",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "RaceAssist/RaceAssist-core",
+      "fileNameRegex": ".*\\.jar$"
+    }
+  ]
+}

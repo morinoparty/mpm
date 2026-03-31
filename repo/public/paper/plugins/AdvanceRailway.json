@@ -1,0 +1,11 @@
+{
+  "id": "AdvanceRailway",
+  "source": "https://github.com/Nlkomaru/AdvanceRailway",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "Nlkomaru/AdvanceRailway",
+      "fileNameRegex": ".*\\.jar$"
+    }
+  ]
+}

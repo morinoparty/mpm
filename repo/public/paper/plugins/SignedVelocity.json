@@ -1,0 +1,11 @@
+{
+  "id": "SignedVelocity",
+  "license": "GPL-3.0-or-later",
+  "website": "https://modrinth.com/plugin/signedvelocity",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "7IbzD4Zm"
+    }
+  ]
+}

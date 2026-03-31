@@ -1,0 +1,11 @@
+{
+  "id": "EntityDetection",
+  "license": "MPL-2.0",
+  "website": "https://modrinth.com/plugin/entitydetection",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "NUsm3vyS"
+    }
+  ]
+}

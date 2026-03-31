@@ -1,9 +1,9 @@
 {
-  "id": "GSit",
+  "id": "MyCommand",
   "repositories": [
     {
       "type": "spigotmc",
-      "id": "62325"
+      "id": "22272"
     }
   ]
 }

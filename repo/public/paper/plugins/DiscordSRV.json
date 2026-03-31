@@ -1,0 +1,11 @@
+{
+  "id": "DiscordSRV",
+  "license": "GPL-3.0-or-later",
+  "website": "https://modrinth.com/plugin/discordsrv",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "UmLGoGij"
+    }
+  ]
+}
