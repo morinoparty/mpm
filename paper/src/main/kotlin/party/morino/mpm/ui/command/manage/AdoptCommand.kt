@@ -169,11 +169,18 @@ class AdoptCommand : KoinComponent {
             sender.sendRichMessage("<aqua>--pin: 既存JARのバージョンに固定します")
         }
 
-        lifecycleService.adoptAll(includeSoftDependencies, pinToCurrentVersion).fold(
+        // 進捗メッセージをsenderに転送するコールバック
+        val progressCallback: (String) -> Unit = { message ->
+            sender.sendRichMessage(message)
+        }
+
+        lifecycleService.adoptAll(includeSoftDependencies, pinToCurrentVersion, progressCallback).fold(
             { error ->
                 sender.sendRichMessage("<red>${error.message}")
             },
             { result ->
+                sender.sendRichMessage("<gray>-----")
+
                 // adoptされたプラグインを表示
                 if (result.adoptedPlugins.isNotEmpty()) {
                     sender.sendRichMessage("<green>===== adoptされたプラグイン (${result.adoptedPlugins.size}) =====")
@@ -196,6 +203,14 @@ class AdoptCommand : KoinComponent {
                     sender.sendRichMessage("<yellow>===== ハッシュ検証の警告 (${result.hashMismatchWarnings.size}) =====")
                     result.hashMismatchWarnings.forEach { (name, warning) ->
                         sender.sendRichMessage("<yellow>⚠<reset> $name: $warning")
+                    }
+                }
+
+                // --pin時にバージョンが一致しなかったプラグインを表示
+                if (result.versionMismatchPlugins.isNotEmpty()) {
+                    sender.sendRichMessage("<yellow>===== バージョン不一致 (${result.versionMismatchPlugins.size}) =====")
+                    result.versionMismatchPlugins.forEach { (name, reason) ->
+                        sender.sendRichMessage("<yellow>~<reset> $name: $reason <gray>(unmanagedのまま)")
                     }
                 }
 
@@ -224,11 +239,13 @@ class AdoptCommand : KoinComponent {
                 }
 
                 // サマリー
+                val versionMismatchCount = result.versionMismatchPlugins.size
+                val skippedTotal = result.skippedPlugins.size + versionMismatchCount
                 sender.sendRichMessage("<gray>-----")
                 sender.sendRichMessage(
                     "<gray>合計: " +
                         "<green>${result.adoptedPlugins.size}個adopt</green>, " +
-                        "<yellow>${result.skippedPlugins.size}個スキップ</yellow>, " +
+                        "<yellow>${skippedTotal}個スキップ</yellow>, " +
                         "<red>${result.failedPlugins.size}個失敗</red>"
                 )
 
