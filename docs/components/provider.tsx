@@ -9,6 +9,9 @@ export function Provider({ children }: { children: ReactNode }) {
             search={{
                 SearchDialog,
             }}
+            theme={{
+                enabled: false,
+            }}
         >
             {children}
         </RootProvider>

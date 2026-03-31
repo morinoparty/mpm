@@ -58,8 +58,8 @@ class AdoptCommand : KoinComponent {
         @Switch("pin") pin: Boolean = false
     ) {
         if (dryRun) {
-            // dry-runモード: 対象プラグインを表示のみ
-            executeDryRun(sender, pin)
+            // dry-runモード: 対象プラグインと依存関係を表示のみ
+            executeDryRun(sender, pin, soft)
         } else {
             // 通常実行: adoptを実行
             executeAdopt(sender, soft, pin)
@@ -67,9 +67,13 @@ class AdoptCommand : KoinComponent {
     }
 
     /**
-     * dry-runモード: 対象プラグインを表示のみ
+     * dry-runモード: 対象プラグインと依存関係解析を表示
+     *
+     * @param sender コマンド送信者
+     * @param pin バージョン固定モード表示
+     * @param includeSoft softDependenciesも含めるか
      */
-    private suspend fun executeDryRun(sender: CommandSender, pin: Boolean) {
+    private suspend fun executeDryRun(sender: CommandSender, pin: Boolean, includeSoft: Boolean) {
         sender.sendRichMessage("<gray>unmanagedプラグインをリポジトリから検索しています...")
 
         // unmanagedプラグイン一覧を取得
@@ -81,29 +85,55 @@ class AdoptCommand : KoinComponent {
             return
         }
 
-        // リポジトリの利用可能なプラグイン一覧を取得
-        val availablePlugins = repositoryManager.getAvailablePlugins()
-        val availablePluginsLower = availablePlugins.map { it.lowercase() }.toSet()
+        // 管理済みプラグイン一覧を取得（依存チェック用）
+        val managedPlugins = infoService.list(PluginFilter.MANAGED)
+        val managedNamesLower = managedPlugins.map { it.name.value.lowercase() }.toSet()
 
-        // マッチングを行う
-        val matchedPlugins = mutableListOf<String>()
+        // リポジトリの利用可能なプラグイン名マップ（lowercase → canonical name）
+        val availablePlugins = repositoryManager.getAvailablePlugins()
+        val availablePluginsMap = availablePlugins.associateBy { it.lowercase() }
+
+        // マッチングを行う（canonical name を保持）
+        val matchedPlugins = mutableListOf<Pair<String, String>>() // unmanagedName to repoName
         val skippedPlugins = mutableListOf<String>()
 
         for (name in unmanagedNames) {
-            if (availablePluginsLower.contains(name.lowercase())) {
-                matchedPlugins.add(name)
+            val repoName = availablePluginsMap[name.lowercase()]
+            if (repoName != null) {
+                matchedPlugins.add(name to repoName)
             } else {
                 skippedPlugins.add(name)
             }
         }
 
+        // adopt対象のプラグイン名セット（依存チェックで「adoptされる予定」を判定するため）
+        val willBeAdoptedLower = matchedPlugins.map { it.second.lowercase() }.toSet()
+
+        // 全リポジトリファイルを事前取得（suspend呼び出しをここで完了させる）
+        val repoFileCache = mutableMapOf<String, party.morino.mpm.api.domain.repository.RepositoryFile?>()
+        for ((_, repoName) in matchedPlugins) {
+            prefetchRepoDependencies(repoName, repoFileCache, includeSoft)
+        }
+
+        // 依存関係の警告を蓄積
+        val notFoundDependencies = mutableSetOf<Pair<String, String>>() // depName to requiredBy
+
         // 結果を表示
         if (matchedPlugins.isNotEmpty()) {
             val modeLabel = if (pin) "adoptされるプラグイン (pin)" else "adoptされるプラグイン"
             sender.sendRichMessage("<green>===== $modeLabel (${matchedPlugins.size}) =====")
-            matchedPlugins.forEach { name ->
+            val visited = mutableSetOf<String>()
+            matchedPlugins.forEach { (unmanagedName, repoName) ->
                 val pinInfo = if (pin) " <aqua>(バージョン固定を試行)</aqua>" else ""
-                sender.sendRichMessage("<green>-<reset> $name$pinInfo")
+                sender.sendRichMessage("<green>-<reset> $unmanagedName$pinInfo")
+
+                // canonical name で再帰的に依存解析（キャッシュ済みデータを使用）
+                visited.add(repoName.lowercase())
+                displayDependencyTree(
+                    sender, repoName, 1, includeSoft, repoFileCache,
+                    managedNamesLower, willBeAdoptedLower, availablePluginsMap,
+                    visited, notFoundDependencies
+                )
             }
         }
 
@@ -111,6 +141,14 @@ class AdoptCommand : KoinComponent {
             sender.sendRichMessage("<yellow>===== リポジトリに見つからない (${skippedPlugins.size}) =====")
             skippedPlugins.forEach { name ->
                 sender.sendRichMessage("<yellow>~<reset> $name")
+            }
+        }
+
+        // 見つからない必須依存の警告
+        if (notFoundDependencies.isNotEmpty()) {
+            sender.sendRichMessage("<red>===== 依存関係の警告 (${notFoundDependencies.size}) =====")
+            notFoundDependencies.forEach { (dep, requiredBy) ->
+                sender.sendRichMessage("<red>!<reset> $dep <gray>← $requiredBy が依存")
             }
         }
 
@@ -199,6 +237,81 @@ class AdoptCommand : KoinComponent {
                 }
             }
         )
+    }
+
+    /**
+     * リポファイルを再帰的に事前取得してキャッシュに格納する
+     *
+     * @param pluginName プラグイン名
+     * @param cache キャッシュマップ（lowercase name → RepositoryFile?）
+     * @param includeSoft softDependenciesも辿るか
+     */
+    private suspend fun prefetchRepoDependencies(
+        pluginName: String,
+        cache: MutableMap<String, party.morino.mpm.api.domain.repository.RepositoryFile?>,
+        includeSoft: Boolean
+    ) {
+        val key = pluginName.lowercase()
+        if (cache.containsKey(key)) return
+
+        val repoFile = repositoryManager.getRepositoryFile(pluginName)
+        cache[key] = repoFile
+        if (repoFile == null) return
+
+        // 依存を再帰的に事前取得
+        val deps = repoFile.dependencies.toMutableList()
+        if (includeSoft) deps.addAll(repoFile.softDependencies)
+        for (dep in deps) {
+            prefetchRepoDependencies(dep, cache, includeSoft)
+        }
+    }
+
+    /**
+     * 依存ツリーを再帰的に表示する（キャッシュ済みデータを使用、suspendなし）
+     */
+    private fun displayDependencyTree(
+        sender: CommandSender,
+        pluginName: String,
+        depth: Int,
+        includeSoft: Boolean,
+        cache: Map<String, party.morino.mpm.api.domain.repository.RepositoryFile?>,
+        managedNamesLower: Set<String>,
+        willBeAdoptedLower: Set<String>,
+        availablePluginsMap: Map<String, String>,
+        visited: MutableSet<String>,
+        notFoundDependencies: MutableSet<Pair<String, String>>
+    ) {
+        val repoFile = cache[pluginName.lowercase()] ?: return
+        val deps = repoFile.dependencies.toMutableList()
+        if (includeSoft) deps.addAll(repoFile.softDependencies)
+
+        val indent = "  ".repeat(depth)
+        for (dep in deps) {
+            val depLower = dep.lowercase()
+            val isSoft = dep in repoFile.softDependencies
+            val label = if (isSoft) "<gray>[soft]</gray> " else ""
+            when {
+                managedNamesLower.contains(depLower) ->
+                    sender.sendRichMessage("$indent<gray>└ ${label}$dep <green>(管理済み)")
+                willBeAdoptedLower.contains(depLower) ->
+                    sender.sendRichMessage("$indent<gray>└ ${label}$dep <aqua>(adopt予定)")
+                availablePluginsMap.containsKey(depLower) -> {
+                    sender.sendRichMessage("$indent<gray>└ ${label}$dep <blue>(リポジトリあり・依存として追加)")
+                    // 再帰的にこの依存の依存も解析（循環防止）
+                    if (visited.add(depLower)) {
+                        displayDependencyTree(
+                            sender, dep, depth + 1, includeSoft, cache,
+                            managedNamesLower, willBeAdoptedLower, availablePluginsMap,
+                            visited, notFoundDependencies
+                        )
+                    }
+                }
+                else -> {
+                    sender.sendRichMessage("$indent<gray>└ ${label}$dep <red>(見つかりません)")
+                    if (!isSoft) notFoundDependencies.add(dep to pluginName)
+                }
+            }
+        }
     }
 
     /**
