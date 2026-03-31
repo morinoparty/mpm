@@ -60,6 +60,9 @@ interface PluginRepositorySource {
  * @property repositories ダウンロード元のリポジトリ設定リスト
  * @property dependencies 必須の依存プラグインリスト（リポジトリに登録されている名前）
  * @property softDependencies オプションの依存プラグインリスト
+ * @property defaultVersion デフォルトのバージョン指定文字列（例: "sync:MineAuth", "tag:beta"）
+ *   mpm addで明示的なバージョン指定がない場合に使用される
+ *   未指定の場合は"latest"がデフォルトとなる
  */
 @Serializable
 data class RepositoryFile(
@@ -69,7 +72,8 @@ data class RepositoryFile(
     val license: String? = null,
     val repositories: List<RepositoryConfig>,
     val dependencies: List<String> = emptyList(),
-    val softDependencies: List<String> = emptyList()
+    val softDependencies: List<String> = emptyList(),
+    val defaultVersion: String? = null
 )
 
 /**
