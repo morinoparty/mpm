@@ -13,7 +13,7 @@ export function baseOptions(): BaseLayoutProps {
         themeSwitch: {
             enabled: false,
         },
-        modrinthUrl: "https://modrinth.com/plugin/pluginname",
-        githubUrl: "https://github.com/morinoparty/PluginName",
+        githubUrl: "https://github.com/morinoparty/mpm",
+        modrinthUrl: "https://modrinth.com/plugin/mpm-package",
     };
 }
