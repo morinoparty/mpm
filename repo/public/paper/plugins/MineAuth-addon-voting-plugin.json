@@ -10,5 +10,9 @@
   ],
   "dependencies": [
     "MineAuth"
-  ]
+  ],
+  "softDependencies": [
+    "VotingPlugin"
+  ],
+  "defaultVersion": "sync:MineAuth"
 }

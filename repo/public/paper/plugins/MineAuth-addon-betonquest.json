@@ -10,5 +10,9 @@
   ],
   "dependencies": [
     "MineAuth"
-  ]
+  ],
+  "softDependencies": [
+    "BetonQuest"
+  ],
+  "defaultVersion": "sync:MineAuth"
 }
