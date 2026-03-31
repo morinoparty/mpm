@@ -128,6 +128,48 @@ SpigotMCリソースからプラグインをダウンロードします。
   - 例: `"luckperms-<version>.jar"` → `"luckperms-5.4.97.jar"`
   - データ構造としてサポート済み、機能実装は今後予定
 
+### 🔗 依存関係フィールド
+
+- **dependencies**: 必須の依存プラグインリスト
+  - `mpm add` 時に自動的に依存プラグインも追加される
+  - 例: `["MineAuth", "GriefPrevention"]`
+
+- **softDependencies**: オプションの依存プラグインリスト
+  - `--soft` フラグ指定時のみ追加される
+  - 例: `["PlaceholderAPI"]`
+
+- **defaultVersion**: デフォルトのバージョン指定文字列
+  - `mpm add` でバージョンを明示しない場合に使用される
+  - 未指定の場合は `"latest"` がデフォルト
+  - アドオンプラグインで親プラグインとのバージョン同期に有用
+  - 例: `"sync:MineAuth"`, `"tag:beta"`, `"latest"`
+
+```json title="アドオンプラグインの例"
+{
+    "id": "MineAuth-addon-griefprevention",
+    "repositories": [
+        {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-griefprevention-.*\\.jar$"
+        }
+    ],
+    "dependencies": ["MineAuth"],
+    "softDependencies": ["GriefPrevention"],
+    "defaultVersion": "sync:MineAuth"
+}
+```
+
+この設定により：
+- `mpm add MineAuth-addon-griefprevention` で `MineAuth` も自動的に追加される
+- バージョンは自動的に `sync:MineAuth` が設定される（親プラグインと同期）
+- `--soft` 指定時は `GriefPrevention` も追加される
+
+:::warning
+`defaultVersion` に `sync:X` を指定する場合、`X` は `dependencies` に含まれている必要があります。
+依存関係は深さ優先で先に処理されるため、sync対象が依存にないと追加時にエラーになります。
+:::
+
 ## 使用例
 
 ### Modrinthからのダウンロード

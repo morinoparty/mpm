@@ -55,6 +55,7 @@ import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.PluginDataUtils
 import java.io.File
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier as LegacyVersionSpecifier
 
 /**
@@ -85,7 +86,6 @@ class PluginLifecycleServiceImpl :
         version: VersionSpecifier
     ): Either<MpmError, ManagedPlugin> {
         val pluginName = name.value
-        val legacyVersion = toLegacyVersionSpecifier(version)
 
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
         val project = projectRepository.findOrError().getOrElse { error ->
@@ -99,6 +99,14 @@ class PluginLifecycleServiceImpl :
         val repositoryFile =
             repositoryManager.getRepositoryFile(pluginName)
                 ?: return MpmError.DownloadError.RepositoryNotFound("unknown", pluginName).left()
+
+        // Latestが指定されている場合、リポファイルのdefaultVersionがあればそちらを使用
+        val resolvedVersion = if (version is VersionSpecifier.Latest && repositoryFile.defaultVersion != null) {
+            VersionSpecifierParser.parse(repositoryFile.defaultVersion!!)
+        } else {
+            version
+        }
+        val legacyVersion = toLegacyVersionSpecifier(resolvedVersion)
 
         // リポジトリ設定から最初のリポジトリを取得
         val firstRepository =
@@ -1101,9 +1109,15 @@ class PluginLifecycleServiceImpl :
         val allDependencies = dependencies + softDependencies
 
         for (depName in allDependencies) {
+            // 依存プラグインのリポファイルにdefaultVersionがあればそれを使用
+            val depRepoFile = repositoryManager.getRepositoryFile(depName)
+            val depVersion = depRepoFile?.defaultVersion
+                ?.let { VersionSpecifierParser.parse(it) }
+                ?: VersionSpecifier.Latest
+
             addPluginRecursively(
                 pluginName = depName,
-                version = VersionSpecifier.Latest,
+                version = depVersion,
                 isDependency = true,
                 includeSoftDependencies = includeSoftDependencies,
                 force = force,
@@ -1126,8 +1140,15 @@ class PluginLifecycleServiceImpl :
             }
         }
 
+        // Latestが指定されている場合、リポファイルのdefaultVersionがあればそちらを使用
+        val resolvedVersion = if (version is VersionSpecifier.Latest && repositoryFile.defaultVersion != null) {
+            VersionSpecifierParser.parse(repositoryFile.defaultVersion!!)
+        } else {
+            version
+        }
+
         // プラグインを追加
-        val addResult = add(PluginName(pluginName), version)
+        val addResult = add(PluginName(pluginName), resolvedVersion)
         addResult.fold(
             { error ->
                 failedPlugins[pluginName] = error.message

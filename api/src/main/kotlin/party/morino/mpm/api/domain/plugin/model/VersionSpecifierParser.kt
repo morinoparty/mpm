@@ -85,4 +85,23 @@ object VersionSpecifierParser {
      */
     fun extractSyncTarget(versionString: String): String? =
         if (isSyncFormat(versionString)) versionString.drop(SYNC_PREFIX.length) else null
+
+    /**
+     * バージョン文字列がTag形式かどうかを判定する
+     *
+     * @param versionString 判定対象のバージョン文字列
+     * @return Tag形式の場合はtrue
+     */
+    fun isTagFormat(versionString: String): Boolean =
+        versionString.startsWith(TAG_PREFIX, ignoreCase = true) &&
+            versionString.length > TAG_PREFIX.length
+
+    /**
+     * Tag形式のバージョン文字列からタグ名を抽出する
+     *
+     * @param versionString Tag形式のバージョン文字列
+     * @return タグ名、Tag形式でない場合はnull
+     */
+    fun extractTag(versionString: String): String? =
+        if (isTagFormat(versionString)) versionString.drop(TAG_PREFIX.length) else null
 }
