@@ -157,6 +157,21 @@ class DownloaderRepositoryImpl :
         }
 
     /**
+     * 指定されたバージョンのファイルハッシュを取得する
+     * Modrinthのみ対応。その他のリポジトリではnullを返す。
+     */
+    override suspend fun getVersionHashesByName(
+        urlData: UrlData,
+        versionName: String
+    ): Map<String, String>? =
+        when (urlData) {
+            is UrlData.ModrinthUrlData -> {
+                modrinthDownloader.getVersionHashesByName(urlData, versionName)
+            }
+            else -> null
+        }
+
+    /**
      * すべてのバージョンを取得
      * @param urlData URLデータ
      * @return バージョンリスト（新しい順）

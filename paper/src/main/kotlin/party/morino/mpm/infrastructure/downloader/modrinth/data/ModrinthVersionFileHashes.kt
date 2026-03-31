@@ -12,16 +12,12 @@ package party.morino.mpm.infrastructure.downloader.modrinth.data
 import kotlinx.serialization.Serializable
 
 /**
- * Modrinthバージョンのファイル情報
- * @param url ダウンロードURL
- * @param filename ファイル名
- * @param primary プライマリファイルかどうか
- * @param hashes ファイルのハッシュ情報（SHA-1, SHA-512）
+ * Modrinthバージョンファイルのハッシュ情報
+ * @param sha1 SHA-1ハッシュ
+ * @param sha512 SHA-512ハッシュ
  */
 @Serializable
-data class ModrinthVersionFile(
-    val url: String,
-    val filename: String,
-    val primary: Boolean,
-    val hashes: ModrinthVersionFileHashes? = null
+data class ModrinthVersionFileHashes(
+    val sha1: String? = null,
+    val sha512: String? = null
 )

@@ -52,6 +52,21 @@ interface DownloaderRepository {
     ): VersionData
 
     /**
+     * 指定されたバージョンのファイルハッシュを取得する
+     *
+     * APIでハッシュ情報を提供するリポジトリ（Modrinth等）のみサポート。
+     * 非対応リポジトリではnullを返す。
+     *
+     * @param urlData URLデータ
+     * @param versionName バージョン名
+     * @return ハッシュ情報のMap（例: {"sha1": "...", "sha512": "..."}）、非対応の場合はnull
+     */
+    suspend fun getVersionHashesByName(
+        urlData: UrlData,
+        versionName: String
+    ): Map<String, String>? = null
+
+    /**
      * すべてのバージョンを取得
      * @param urlData URLデータ
      * @return バージョンリスト（新しい順）

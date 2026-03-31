@@ -127,9 +127,11 @@ interface PluginLifecycleService {
      * リポジトリから検索し、見つかった場合はmanaged状態に変更してダウンロードする
      *
      * @param includeSoftDependencies softDependenciesも含めるかどうか
+     * @param pinToCurrentVersion trueの場合、既存JARのバージョンに固定する
      * @return adopt結果（adoptされたプラグイン、スキップされたプラグイン、失敗したプラグイン）
      */
     suspend fun adoptAll(
-        includeSoftDependencies: Boolean = false
+        includeSoftDependencies: Boolean = false,
+        pinToCurrentVersion: Boolean = false
     ): Either<MpmError, AdoptResult>
 }

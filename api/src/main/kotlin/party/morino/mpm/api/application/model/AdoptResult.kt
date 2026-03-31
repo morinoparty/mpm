@@ -26,7 +26,9 @@ data class AdoptResult(
     val adoptedPlugins: List<PluginAddResult>,
     val skippedPlugins: List<String>,
     val failedPlugins: Map<String, String>,
-    val notFoundDependencies: List<String>
+    val notFoundDependencies: List<String>,
+    val pinnedPlugins: List<String> = emptyList(),
+    val hashMismatchWarnings: Map<String, String> = emptyMap()
 ) {
     /**
      * すべてのプラグインが正常にadoptされたかどうか

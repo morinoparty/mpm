@@ -486,34 +486,8 @@ class PluginLifecycleServiceImpl :
             return MpmError.PluginError.NotFound(pluginName).left()
         }
 
-        // pluginsディレクトリからJARファイルを探す
-        val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val pluginFiles =
-            pluginsDir.listFiles { file ->
-                file.isFile && file.extension == "jar"
-            } ?: emptyArray()
-
-        // 対象のJARファイルを特定
-        var targetJarFile: File? = null
-        for (jarFile in pluginFiles) {
-            try {
-                val pluginData = PluginDataUtils.getPluginData(jarFile)
-                if (pluginData != null) {
-                    val jarPluginName =
-                        when (pluginData) {
-                            is PluginData.BukkitPluginData -> pluginData.name
-                            is PluginData.PaperPluginData -> pluginData.name
-                        }
-                    if (jarPluginName == pluginName) {
-                        targetJarFile = jarFile
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                // エラーが発生した場合はスキップ
-                continue
-            }
-        }
+        // pluginsディレクトリから対象のJARファイルを特定
+        val targetJarFile = findJarForPlugin(pluginName)?.first
 
         // PluginUninstallEventを発火して、他のプラグインがキャンセルできるようにする
         // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
@@ -619,6 +593,189 @@ class PluginLifecycleServiceImpl :
     }
 
     // ===== Private Helper Methods =====
+
+    /**
+     * pluginsディレクトリから指定されたプラグイン名のJARファイルとPluginDataを検索する
+     *
+     * @param pluginName 検索するプラグイン名
+     * @return JARファイルとPluginDataのペア、見つからない場合はnull
+     */
+    private fun findJarForPlugin(pluginName: String): Pair<File, PluginData>? {
+        val pluginsDir = pluginDirectory.getPluginsDirectory()
+        val pluginFiles = pluginsDir.listFiles { file ->
+            file.isFile && file.extension == "jar"
+        } ?: return null
+
+        for (jarFile in pluginFiles) {
+            try {
+                val pluginData = PluginDataUtils.getPluginData(jarFile) ?: continue
+                val jarPluginName = when (pluginData) {
+                    is PluginData.BukkitPluginData -> pluginData.name
+                    is PluginData.PaperPluginData -> pluginData.name
+                }
+                if (jarPluginName == pluginName) {
+                    return jarFile to pluginData
+                }
+            } catch (e: Exception) {
+                // パース不能なJARはスキップ
+                continue
+            }
+        }
+        return null
+    }
+
+    /**
+     * PluginDataからバージョン文字列を取得する
+     */
+    private fun getVersionFromPluginData(pluginData: PluginData): String =
+        when (pluginData) {
+            is PluginData.BukkitPluginData -> pluginData.version
+            is PluginData.PaperPluginData -> pluginData.version
+        }
+
+    /**
+     * ファイルのSHA-1ハッシュを計算する
+     *
+     * @param file ハッシュを計算するファイル
+     * @return SHA-1ハッシュの16進数文字列
+     */
+    private fun computeSha1(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-1")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(8192)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) {
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * バージョンpinの結果を表すsealed class
+     */
+    private sealed class VersionPinResult {
+        /** バージョンの固定に成功 */
+        data class Pinned(
+            val version: VersionSpecifier.Fixed,
+            val hashWarning: String? = null
+        ) : VersionPinResult()
+
+        /** バージョンが見つからずLatestにフォールバック */
+        data class FallbackToLatest(val reason: String) : VersionPinResult()
+
+        /** 通信/API失敗などの回復不能エラー（失敗扱い） */
+        data class Error(val reason: String) : VersionPinResult()
+    }
+
+    /**
+     * 既存JARのplugin.ymlからバージョンを検出し、リポジトリで検索してpin用のVersionSpecifierを返す
+     *
+     * @param pluginName リポジトリ上のプラグイン名
+     * @param unmanagedName mpm.json上のunmanaged名（JAR内のプラグイン名）
+     * @param urlData リポジトリのURLデータ
+     * @return VersionPinResult（Pinned or FallbackToLatest）
+     */
+    private suspend fun resolveCurrentVersionFromJar(
+        pluginName: String,
+        unmanagedName: String,
+        urlData: UrlData
+    ): VersionPinResult {
+        // 既存JARを検索
+        val (jarFile, pluginData) = findJarForPlugin(unmanagedName)
+            ?: return VersionPinResult.FallbackToLatest("JARファイルが見つかりません")
+
+        val currentVersion = getVersionFromPluginData(pluginData).trim()
+        if (currentVersion.isBlank()) {
+            return VersionPinResult.FallbackToLatest("plugin.ymlにバージョンが記載されていません")
+        }
+
+        // リポジトリの全バージョンを1回取得（通信失敗は失敗扱い）
+        val allVersions = try {
+            downloaderRepository.getAllVersions(urlData)
+        } catch (e: Exception) {
+            // 通信/API失敗はlatestフォールバックではなく失敗として報告
+            return VersionPinResult.Error(
+                "リポジトリへの接続に失敗しました: ${e.message}"
+            )
+        }
+
+        // 表記揺れを考慮したバージョン候補を生成
+        val versionCandidates = buildVersionCandidates(currentVersion)
+
+        // ローカルでバージョン名を照合
+        val resolvedVersionData = versionCandidates.firstNotNullOfOrNull { candidate ->
+            allVersions.firstOrNull { it.version == candidate }
+        }
+
+        if (resolvedVersionData == null) {
+            return VersionPinResult.FallbackToLatest(
+                "バージョン '$currentVersion' がリポジトリに見つかりません"
+            )
+        }
+
+        // ハッシュ検証（APIでハッシュが取得できるリポジトリのみ）
+        val hashWarning = verifyHashIfAvailable(urlData, resolvedVersionData.version, jarFile)
+
+        return VersionPinResult.Pinned(
+            version = VersionSpecifier.Fixed(resolvedVersionData.version),
+            hashWarning = hashWarning
+        )
+    }
+
+    /**
+     * バージョン文字列から表記揺れ候補を生成する
+     *
+     * "v" prefixの有無を切り替えた候補を返す。
+     * "v" の除去は "v1.0.0" のように数字が続く場合のみ行う（"Version" 等の誤切断を防止）。
+     */
+    private fun buildVersionCandidates(version: String): List<String> = buildList {
+        add(version)
+        val vPrefixPattern = Regex("^[vV](?=\\d)")
+        if (vPrefixPattern.containsMatchIn(version)) {
+            // "v1.0.0" → "1.0.0" も候補に追加
+            add(version.substring(1))
+        } else if (version.firstOrNull()?.isDigit() == true) {
+            // "1.0.0" → "v1.0.0" も候補に追加
+            add("v$version")
+        }
+    }
+
+    /**
+     * APIでハッシュが取得可能な場合、既存JARのハッシュと比較検証する
+     *
+     * 複数artifactがある場合は、どれか1つでもsha1が一致すればOKとする。
+     *
+     * @param urlData リポジトリのURLデータ
+     * @param versionName リポジトリ上のバージョン名
+     * @param localJar ローカルのJARファイル
+     * @return 不一致や取得不能の場合は警告メッセージ、問題なしの場合はnull
+     */
+    private suspend fun verifyHashIfAvailable(
+        urlData: UrlData,
+        versionName: String,
+        localJar: File
+    ): String? {
+        val repoHashes = try {
+            downloaderRepository.getVersionHashesByName(urlData, versionName)
+        } catch (_: Exception) {
+            return null // ハッシュ取得に失敗した場合は警告なしでスキップ
+        }
+
+        // ハッシュ非対応のリポジトリ
+        if (repoHashes == null) return null
+
+        val repoSha1Values = repoHashes["sha1"]?.split(",") ?: return null
+        val localSha1 = computeSha1(localJar)
+
+        // 複数artifactのどれか1つでもsha1が一致すればOK（大文字小文字無視）
+        val matched = repoSha1Values.any { it.equals(localSha1, ignoreCase = true) }
+        return if (!matched) {
+            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1)"
+        } else {
+            null // ハッシュ一致、問題なし
+        }
+    }
 
     /**
      * VersionSpecifierに応じてバージョンデータを解決する
@@ -961,10 +1118,12 @@ class PluginLifecycleServiceImpl :
      * リポジトリから検索し、見つかった場合はmanaged状態に変更してダウンロードする
      *
      * @param includeSoftDependencies softDependenciesも含めるかどうか
+     * @param pinToCurrentVersion trueの場合、既存JARのバージョンに固定する
      * @return adopt結果（adoptされたプラグイン、スキップされたプラグイン、失敗したプラグイン）
      */
     override suspend fun adoptAll(
-        includeSoftDependencies: Boolean
+        includeSoftDependencies: Boolean,
+        pinToCurrentVersion: Boolean
     ): Either<MpmError, AdoptResult> {
         // unmanagedプラグイン一覧を取得
         val unmanagedPlugins = infoService.list(PluginFilter.UNMANAGED)
@@ -996,12 +1155,36 @@ class PluginLifecycleServiceImpl :
         val adoptedPlugins = mutableListOf<PluginAddResult>()
         val failedPlugins = mutableMapOf<String, String>()
         val notFoundDependencies = mutableListOf<String>()
+        val pinnedPlugins = mutableListOf<String>()
+        val hashMismatchWarnings = mutableMapOf<String, String>()
 
-        for ((_, repoName) in matchedPlugins) {
+        for ((unmanagedName, repoName) in matchedPlugins) {
+            // バージョン指定を決定（--pin時はJARのバージョンに固定を試みる）
+            val pinResult = if (pinToCurrentVersion) {
+                resolveVersionForPin(unmanagedName, repoName)
+            } else {
+                null
+            }
+
+            // pin解決がErrorの場合は失敗扱い
+            if (pinResult is VersionPinResult.Error) {
+                failedPlugins[repoName] = pinResult.reason
+                continue
+            }
+
+            val versionSpecifier = when (pinResult) {
+                is VersionPinResult.Pinned -> pinResult.version
+                is VersionPinResult.FallbackToLatest -> {
+                    plugin.logger.warning("[$repoName] ${pinResult.reason} — latestを使用します")
+                    VersionSpecifier.Latest
+                }
+                else -> VersionSpecifier.Latest
+            }
+
             // addWithDependenciesを呼び出してプラグインを追加
             addWithDependencies(
                 PluginName(repoName),
-                VersionSpecifier.Latest,
+                versionSpecifier,
                 includeSoftDependencies
             ).fold(
                 { error ->
@@ -1012,8 +1195,13 @@ class PluginLifecycleServiceImpl :
                     // 成功した場合、結果を集約
                     adoptedPlugins.addAll(result.addedPlugins)
                     notFoundDependencies.addAll(result.notFoundPlugins)
-                    // 失敗したプラグインも集約
                     failedPlugins.putAll(result.failedPlugins)
+
+                    // adopt成功かつメインプラグインが失敗していない場合のみpin情報を記録
+                    if (pinResult is VersionPinResult.Pinned && !result.failedPlugins.containsKey(repoName)) {
+                        pinnedPlugins.add(repoName)
+                        pinResult.hashWarning?.let { hashMismatchWarnings[repoName] = it }
+                    }
                 }
             )
         }
@@ -1022,7 +1210,35 @@ class PluginLifecycleServiceImpl :
             adoptedPlugins = adoptedPlugins,
             skippedPlugins = skippedPlugins,
             failedPlugins = failedPlugins,
-            notFoundDependencies = notFoundDependencies.distinct()
+            notFoundDependencies = notFoundDependencies.distinct(),
+            pinnedPlugins = pinnedPlugins,
+            hashMismatchWarnings = hashMismatchWarnings
         ).right()
+    }
+
+    /**
+     * --pin指定時のバージョン解決を行う
+     *
+     * リポジトリ情報の取得からJARバージョン検出までを行い、結果を返す。
+     *
+     * @param unmanagedName mpm.json上のプラグイン名
+     * @param repoName リポジトリ上のプラグイン名
+     * @return VersionPinResult（Pinned, FallbackToLatest, or Error）
+     */
+    private suspend fun resolveVersionForPin(
+        unmanagedName: String,
+        repoName: String
+    ): VersionPinResult {
+        // リポジトリファイルからURLデータを作成
+        val repositoryFile = repositoryManager.getRepositoryFile(repoName)
+        val firstRepository = repositoryFile?.repositories?.firstOrNull()
+        val urlData = firstRepository?.let { createUrlData(it) }
+
+        if (urlData == null) {
+            return VersionPinResult.FallbackToLatest("リポジトリ情報が取得できません")
+        }
+
+        // JARからバージョンを検出してリポジトリで検索
+        return resolveCurrentVersionFromJar(repoName, unmanagedName, urlData)
     }
 }
