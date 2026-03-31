@@ -32,6 +32,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * mpm adopt           - すべてのunmanagedプラグインをadopt
  * mpm adopt --dry-run - 対象プラグインを表示のみ（実行しない）
  * mpm adopt --soft    - softDependenciesも含める
+ * mpm adopt --pin     - 既存JARのバージョンに固定してadopt
  */
 @Command("mpm")
 @CommandPermission("mpm.command.add")
@@ -47,26 +48,28 @@ class AdoptCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param soft softDependenciesも含める場合はtrue
      * @param dryRun 実行せず対象プラグインを表示のみの場合はtrue
+     * @param pin 既存JARのバージョンに固定する場合はtrue
      */
     @Subcommand("adopt")
     suspend fun adopt(
         sender: CommandSender,
         @Switch("soft") soft: Boolean = false,
-        @Switch("dry-run") dryRun: Boolean = false
+        @Switch("dry-run") dryRun: Boolean = false,
+        @Switch("pin") pin: Boolean = false
     ) {
         if (dryRun) {
             // dry-runモード: 対象プラグインを表示のみ
-            executeDryRun(sender)
+            executeDryRun(sender, pin)
         } else {
             // 通常実行: adoptを実行
-            executeAdopt(sender, soft)
+            executeAdopt(sender, soft, pin)
         }
     }
 
     /**
      * dry-runモード: 対象プラグインを表示のみ
      */
-    private suspend fun executeDryRun(sender: CommandSender) {
+    private suspend fun executeDryRun(sender: CommandSender, pin: Boolean) {
         sender.sendRichMessage("<gray>unmanagedプラグインをリポジトリから検索しています...")
 
         // unmanagedプラグイン一覧を取得
@@ -96,9 +99,11 @@ class AdoptCommand : KoinComponent {
 
         // 結果を表示
         if (matchedPlugins.isNotEmpty()) {
-            sender.sendRichMessage("<green>===== adoptされるプラグイン (${matchedPlugins.size}) =====")
+            val modeLabel = if (pin) "adoptされるプラグイン (pin)" else "adoptされるプラグイン"
+            sender.sendRichMessage("<green>===== $modeLabel (${matchedPlugins.size}) =====")
             matchedPlugins.forEach { name ->
-                sender.sendRichMessage("<green>-<reset> $name")
+                val pinInfo = if (pin) " <aqua>(バージョン固定を試行)</aqua>" else ""
+                sender.sendRichMessage("<green>-<reset> $name$pinInfo")
             }
         }
 
@@ -118,11 +123,15 @@ class AdoptCommand : KoinComponent {
      */
     private suspend fun executeAdopt(
         sender: CommandSender,
-        includeSoftDependencies: Boolean
+        includeSoftDependencies: Boolean,
+        pinToCurrentVersion: Boolean
     ) {
         sender.sendRichMessage("<gray>unmanagedプラグインをリポジトリから検索しています...")
+        if (pinToCurrentVersion) {
+            sender.sendRichMessage("<aqua>--pin: 既存JARのバージョンに固定します")
+        }
 
-        lifecycleService.adoptAll(includeSoftDependencies).fold(
+        lifecycleService.adoptAll(includeSoftDependencies, pinToCurrentVersion).fold(
             { error ->
                 sender.sendRichMessage("<red>${error.message}")
             },
@@ -133,6 +142,22 @@ class AdoptCommand : KoinComponent {
                     result.adoptedPlugins.forEach { addResult ->
                         val depMark = if (addResult.isDependency) "<gray>[依存]</gray> " else ""
                         displayInstallResult(sender, addResult.installResult, depMark)
+                    }
+                }
+
+                // バージョン固定されたプラグインを表示
+                if (result.pinnedPlugins.isNotEmpty()) {
+                    sender.sendRichMessage("<aqua>===== バージョン固定 (${result.pinnedPlugins.size}) =====")
+                    result.pinnedPlugins.forEach { name ->
+                        sender.sendRichMessage("<aqua>📌<reset> $name")
+                    }
+                }
+
+                // ハッシュ不一致の警告を表示
+                if (result.hashMismatchWarnings.isNotEmpty()) {
+                    sender.sendRichMessage("<yellow>===== ハッシュ検証の警告 (${result.hashMismatchWarnings.size}) =====")
+                    result.hashMismatchWarnings.forEach { (name, warning) ->
+                        sender.sendRichMessage("<yellow>⚠<reset> $name: $warning")
                     }
                 }
 

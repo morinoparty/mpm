@@ -109,6 +109,39 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
     }
 
     /**
+     * 指定されたバージョンの全ファイルのハッシュを取得する
+     *
+     * Modrinth APIのレスポンスに含まれるsha1ハッシュを返す。
+     * 複数artifactがある場合は全ファイルのsha1をカンマ区切りで返す。
+     * バージョンが見つからない場合はnullを返す。
+     *
+     * @param urlData ModrinthのURL情報
+     * @param versionName バージョン名
+     * @return ハッシュ情報のMap（例: {"sha1": "hash1,hash2,..."}）、見つからない場合はnull
+     */
+    override suspend fun getVersionHashesByName(
+        urlData: UrlData,
+        versionName: String
+    ): Map<String, String>? {
+        urlData as UrlData.ModrinthUrlData
+        // バージョン一覧を取得
+        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
+        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
+        val response = getRequest(url, "application/json")
+        val versions = json.decodeFromString<List<ModrinthVersion>>(response)
+
+        // 指定バージョンを検索
+        val matchedVersion = versions.firstOrNull { it.versionNumber == versionName } ?: return null
+
+        // 全ファイルのsha1ハッシュを収集（複数artifact対応）
+        val sha1Hashes = matchedVersion.files
+            .mapNotNull { it.hashes?.sha1 }
+        if (sha1Hashes.isEmpty()) return null
+
+        return mapOf("sha1" to sha1Hashes.joinToString(","))
+    }
+
+    /**
      * すべてのバージョンを取得
      * @param urlData ModrinthのURL情報
      * @return バージョンリスト（新しい順）
