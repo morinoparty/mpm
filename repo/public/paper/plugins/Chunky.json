@@ -1,0 +1,11 @@
+{
+  "id": "Chunky",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/chunky",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "fALzjamp"
+    }
+  ]
+}

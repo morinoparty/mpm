@@ -1,9 +1,9 @@
 {
-  "id": "GSit",
+  "id": "ChestCleaner",
   "repositories": [
     {
       "type": "spigotmc",
-      "id": "62325"
+      "id": "40313"
     }
   ]
 }

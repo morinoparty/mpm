@@ -1,0 +1,11 @@
+{
+  "id": "squaremap",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/squaremap",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "PFb7ZqK6"
+    }
+  ]
+}

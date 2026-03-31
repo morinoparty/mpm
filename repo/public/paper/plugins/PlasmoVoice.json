@@ -1,0 +1,11 @@
+{
+  "id": "PlasmoVoice",
+  "license": "LGPL-3.0-only",
+  "website": "https://modrinth.com/plugin/plasmo-voice",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "1bZhdhsH"
+    }
+  ]
+}

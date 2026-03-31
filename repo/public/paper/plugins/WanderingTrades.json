@@ -1,0 +1,11 @@
+{
+  "id": "WanderingTrades",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/wanderingtrades",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "ZfddU72x"
+    }
+  ]
+}

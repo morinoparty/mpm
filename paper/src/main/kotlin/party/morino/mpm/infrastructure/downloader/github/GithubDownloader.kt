@@ -14,6 +14,7 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.http.*
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -112,6 +113,49 @@ open class GithubDownloader(
         // githubのダウンロードではidを利用しない
         val id = responseJson["id"]?.jsonPrimitive?.content ?: "unknown"
         val tagName = responseJson["tag_name"]?.jsonPrimitive?.content ?: "unknown"
+        return VersionData(downloadId = id, version = tagName)
+    }
+
+    /**
+     * 指定されたタグ/チャンネルの最新バージョンを取得する
+     *
+     * GitHubのprereleaseフラグでフィルタリングする。
+     * GitHubはprereleaseの2値（true/false）しか持たないため、
+     * alpha/betaの区別は不可能で、どちらもprerelease扱いとなる。
+     *
+     * - "release" → prerelease == false
+     * - "beta" / "alpha" → prerelease == true（区別不可）
+     *
+     * @param urlData GitHubのURL情報
+     * @param tag タグ名（"release", "beta", "alpha"）
+     * @return 該当タグの最新バージョン、見つからない場合はnull
+     */
+    override suspend fun getLatestVersionByTag(
+        urlData: UrlData,
+        tag: String
+    ): VersionData? {
+        urlData as UrlData.GithubUrlData
+
+        // サポートされるタグのみ受け付ける（typo等を黙って通さない）
+        val supportedTags = setOf("release", "beta", "alpha")
+        if (tag.lowercase() !in supportedTags) return null
+
+        val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases"
+        val response = getRequest(url, "application/vnd.github+json")
+        val releases = json.parseToJsonElement(response).jsonArray
+
+        // タグに応じてprereleaseフラグでフィルタ
+        val isPrerelease = tag.equals("beta", ignoreCase = true) || tag.equals("alpha", ignoreCase = true)
+
+        val filtered = releases.filter { releaseElement ->
+            val releaseJson = releaseElement.jsonObject
+            val prerelease = releaseJson["prerelease"]?.jsonPrimitive?.boolean ?: false
+            prerelease == isPrerelease
+        }
+
+        val latest = filtered.firstOrNull()?.jsonObject ?: return null
+        val id = latest["id"]?.jsonPrimitive?.content ?: "unknown"
+        val tagName = latest["tag_name"]?.jsonPrimitive?.content ?: "unknown"
         return VersionData(downloadId = id, version = tagName)
     }
 

@@ -1,0 +1,11 @@
+{
+  "id": "RegionRaid",
+  "source": "https://github.com/OffLuffy/RegionRaid",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "OffLuffy/RegionRaid",
+      "fileNameRegex": ".*\\.jar$"
+    }
+  ]
+}

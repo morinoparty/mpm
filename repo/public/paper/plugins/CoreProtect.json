@@ -1,0 +1,11 @@
+{
+  "id": "CoreProtect",
+  "license": "Artistic-2.0",
+  "website": "https://modrinth.com/plugin/coreprotect",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "Lu3KuzdV"
+    }
+  ]
+}

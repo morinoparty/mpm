@@ -1,0 +1,11 @@
+{
+  "id": "AntiRaidFarm",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/antiraidfarm",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "Qm6qtEOC"
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 {
-  "id": "GSit",
+  "id": "WorldGuardExtraFlags",
   "repositories": [
     {
       "type": "spigotmc",
-      "id": "62325"
+      "id": "4823"
     }
   ]
 }

@@ -1,0 +1,14 @@
+{
+  "id": "MineAuth-addon-betonquest",
+  "source": "https://github.com/morinoparty/MineAuth",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/MineAuth",
+      "fileNameRegex": "MineAuth-addon-betonquest-.*\\.jar$"
+    }
+  ],
+  "dependencies": [
+    "MineAuth"
+  ]
+}

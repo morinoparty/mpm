@@ -1,0 +1,14 @@
+{
+  "id": "MineAuth-addon-voting-plugin",
+  "source": "https://github.com/morinoparty/MineAuth",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/MineAuth",
+      "fileNameRegex": "MineAuth-addon-voting-plugin-.*\\.jar$"
+    }
+  ],
+  "dependencies": [
+    "MineAuth"
+  ]
+}

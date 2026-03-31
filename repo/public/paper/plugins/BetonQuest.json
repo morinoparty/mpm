@@ -1,0 +1,11 @@
+{
+  "id": "BetonQuest",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/betonquest",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "uVhukxY9"
+    }
+  ]
+}

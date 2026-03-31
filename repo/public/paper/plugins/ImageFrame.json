@@ -1,0 +1,11 @@
+{
+  "id": "ImageFrame",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/imageframe",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "lJFOpcEj"
+    }
+  ]
+}

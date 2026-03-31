@@ -307,10 +307,25 @@ class PluginLifecycleServiceImpl :
                 else -> return MpmError.PluginError.UnsupportedRepository(repositoryInfo.type.name).left()
             }
 
-        // 最新バージョン情報を取得
+        // mpm.jsonからVersionSpecifierを取得してTag指定か判定
+        val project = projectRepository.find()
+        val pluginSpec = project?.getPluginSpec(name)
+        val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
+
+        // 最新バージョン情報を取得（Tag指定の場合はそのタグでフィルタ）
         val latestVersionData =
             try {
-                downloaderRepository.getLatestVersion(urlData)
+                if (versionSpecifier is VersionSpecifier.Tag) {
+                    // Tag指定: 該当タグの最新バージョンを取得（見つからなければエラー）
+                    downloaderRepository.getLatestVersionByTag(urlData, versionSpecifier.tag)
+                        ?: return MpmError.PluginError
+                            .VersionResolutionFailed(
+                                pluginName,
+                                "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                            ).left()
+                } else {
+                    downloaderRepository.getLatestVersion(urlData)
+                }
             } catch (e: Exception) {
                 return MpmError.PluginError
                     .VersionResolutionFailed(
@@ -803,7 +818,16 @@ class PluginLifecycleServiceImpl :
                 }
             }
             is LegacyVersionSpecifier.Tag -> {
-                MpmError.PluginError.VersionResolutionFailed(pluginName, "tag: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
+                try {
+                    val result = downloaderRepository.getLatestVersionByTag(urlData, version.tag)
+                    result?.right()
+                        ?: MpmError.PluginError.VersionResolutionFailed(
+                            pluginName,
+                            "tag '${version.tag}' に該当するバージョンが見つかりません"
+                        ).left()
+                } catch (e: Exception) {
+                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                }
             }
             is LegacyVersionSpecifier.Pattern -> {
                 MpmError.PluginError.VersionResolutionFailed(pluginName, "pattern: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
@@ -853,11 +877,12 @@ class PluginLifecycleServiceImpl :
         }
 
         // ターゲットのバージョンを解決
-        val resolvedVersion =
-            if (targetManaged.versionRequirement is VersionSpecifier.Latest) {
+        val resolvedVersion = when (targetManaged.versionRequirement) {
+            is VersionSpecifier.Latest, is VersionSpecifier.Tag -> {
+                // Latest/Tag: メタデータがあれば現在のバージョンを使用、なければリポジトリから解決
                 metadataManager.loadMetadata(version.targetPlugin).fold(
                     {
-                        // メタデータがない場合はターゲットのリポジトリから最新バージョンを取得
+                        // メタデータがない場合はターゲットのリポジトリからバージョンを取得
                         val targetRepo =
                             repositoryManager
                                 .getRepositoryFile(version.targetPlugin)
@@ -876,7 +901,18 @@ class PluginLifecycleServiceImpl :
                                         "Unsupported repository type"
                                     ).left()
                         try {
-                            downloaderRepository.getLatestVersion(targetUrlData).version
+                            val targetReq = targetManaged.versionRequirement
+                            if (targetReq is VersionSpecifier.Tag) {
+                                // Tag指定: 該当チャンネルの最新バージョンを取得
+                                downloaderRepository.getLatestVersionByTag(targetUrlData, targetReq.tag)?.version
+                                    ?: return MpmError.PluginError
+                                        .VersionResolutionFailed(
+                                            pluginName,
+                                            "tag '${targetReq.tag}' に該当するバージョンが見つかりません"
+                                        ).left()
+                            } else {
+                                downloaderRepository.getLatestVersion(targetUrlData).version
+                            }
                         } catch (e: Exception) {
                             return MpmError.PluginError
                                 .VersionResolutionFailed(
@@ -887,12 +923,18 @@ class PluginLifecycleServiceImpl :
                     },
                     { it.mpmInfo.version.current.raw }
                 )
-            } else {
-                // Fixed, Tag, Patternの場合はバージョン文字列をDTO経由で取得
+            }
+            is VersionSpecifier.Fixed -> {
+                // Fixed: 指定されたバージョン文字列をそのまま使用
+                (targetManaged.versionRequirement as VersionSpecifier.Fixed).version
+            }
+            else -> {
+                // Pattern等: DTO経由で取得
                 val dto = project.toDto()
                 dto.plugins[version.targetPlugin] ?: return MpmError.PluginError
                     .VersionResolutionFailed(pluginName, "Target version not found").left()
             }
+        }
 
         // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
         return try {

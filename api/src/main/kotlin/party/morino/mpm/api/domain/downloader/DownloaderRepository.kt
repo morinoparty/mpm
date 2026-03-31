@@ -67,6 +67,21 @@ interface DownloaderRepository {
     ): Map<String, String>? = null
 
     /**
+     * 指定されたタグ/チャンネルの最新バージョンを取得する
+     *
+     * Modrinthのversion_type（release/beta/alpha）やGitHubのprereleaseフラグに対応。
+     * 非対応リポジトリではnullを返す。
+     *
+     * @param urlData URLデータ
+     * @param tag リリースチャンネル名（"release", "beta", "alpha"）
+     * @return 該当チャンネルの最新バージョン、非対応または見つからない場合はnull
+     */
+    suspend fun getLatestVersionByTag(
+        urlData: UrlData,
+        tag: String
+    ): VersionData? = null
+
+    /**
      * すべてのバージョンを取得
      * @param urlData URLデータ
      * @return バージョンリスト（新しい順）

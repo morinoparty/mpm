@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
  * Modrinthバージョン情報
  * @param id バージョンID
  * @param versionNumber バージョン番号
+ * @param versionType リリースタイプ（"release", "beta", "alpha"）
  * @param files ファイルリスト
  * example: https://api.modrinth.com/v2/project/quickshop-hikari/version?loaders=["paper", "spigot"]
  */
@@ -24,5 +25,7 @@ data class ModrinthVersion(
     val id: String,
     @SerialName("version_number")
     val versionNumber: String,
+    @SerialName("version_type")
+    val versionType: String? = null,
     val files: List<ModrinthVersionFile>
 )

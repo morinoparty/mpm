@@ -1,0 +1,11 @@
+{
+  "id": "PlaceholderAPI",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/placeholderapi",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "lKEzGugV"
+    }
+  ]
+}

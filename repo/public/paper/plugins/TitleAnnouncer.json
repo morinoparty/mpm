@@ -1,0 +1,11 @@
+{
+  "id": "TitleAnnouncer",
+  "license": "GPL-3.0-or-later",
+  "website": "https://modrinth.com/plugin/titleannouncer",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "d769vI4q"
+    }
+  ]
+}

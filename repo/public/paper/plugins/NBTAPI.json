@@ -1,0 +1,11 @@
+{
+  "id": "NBTAPI",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/nbtapi",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "nfGCP9fk"
+    }
+  ]
+}

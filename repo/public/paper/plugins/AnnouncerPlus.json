@@ -1,0 +1,11 @@
+{
+  "id": "AnnouncerPlus",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/announcer-plus",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "g8XCro6n"
+    }
+  ]
+}

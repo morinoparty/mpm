@@ -1,0 +1,14 @@
+{
+  "id": "MineAuth-addon-griefprevention",
+  "source": "https://github.com/morinoparty/MineAuth",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/MineAuth",
+      "fileNameRegex": "MineAuth-addon-griefprevention-.*\\.jar$"
+    }
+  ],
+  "dependencies": [
+    "MineAuth"
+  ]
+}

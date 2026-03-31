@@ -1,0 +1,11 @@
+{
+  "id": "PlugManX",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/plugmanx",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "yro4niHu"
+    }
+  ]
+}

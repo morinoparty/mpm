@@ -1,9 +1,9 @@
 {
-  "id": "GSit",
+  "id": "VotingPlugin",
   "repositories": [
     {
       "type": "spigotmc",
-      "id": "62325"
+      "id": "15358"
     }
   ]
 }

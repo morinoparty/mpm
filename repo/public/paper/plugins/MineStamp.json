@@ -1,0 +1,11 @@
+{
+  "id": "MineStamp",
+  "license": "CC0-1.0",
+  "website": "https://modrinth.com/plugin/minestamp",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "SdV5cyLq"
+    }
+  ]
+}

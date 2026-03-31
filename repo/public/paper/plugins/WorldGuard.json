@@ -1,0 +1,11 @@
+{
+  "id": "WorldGuard",
+  "license": "LGPL-3.0-only",
+  "website": "https://modrinth.com/plugin/worldguard",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "DKY9btbd"
+    }
+  ]
+}

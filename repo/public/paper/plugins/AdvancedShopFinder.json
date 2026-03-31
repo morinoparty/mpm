@@ -1,0 +1,11 @@
+{
+  "id": "AdvancedShopFinder",
+  "source": "https://github.com/Nlkomaru/AdvancedShopFinder",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "Nlkomaru/AdvancedShopFinder",
+      "fileNameRegex": ".*\\.jar$"
+    }
+  ]
+}
