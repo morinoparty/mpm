@@ -29,6 +29,7 @@ import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
@@ -189,10 +190,21 @@ class PluginInfoServiceImpl :
             createUrlData(firstRepository.type, firstRepository.repositoryId)
                 ?: return MpmError.PluginError.UnsupportedRepository(firstRepository.type).left()
 
-        // 最新バージョンを取得
+        // tag:指定の場合は該当チャンネルの最新、それ以外は絶対的な最新を取得
+        val pluginSpec = project.getPluginSpec(name)
+        val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
         val latestVersion =
             try {
-                downloaderRepository.getLatestVersion(urlData)
+                if (versionSpecifier is VersionSpecifier.Tag) {
+                    downloaderRepository.getLatestVersionByTag(urlData, versionSpecifier.tag)
+                        ?: return MpmError.PluginError
+                            .VersionResolutionFailed(
+                                name.value,
+                                "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                            ).left()
+                } else {
+                    downloaderRepository.getLatestVersion(urlData)
+                }
             } catch (e: Exception) {
                 return MpmError.PluginError
                     .VersionResolutionFailed(
