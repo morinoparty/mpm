@@ -877,11 +877,12 @@ class PluginLifecycleServiceImpl :
         }
 
         // ターゲットのバージョンを解決
-        val resolvedVersion =
-            if (targetManaged.versionRequirement is VersionSpecifier.Latest) {
+        val resolvedVersion = when (targetManaged.versionRequirement) {
+            is VersionSpecifier.Latest, is VersionSpecifier.Tag -> {
+                // Latest/Tag: メタデータがあれば現在のバージョンを使用、なければリポジトリから解決
                 metadataManager.loadMetadata(version.targetPlugin).fold(
                     {
-                        // メタデータがない場合はターゲットのリポジトリから最新バージョンを取得
+                        // メタデータがない場合はターゲットのリポジトリからバージョンを取得
                         val targetRepo =
                             repositoryManager
                                 .getRepositoryFile(version.targetPlugin)
@@ -900,7 +901,18 @@ class PluginLifecycleServiceImpl :
                                         "Unsupported repository type"
                                     ).left()
                         try {
-                            downloaderRepository.getLatestVersion(targetUrlData).version
+                            val targetReq = targetManaged.versionRequirement
+                            if (targetReq is VersionSpecifier.Tag) {
+                                // Tag指定: 該当チャンネルの最新バージョンを取得
+                                downloaderRepository.getLatestVersionByTag(targetUrlData, targetReq.tag)?.version
+                                    ?: return MpmError.PluginError
+                                        .VersionResolutionFailed(
+                                            pluginName,
+                                            "tag '${targetReq.tag}' に該当するバージョンが見つかりません"
+                                        ).left()
+                            } else {
+                                downloaderRepository.getLatestVersion(targetUrlData).version
+                            }
                         } catch (e: Exception) {
                             return MpmError.PluginError
                                 .VersionResolutionFailed(
@@ -911,12 +923,18 @@ class PluginLifecycleServiceImpl :
                     },
                     { it.mpmInfo.version.current.raw }
                 )
-            } else {
-                // Fixed, Tag, Patternの場合はバージョン文字列をDTO経由で取得
+            }
+            is VersionSpecifier.Fixed -> {
+                // Fixed: 指定されたバージョン文字列をそのまま使用
+                (targetManaged.versionRequirement as VersionSpecifier.Fixed).version
+            }
+            else -> {
+                // Pattern等: DTO経由で取得
                 val dto = project.toDto()
                 dto.plugins[version.targetPlugin] ?: return MpmError.PluginError
                     .VersionResolutionFailed(pluginName, "Target version not found").left()
             }
+        }
 
         // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
         return try {

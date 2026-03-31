@@ -135,6 +135,11 @@ open class GithubDownloader(
         tag: String
     ): VersionData? {
         urlData as UrlData.GithubUrlData
+
+        // サポートされるタグのみ受け付ける（typo等を黙って通さない）
+        val supportedTags = setOf("release", "beta", "alpha")
+        if (tag.lowercase() !in supportedTags) return null
+
         val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases"
         val response = getRequest(url, "application/vnd.github+json")
         val releases = json.parseToJsonElement(response).jsonArray
