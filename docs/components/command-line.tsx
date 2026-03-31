@@ -31,11 +31,11 @@ export const CommandLine: React.FC<CommandLineProps> = ({ status, command }) => 
     // 背景色を状態に応じて設定
     const getBackgroundColor = (status: string): string => {
         const colors: { [key: string]: string } = {
-            stable: "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800",
-            newly: "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800",
-            beta: "bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800",
-            proposal: "bg-gray-50 border-gray-200 dark:bg-gray-950/30 dark:border-gray-700",
-            deprecated: "bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-800",
+            stable: "bg-green-100 border-green-300 dark:bg-green-900/50 dark:border-green-700",
+            newly: "bg-blue-100 border-blue-300 dark:bg-blue-900/50 dark:border-blue-700",
+            beta: "bg-orange-100 border-orange-300 dark:bg-orange-900/50 dark:border-orange-700",
+            proposal: "bg-gray-100 border-gray-300 dark:bg-gray-800/50 dark:border-gray-600",
+            deprecated: "bg-purple-100 border-purple-300 dark:bg-purple-900/50 dark:border-purple-700",
         };
         return colors[status] || "bg-fd-secondary border";
     };
