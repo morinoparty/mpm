@@ -4,16 +4,16 @@ import type { ReactNode } from "react";
 import { Provider } from "@/components/provider";
 
 export const metadata: Metadata = {
-    title: {
-        template: "%s | MPM",
-        default: "MinecraftPluginManager Documentation",
-    },
-    description: "Minecraft plugin manager for easy plugin installation and management",
+	title: {
+		template: "%s | PluginName",
+		default: "PluginName Documentation",
+	},
+	description: "A Minecraft plugin",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
     return (
-        <html lang="ja" suppressHydrationWarning>
+        <html lang="ja">
             <head>
                 {/* Satoshi font */}
                 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@1&display=swap" />

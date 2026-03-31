@@ -5,16 +5,15 @@ export function baseOptions(): BaseLayoutProps {
         nav: {
             title: (
                 <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">MPM</span>
+                    <span className="text-lg font-bold">PluginName</span>
                 </div>
             ),
             transparentMode: "top",
         },
         themeSwitch: {
-            enabled: true,
-            mode: "light-dark",
+            enabled: false,
         },
-        githubUrl: "https://github.com/morinoparty/mpm",
-        modrinthUrl: "https://modrinth.com/plugin/mpm-package",
+        modrinthUrl: "https://modrinth.com/plugin/pluginname",
+        githubUrl: "https://github.com/morinoparty/PluginName",
     };
 }

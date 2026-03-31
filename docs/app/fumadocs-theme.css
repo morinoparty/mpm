@@ -1,6 +1,6 @@
 :root {
-    --color-fd-background: var(--mpc-colors-color-palette-bg-subtle);
-    --color-fd-background-muted: var(--mpc-colors-color-palette-bg);
+    --color-fd-background: var(--mpc-colors-color-palette-bg);
+    --color-fd-background-muted: var(--mpc-colors-color-palette-bg-subtle);
     --color-fd-secondary: var(--mpc-colors-color-palette-surface);
     --color-fd-secondary-hover: var(--mpc-colors-color-palette-surface-hover);
 
