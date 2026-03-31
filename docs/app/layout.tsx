@@ -4,11 +4,11 @@ import type { ReactNode } from "react";
 import { Provider } from "@/components/provider";
 
 export const metadata: Metadata = {
-	title: {
-		template: "%s | PluginName",
-		default: "PluginName Documentation",
-	},
-	description: "A Minecraft plugin",
+    title: {
+        template: "%s | MPM",
+        default: "MinecraftPluginManager Documentation",
+    },
+    description: "Minecraft plugin manager for easy plugin installation and management",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
