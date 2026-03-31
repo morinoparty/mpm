@@ -10,5 +10,9 @@
   ],
   "dependencies": [
     "MineAuth"
-  ]
+  ],
+  "softDependencies": [
+    "QuickShop-Hikari"
+  ],
+  "defaultVersion": "sync:MineAuth"
 }
