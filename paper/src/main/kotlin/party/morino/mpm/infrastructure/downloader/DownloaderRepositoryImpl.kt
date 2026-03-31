@@ -157,6 +157,23 @@ class DownloaderRepositoryImpl :
         }
 
     /**
+     * 指定されたタグ/チャンネルの最新バージョンを取得する
+     */
+    override suspend fun getLatestVersionByTag(
+        urlData: UrlData,
+        tag: String
+    ): VersionData? =
+        when (urlData) {
+            is UrlData.ModrinthUrlData -> {
+                modrinthDownloader.getLatestVersionByTag(urlData, tag)
+            }
+            is UrlData.GithubUrlData -> {
+                githubDownloader.getLatestVersionByTag(urlData, tag)
+            }
+            else -> null
+        }
+
+    /**
      * 指定されたバージョンのファイルハッシュを取得する
      * Modrinthのみ対応。その他のリポジトリではnullを返す。
      */

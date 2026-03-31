@@ -60,19 +60,23 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
     }
 
     /**
+     * Modrinthのバージョン一覧を取得するヘルパー
+     */
+    private suspend fun fetchVersions(urlData: UrlData.ModrinthUrlData): List<ModrinthVersion> {
+        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
+        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
+        val response = getRequest(url, "application/json")
+        return json.decodeFromString<List<ModrinthVersion>>(response)
+    }
+
+    /**
      * 最新バージョンを取得
      * @param urlData ModrinthのURL情報
      * @return 最新バージョン名
      */
     override suspend fun getLatestVersion(urlData: UrlData): VersionData {
         urlData as UrlData.ModrinthUrlData
-        // Modrinthのバージョン一覧APIを呼び出す
-        // loaders=["paper","spigot"]でフィルタリングする
-        // URLエンコードが必要な特殊文字を含むため、手動でエンコード
-        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
-        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
-        val response = getRequest(url, "application/json")
-        val versions = json.decodeFromString<List<ModrinthVersion>>(response)
+        val versions = fetchVersions(urlData)
 
         if (versions.isEmpty()) {
             throw Exception("このプロジェクトにはPaper/Spigot対応バージョンがありません")
@@ -81,6 +85,30 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
         // 最初のバージョン（最新版）を返す
         val latestVersion = versions[0]
         return VersionData(downloadId = latestVersion.id, version = latestVersion.versionNumber)
+    }
+
+    /**
+     * 指定されたタグ/チャンネルの最新バージョンを取得する
+     *
+     * Modrinthのversion_type（release, beta, alpha）でフィルタリングする。
+     *
+     * @param urlData ModrinthのURL情報
+     * @param tag タグ名（"release", "beta", "alpha"）
+     * @return 該当タグの最新バージョン、見つからない場合はnull
+     */
+    override suspend fun getLatestVersionByTag(
+        urlData: UrlData,
+        tag: String
+    ): VersionData? {
+        urlData as UrlData.ModrinthUrlData
+        val versions = fetchVersions(urlData)
+
+        // version_typeがタグに一致するバージョンをフィルタ
+        val filtered = versions.filter { it.versionType.equals(tag, ignoreCase = true) }
+
+        // フィルタ後の最初のバージョン（最新）を返す
+        val latest = filtered.firstOrNull() ?: return null
+        return VersionData(downloadId = latest.id, version = latest.versionNumber)
     }
 
     /**
@@ -94,11 +122,7 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
         versionName: String
     ): VersionData {
         urlData as UrlData.ModrinthUrlData
-        // Modrinthのバージョン一覧APIを呼び出す
-        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
-        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
-        val response = getRequest(url, "application/json")
-        val versions = json.decodeFromString<List<ModrinthVersion>>(response)
+        val versions = fetchVersions(urlData)
 
         // 指定されたバージョン名に一致するバージョンを探す
         val matchedVersion =
@@ -124,11 +148,7 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
         versionName: String
     ): Map<String, String>? {
         urlData as UrlData.ModrinthUrlData
-        // バージョン一覧を取得
-        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
-        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
-        val response = getRequest(url, "application/json")
-        val versions = json.decodeFromString<List<ModrinthVersion>>(response)
+        val versions = fetchVersions(urlData)
 
         // 指定バージョンを検索
         val matchedVersion = versions.firstOrNull { it.versionNumber == versionName } ?: return null
@@ -148,12 +168,7 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
      */
     override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
         urlData as UrlData.ModrinthUrlData
-        // Modrinthのバージョン一覧APIを呼び出す
-        // loaders=["paper","spigot"]でフィルタリングする
-        val loadersParam = java.net.URLEncoder.encode("[\"paper\",\"spigot\"]", "UTF-8")
-        val url = "https://api.modrinth.com/v2/project/${urlData.id}/version?loaders=$loadersParam"
-        val response = getRequest(url, "application/json")
-        val versions = json.decodeFromString<List<ModrinthVersion>>(response)
+        val versions = fetchVersions(urlData)
 
         // バージョン情報のリストに変換
         return versions.map { modrinthVersion ->

@@ -307,10 +307,25 @@ class PluginLifecycleServiceImpl :
                 else -> return MpmError.PluginError.UnsupportedRepository(repositoryInfo.type.name).left()
             }
 
-        // 最新バージョン情報を取得
+        // mpm.jsonからVersionSpecifierを取得してTag指定か判定
+        val project = projectRepository.find()
+        val pluginSpec = project?.getPluginSpec(name)
+        val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
+
+        // 最新バージョン情報を取得（Tag指定の場合はそのタグでフィルタ）
         val latestVersionData =
             try {
-                downloaderRepository.getLatestVersion(urlData)
+                if (versionSpecifier is VersionSpecifier.Tag) {
+                    // Tag指定: 該当タグの最新バージョンを取得（見つからなければエラー）
+                    downloaderRepository.getLatestVersionByTag(urlData, versionSpecifier.tag)
+                        ?: return MpmError.PluginError
+                            .VersionResolutionFailed(
+                                pluginName,
+                                "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                            ).left()
+                } else {
+                    downloaderRepository.getLatestVersion(urlData)
+                }
             } catch (e: Exception) {
                 return MpmError.PluginError
                     .VersionResolutionFailed(
@@ -803,7 +818,16 @@ class PluginLifecycleServiceImpl :
                 }
             }
             is LegacyVersionSpecifier.Tag -> {
-                MpmError.PluginError.VersionResolutionFailed(pluginName, "tag: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
+                try {
+                    val result = downloaderRepository.getLatestVersionByTag(urlData, version.tag)
+                    result?.right()
+                        ?: MpmError.PluginError.VersionResolutionFailed(
+                            pluginName,
+                            "tag '${version.tag}' に該当するバージョンが見つかりません"
+                        ).left()
+                } catch (e: Exception) {
+                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                }
             }
             is LegacyVersionSpecifier.Pattern -> {
                 MpmError.PluginError.VersionResolutionFailed(pluginName, "pattern: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
