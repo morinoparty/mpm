@@ -126,6 +126,8 @@ open class GithubDownloader(
      * - "release" → prerelease == false
      * - "beta" / "alpha" → prerelease == true（区別不可）
      *
+     * GitHub APIはデフォルト30件/ページのため、per_page=100でページネーションを行う。
+     *
      * @param urlData GitHubのURL情報
      * @param tag タグ名（"release", "beta", "alpha"）
      * @return 該当タグの最新バージョン、見つからない場合はnull
@@ -140,23 +142,43 @@ open class GithubDownloader(
         val supportedTags = setOf("release", "beta", "alpha")
         if (tag.lowercase() !in supportedTags) return null
 
-        val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases"
-        val response = getRequest(url, "application/vnd.github+json")
-        val releases = json.parseToJsonElement(response).jsonArray
-
         // タグに応じてprereleaseフラグでフィルタ
         val isPrerelease = tag.equals("beta", ignoreCase = true) || tag.equals("alpha", ignoreCase = true)
 
-        val filtered = releases.filter { releaseElement ->
-            val releaseJson = releaseElement.jsonObject
-            val prerelease = releaseJson["prerelease"]?.jsonPrimitive?.boolean ?: false
-            prerelease == isPrerelease
+        // ページネーション: per_page=100で最大10ページまで走査
+        val perPage = 100
+        val maxPages = 10
+        for (page in 1..maxPages) {
+            val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}" +
+                "/releases?per_page=$perPage&page=$page"
+            val response = getRequest(url, "application/vnd.github+json")
+            val releases = json.parseToJsonElement(response).jsonArray
+
+            // 空ページ = 全リリース走査完了
+            if (releases.isEmpty()) return null
+
+            // 該当チャンネルの最初のリリースを返す（新しい順）
+            // draftリリースは除外（認証トークン付きだとdraftも返される）
+            val matched = releases.firstOrNull { releaseElement ->
+                val releaseJson = releaseElement.jsonObject
+                val draft = releaseJson["draft"]?.jsonPrimitive?.boolean ?: false
+                if (draft) return@firstOrNull false
+                val prerelease = releaseJson["prerelease"]?.jsonPrimitive?.boolean ?: false
+                prerelease == isPrerelease
+            }
+
+            if (matched != null) {
+                val obj = matched.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: "unknown"
+                val tagName = obj["tag_name"]?.jsonPrimitive?.content ?: "unknown"
+                return VersionData(downloadId = id, version = tagName)
+            }
+
+            // このページが最終ページなら終了（取得件数がper_page未満）
+            if (releases.size < perPage) return null
         }
 
-        val latest = filtered.firstOrNull()?.jsonObject ?: return null
-        val id = latest["id"]?.jsonPrimitive?.content ?: "unknown"
-        val tagName = latest["tag_name"]?.jsonPrimitive?.content ?: "unknown"
-        return VersionData(downloadId = id, version = tagName)
+        return null
     }
 
     /**
