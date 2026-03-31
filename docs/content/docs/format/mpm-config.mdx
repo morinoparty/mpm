@@ -145,6 +145,7 @@ your-server/
     "plugins": {
         "LuckPerms": "5.4.97",
         "Vault": "latest",
+        "CarbonChat": "tag:beta",
         "EssentialsX": "unmanaged",
         "QuickShop-Hikari-Addon": "sync:QuickShop-Hikari"
     }
@@ -160,10 +161,45 @@ your-server/
 |------|------|-----|
 | `"X.Y.Z"` | 固定バージョン | `"5.4.97"` |
 | `"latest"` | 最新バージョン | `"latest"` |
+| `"tag:チャンネル"` | リリースチャンネル指定 | `"tag:beta"` |
 | `"sync:PluginName"` | 別プラグインと同期 | `"sync:QuickShop"` |
 | `"unmanaged"` | 手動管理 | `"unmanaged"` |
 
-#### sync指定（バージョン同期）
+#### 🏷️ tag指定（リリースチャンネル）
+
+`tag:チャンネル名` 形式を使用すると、特定のリリースチャンネル（安定版、ベータ版など）の最新バージョンを自動的に取得できます。
+
+```json
+{
+    "plugins": {
+        "CarbonChat": "tag:beta",
+        "LuckPerms": "tag:release"
+    }
+}
+```
+
+**サポートされるチャンネル:**
+
+| チャンネル | 説明 |
+|-----------|------|
+| `release` | 安定版リリースのみ |
+| `beta` | ベータ版リリース |
+| `alpha` | アルファ版リリース |
+
+**プラットフォーム別の対応状況:**
+
+| プラットフォーム | 対応状況 | 備考 |
+|----------------|---------|------|
+| Modrinth | ✅ 対応 | `version_type` フィールドでフィルタリング。`release`/`beta`/`alpha` を区別可能 |
+| GitHub | ✅ 対応 | `prerelease` フラグでフィルタリング。`beta` と `alpha` は区別不可（どちらも prerelease 扱い） |
+| SpigotMC | ❌ 非対応 | チャンネルの概念がないため、`tag:` 指定時はエラーになります |
+
+<Callout type="warn" title="GitHubでの制限">
+GitHubは `prerelease` の2値（true/false）しか持たないため、`tag:beta` と `tag:alpha` は同じ結果を返します。
+ベータ版とアルファ版を明確に区別したい場合は、Modrinthの使用を推奨します。
+</Callout>
+
+#### 🔗 sync指定（バージョン同期）
 
 `sync:PluginName` 形式を使用すると、アドオンプラグインを親プラグインのバージョンに同期できます。
 

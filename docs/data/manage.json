@@ -31,6 +31,10 @@
                 {
                     "name": "--soft",
                     "required": false
+                },
+                {
+                    "name": "--force",
+                    "required": false
                 }
             ]
         },
@@ -48,15 +52,25 @@
                 {
                     "name": "--dry-run",
                     "required": false
+                },
+                {
+                    "name": "--pin",
+                    "required": false
                 }
             ]
         },
         {
-            "command": "mpm install",
+            "command": "mpm install [[options]]",
             "status": "stable",
             "category": "manage",
             "section": "インストール・追加",
-            "description": "`mpm-config.json`に記載されたすべてのプラグインをインストールします"
+            "description": "`mpm.json`に記載されたすべてのプラグインをインストールします",
+            "arguments": [
+                {
+                    "name": "--force",
+                    "required": false
+                }
+            ]
         },
         {
             "command": "mpm uninstall <pluginName>",
@@ -72,7 +86,7 @@
             ]
         },
         {
-            "command": "mpm remove <pluginName>",
+            "command": "mpm remove <pluginName> [[options]]",
             "status": "newly",
             "category": "manage",
             "section": "アンインストール・削除",
@@ -81,6 +95,10 @@
                 {
                     "name": "pluginName",
                     "required": true
+                },
+                {
+                    "name": "--force",
+                    "required": false
                 }
             ]
         },
@@ -154,11 +172,21 @@
             ]
         },
         {
-            "command": "mpm update",
+            "command": "mpm update [[options]]",
             "status": "newly",
             "category": "manage",
             "section": "更新管理",
-            "description": "新しいバージョンがあるプラグインを更新します"
+            "description": "新しいバージョンがあるプラグインを更新します",
+            "arguments": [
+                {
+                    "name": "--force",
+                    "required": false
+                },
+                {
+                    "name": "--dry-run",
+                    "required": false
+                }
+            ]
         },
         {
             "command": "mpm lock <plugin>",
