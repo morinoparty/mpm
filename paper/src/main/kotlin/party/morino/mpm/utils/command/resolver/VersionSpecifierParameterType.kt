@@ -11,6 +11,7 @@ package party.morino.mpm.utils.command.resolver
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginInfoService
@@ -35,6 +36,7 @@ class VersionSpecifierParameterType :
     KoinComponent {
     // PluginInfoServiceをKoinから注入
     private val infoService: PluginInfoService by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * コマンド引数からVersionSpecifierを解析する
@@ -60,23 +62,28 @@ class VersionSpecifierParameterType :
      */
     override fun defaultSuggestions(): SuggestionProvider<BukkitCommandActor> {
         return SuggestionProvider { ctx ->
-            val plugin = ctx.getResolvedArgumentOrNull(RepositoryPlugin::class.java)
-            return@SuggestionProvider plugin?.let {
-                // プラグインの利用可能なバージョンを取得
-                // getVersions()はsuspend関数のため、Dispatchers.IOで実行
-                val versions =
-                    runBlocking(Dispatchers.IO) {
-                        infoService.getVersions(PluginName(plugin.pluginId)).fold(
-                            // エラーの場合は空リストを返す
-                            { emptyList() },
-                            // 成功した場合はバージョン文字列のリストを返す
-                            { versionDetails -> versionDetails.map { it.raw } }
-                        )
-                    }
+            try {
+                val repoPlugin = ctx.getResolvedArgumentOrNull(RepositoryPlugin::class.java)
+                return@SuggestionProvider repoPlugin?.let {
+                    // プラグインの利用可能なバージョンを取得
+                    // getVersions()はsuspend関数のため、Dispatchers.IOで実行
+                    val versions =
+                        runBlocking(Dispatchers.IO) {
+                            infoService.getVersions(PluginName(repoPlugin.pluginId)).fold(
+                                // エラーの場合は空リストを返す
+                                { emptyList() },
+                                // 成功した場合はバージョン文字列のリストを返す
+                                { versionDetails -> versionDetails.map { it.raw } }
+                            )
+                        }
 
-                // バージョン文字列のリスト（新しい順）と"latest"を返す
-                versions + listOf("latest")
-            } ?: listOf("latest")
+                    // バージョン文字列のリスト（新しい順）と"latest"を返す
+                    versions + listOf("latest")
+                } ?: listOf("latest")
+            } catch (e: Exception) {
+                plugin.logger.warning("Tab補完でバージョン一覧の取得に失敗: ${e.message}")
+                listOf("latest")
+            }
         }
     }
 }
