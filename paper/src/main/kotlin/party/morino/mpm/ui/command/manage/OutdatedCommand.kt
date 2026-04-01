@@ -13,8 +13,6 @@ import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginInfoService
-import party.morino.mpm.api.domain.plugin.model.PluginName
-import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Description
 import revxrsal.commands.annotation.Subcommand
@@ -22,9 +20,8 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
  * プラグイン更新確認コマンドのコントローラー
- * プレゼンテーション層とユースケース層の橋渡しを行う
- * mpm outdated <plugin> - プラグインの更新を確認
- * mpm outdatedAll - すべてのプラグインの更新を確認
+ *
+ * mpm outdated - すべての管理下プラグインの更新を確認
  */
 @Command("mpm")
 @CommandPermission("mpm.command.list")
@@ -32,54 +29,20 @@ class OutdatedCommand : KoinComponent {
     // Koinによる依存性注入
     private val infoService: PluginInfoService by inject()
 
-    @Subcommand("outdated")
-    @Description("指定されたプラグインの更新を確認します。")
-    suspend fun outdated(
-        sender: CommandSender,
-        plugin: InstalledPlugin
-    ) {
-        val pluginId = plugin.pluginId
-        sender.sendRichMessage("<gray>プラグイン '$pluginId' の更新を確認しています...</gray>")
-
-        // PluginInfoServiceを実行
-        infoService.checkOutdated(PluginName(pluginId)).fold(
-            // 失敗時の処理
-            { error ->
-                sender.sendRichMessage("<red>${error.message}</red>")
-            },
-            // 成功時の処理
-            { outdatedInfo ->
-                if (outdatedInfo == null) {
-                    sender.sendRichMessage("<green>プラグイン '$pluginId' は最新です</green>")
-                } else if (outdatedInfo.needsUpdate) {
-                    sender.sendRichMessage("<yellow>プラグイン '${outdatedInfo.pluginName}' の更新があります:</yellow>")
-                    sender.sendRichMessage("  現在: ${outdatedInfo.currentVersion}")
-                    sender.sendRichMessage("<green>  最新: ${outdatedInfo.latestVersion}</green>")
-                    sender.sendRichMessage("<gray>更新するには 'mpm update' を実行してください。</gray>")
-                } else {
-                    sender.sendRichMessage(
-                        "<green>プラグイン '${outdatedInfo.pluginName}' は最新です (${outdatedInfo.currentVersion})</green>"
-                    )
-                }
-            }
-        )
-    }
-
     /**
      * すべての管理下プラグインの更新を確認するコマンド
+     *
      * @param sender コマンド送信者
      */
-    @Subcommand("outdatedAll")
-    suspend fun outdatedAll(sender: CommandSender) {
+    @Subcommand("outdated")
+    @Description("すべてのプラグインの更新を確認します。")
+    suspend fun outdated(sender: CommandSender) {
         sender.sendRichMessage("<gray>すべてのプラグインの更新を確認しています...</gray>")
 
-        // PluginInfoServiceを実行
         infoService.checkAllOutdated().fold(
-            // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
             },
-            // 成功時の処理
             { result ->
                 // チェックに失敗したプラグインを警告表示
                 result.errors.forEach { checkError ->
