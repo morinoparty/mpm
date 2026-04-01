@@ -29,10 +29,10 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
  * すべてのunmanagedプラグインをリポジトリから検索し、
  * 見つかった場合はmanaged状態に変更してダウンロードする
  *
- * mpm adopt           - すべてのunmanagedプラグインをadopt
+ * mpm adopt           - すべてのunmanagedプラグインをadopt（既存バージョンに固定）
  * mpm adopt --dry-run - 対象プラグインを表示のみ（実行しない）
  * mpm adopt --soft    - softDependenciesも含める
- * mpm adopt --pin     - 既存JARのバージョンに固定してadopt
+ * mpm adopt --latest  - バージョンを固定せずlatestでadopt
  */
 @Command("mpm")
 @CommandPermission("mpm.command.add")
@@ -48,21 +48,23 @@ class AdoptCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param soft softDependenciesも含める場合はtrue
      * @param dryRun 実行せず対象プラグインを表示のみの場合はtrue
-     * @param pin 既存JARのバージョンに固定する場合はtrue
+     * @param latest バージョンを固定せずlatestでadoptする場合はtrue
      */
     @Subcommand("adopt")
     suspend fun adopt(
         sender: CommandSender,
         @Switch("soft") soft: Boolean = false,
         @Switch("dry-run") dryRun: Boolean = false,
-        @Switch("pin") pin: Boolean = false
+        @Switch("latest") latest: Boolean = false
     ) {
+        // デフォルトはバージョン固定（pin）。--latestでlatestを使用
+        val pinToCurrentVersion = !latest
         if (dryRun) {
             // dry-runモード: 対象プラグインと依存関係を表示のみ
-            executeDryRun(sender, pin, soft)
+            executeDryRun(sender, pinToCurrentVersion, soft)
         } else {
             // 通常実行: adoptを実行
-            executeAdopt(sender, soft, pin)
+            executeAdopt(sender, soft, pinToCurrentVersion)
         }
     }
 
@@ -120,11 +122,11 @@ class AdoptCommand : KoinComponent {
 
         // 結果を表示
         if (matchedPlugins.isNotEmpty()) {
-            val modeLabel = if (pin) "adoptされるプラグイン (pin)" else "adoptされるプラグイン"
+            val modeLabel = if (pin) "adoptされるプラグイン (pin)" else "adoptされるプラグイン (latest)"
             sender.sendRichMessage("<green>===== $modeLabel (${matchedPlugins.size}) =====")
             val visited = mutableSetOf<String>()
             matchedPlugins.forEach { (unmanagedName, repoName) ->
-                val pinInfo = if (pin) " <aqua>(バージョン固定を試行)</aqua>" else ""
+                val pinInfo = if (pin) " <aqua>(バージョン固定)</aqua>" else " <yellow>(latest)</yellow>"
                 sender.sendRichMessage("<green>-<reset> $unmanagedName$pinInfo")
 
                 // canonical name で再帰的に依存解析（キャッシュ済みデータを使用）
@@ -166,7 +168,9 @@ class AdoptCommand : KoinComponent {
     ) {
         sender.sendRichMessage("<gray>unmanagedプラグインをリポジトリから検索しています...")
         if (pinToCurrentVersion) {
-            sender.sendRichMessage("<aqua>--pin: 既存JARのバージョンに固定します")
+            sender.sendRichMessage("<aqua>既存JARのバージョンに固定します（--latestでlatest指定に変更可能）")
+        } else {
+            sender.sendRichMessage("<yellow>--latest: バージョンを固定せずlatestでadoptします")
         }
 
         // 進捗メッセージをsenderに転送するコールバック
