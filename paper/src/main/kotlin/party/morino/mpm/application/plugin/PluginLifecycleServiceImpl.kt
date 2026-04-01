@@ -805,13 +805,17 @@ class PluginLifecycleServiceImpl :
 
         progressCallback?.invoke("<gray>${label}SHA-1ハッシュを計算中...")
         val localSha1 = computeSha1(localJar)
-        progressCallback?.invoke("<gray>${label}ローカルSHA-1: $localSha1")
+        progressCallback?.invoke("<gray>${label}ローカル SHA-1: $localSha1")
+        repoSha1Values.forEachIndexed { index, repoSha1 ->
+            val suffix = if (repoSha1Values.size > 1) " [artifact ${index + 1}]" else ""
+            progressCallback?.invoke("<gray>${label}リモート SHA-1: ${repoSha1.trim()}$suffix")
+        }
 
         // 複数artifactのどれか1つでもsha1が一致すればOK（大文字小文字無視）
-        val matched = repoSha1Values.any { it.equals(localSha1, ignoreCase = true) }
+        val matched = repoSha1Values.any { it.trim().equals(localSha1, ignoreCase = true) }
         return if (!matched) {
             progressCallback?.invoke("<yellow>${label}ハッシュ不一致: ローカルJARとリポジトリのバージョンが異なる可能性があります")
-            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1)"
+            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1, remote=${repoSha1Values.joinToString(",") { it.trim() }})"
         } else {
             progressCallback?.invoke("<green>${label}ハッシュ一致 ✓")
             null // ハッシュ一致、問題なし
@@ -1293,6 +1297,18 @@ class PluginLifecycleServiceImpl :
                     notFoundDependencies.addAll(result.notFoundPlugins)
                     failedPlugins.putAll(result.failedPlugins)
 
+                    // インストール結果を進捗表示
+                    result.addedPlugins.forEach { addResult ->
+                        val depLabel = if (addResult.isDependency) "[依存] " else ""
+                        // install()内で削除されたファイルの表示
+                        addResult.installResult.removed?.let { removed ->
+                            progressCallback?.invoke("<red>[$repoName] ${depLabel}削除: ${removed.name} ${removed.version}")
+                        }
+                        // インストールされた新ファイルの表示
+                        val installed = addResult.installResult.installed
+                        progressCallback?.invoke("<green>[$repoName] ${depLabel}インストール: ${installed.name} ${installed.currentVersion}")
+                    }
+
                     // adopt成功かつメインプラグインが失敗していない場合のみpin情報を記録
                     if (pinResult is VersionPinResult.Pinned && !result.failedPlugins.containsKey(repoName)) {
                         pinnedPlugins.add(repoName)
@@ -1304,11 +1320,11 @@ class PluginLifecycleServiceImpl :
                         // メタデータから新しいファイル名を取得して比較
                         val newFileName = metadataManager.loadMetadata(repoName).getOrNull()
                             ?.mpmInfo?.download?.fileName
-                        // 古いファイルと新しいファイルが異なる場合に削除
+                        // 古いファイルと新しいファイルが異なる場合に削除（同名の場合はinstall()で上書き済み）
                         if (newFileName == null || oldJarFile.name != newFileName) {
                             try {
                                 oldJarFile.delete()
-                                progressCallback?.invoke("<gray>[$repoName] 旧ファイル削除: ${oldJarFile.name}")
+                                progressCallback?.invoke("<red>[$repoName] 旧ファイル削除: ${oldJarFile.name}")
                             } catch (e: Exception) {
                                 plugin.logger.warning("[$repoName] 旧ファイル削除に失敗: ${oldJarFile.name} (${e.message})")
                             }
