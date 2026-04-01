@@ -5,7 +5,7 @@ export function baseOptions(): BaseLayoutProps {
         nav: {
             title: (
                 <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">PluginName</span>
+                    <span className="text-lg font-bold">MPM</span>
                 </div>
             ),
             transparentMode: "top",

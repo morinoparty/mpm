@@ -2,12 +2,12 @@
   "id": "mpm",
   "license": "CC0-1.0",
   "website": "https://mpm.plugin.morino.party",
-  "source": "https://github.com/morinoparty/MinecraftPluginManager",
+  "source": "https://github.com/morinoparty/mpm",
   "repositories": [
     {
       "type": "github",
-      "id": "morinoparty/MinecraftPluginManager",
-      "fileNameRegex": "MinecraftPluginManager_.*\\.jar$"
+      "id": "morinoparty/mpm",
+      "fileNameRegex": "mpm_.*\\.jar$"
     }
   ]
 }
