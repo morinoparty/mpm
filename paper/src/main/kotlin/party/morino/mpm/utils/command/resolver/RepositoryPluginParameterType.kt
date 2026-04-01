@@ -9,6 +9,7 @@
 
 package party.morino.mpm.utils.command.resolver
 
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.repository.RepositoryManager
@@ -32,6 +33,7 @@ class RepositoryPluginParameterType :
     KoinComponent {
     // RepositoryManagerをKoinから注入
     private val repositoryManager: RepositoryManager by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * コマンド引数からRepositoryPluginを解析する
@@ -70,10 +72,14 @@ class RepositoryPluginParameterType :
      */
     override fun defaultSuggestions(): SuggestionProvider<BukkitCommandActor> {
         // リポジトリから取得可能なプラグイン一覧を返すサジェストプロバイダー
-        return SuggestionProvider { context ->
-
-            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-                repositoryManager.getAvailablePlugins().toList()
+        return SuggestionProvider { _ ->
+            try {
+                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                    repositoryManager.getAvailablePlugins().toList()
+                }
+            } catch (e: Exception) {
+                plugin.logger.warning("Tab補完でリポジトリプラグイン一覧の取得に失敗: ${e.message}")
+                emptyList()
             }
         }
     }

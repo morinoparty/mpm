@@ -11,6 +11,7 @@ package party.morino.mpm.utils.command.resolver
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.model.PluginFilter
@@ -35,6 +36,7 @@ class InstalledPluginParameterType :
     KoinComponent {
     // PluginInfoServiceをKoinから注入
     private val infoService: PluginInfoService by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * コマンド引数からInstalledPluginを解析する
@@ -75,10 +77,15 @@ class InstalledPluginParameterType :
     override fun defaultSuggestions(): SuggestionProvider<BukkitCommandActor> {
         // インストール済み管理対象プラグイン一覧を返すサジェストプロバイダー
         return SuggestionProvider { _ ->
-            runBlocking(Dispatchers.IO) {
-                infoService.list(PluginFilter.MANAGED).map { plugin ->
-                    plugin.name.value
+            try {
+                runBlocking(Dispatchers.IO) {
+                    infoService.list(PluginFilter.MANAGED).map { p ->
+                        p.name.value
+                    }
                 }
+            } catch (e: Exception) {
+                plugin.logger.warning("Tab補完でプラグイン一覧の取得に失敗: ${e.message}")
+                emptyList()
             }
         }
     }

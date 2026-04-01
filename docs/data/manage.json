@@ -39,7 +39,7 @@
             "status": "newly",
             "category": "manage",
             "section": "インストール・追加",
-            "description": "unmanagedプラグインをリポジトリから検索してmanaged状態に変更します",
+            "description": "unmanagedプラグインをリポジトリから検索してmanaged状態に変更します（デフォルトでバージョン固定）",
             "arguments": [
                 {
                     "name": "--soft",
@@ -47,6 +47,10 @@
                 },
                 {
                     "name": "--dry-run",
+                    "required": false
+                },
+                {
+                    "name": "--latest",
                     "required": false
                 }
             ]
@@ -117,24 +121,11 @@
             ]
         },
         {
-            "command": "mpm outdated <plugin>",
+            "command": "mpm outdated",
             "status": "newly",
             "category": "manage",
             "section": "更新管理",
-            "description": "プラグインの更新を確認します",
-            "arguments": [
-                {
-                    "name": "plugin",
-                    "required": true
-                }
-            ]
-        },
-        {
-            "command": "mpm outdatedAll",
-            "status": "newly",
-            "category": "manage",
-            "section": "更新管理",
-            "description": "すべてのプラグインの更新を確認します"
+            "description": "すべての管理下プラグインの更新を確認します"
         },
         {
             "command": "mpm versions <plugin> [[--limit]]",
