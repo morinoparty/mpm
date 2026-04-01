@@ -702,7 +702,8 @@ class PluginLifecycleServiceImpl :
     private suspend fun resolveCurrentVersionFromJar(
         pluginName: String,
         unmanagedName: String,
-        urlData: UrlData
+        urlData: UrlData,
+        progressCallback: ((String) -> Unit)? = null
     ): VersionPinResult {
         // 既存JARを検索
         val (jarFile, pluginData) = findJarForPlugin(unmanagedName)
@@ -712,6 +713,8 @@ class PluginLifecycleServiceImpl :
         if (currentVersion.isBlank()) {
             return VersionPinResult.FallbackToLatest("plugin.ymlにバージョンが記載されていません")
         }
+
+        progressCallback?.invoke("<gray>[$pluginName] JARバージョン: $currentVersion — リポジトリで検索中...")
 
         // リポジトリの全バージョンを1回取得（通信失敗は失敗扱い）
         val allVersions = try {
@@ -732,13 +735,16 @@ class PluginLifecycleServiceImpl :
         }
 
         if (resolvedVersionData == null) {
+            progressCallback?.invoke("<yellow>[$pluginName] バージョン '$currentVersion' がリポジトリに見つかりません")
             return VersionPinResult.FallbackToLatest(
                 "バージョン '$currentVersion' がリポジトリに見つかりません"
             )
         }
 
+        progressCallback?.invoke("<gray>[$pluginName] バージョン '${resolvedVersionData.version}' が一致 — ハッシュ検証中...")
+
         // ハッシュ検証（APIでハッシュが取得できるリポジトリのみ）
-        val hashWarning = verifyHashIfAvailable(urlData, resolvedVersionData.version, jarFile)
+        val hashWarning = verifyHashIfAvailable(urlData, resolvedVersionData.version, jarFile, progressCallback, pluginName)
 
         return VersionPinResult.Pinned(
             version = VersionSpecifier.Fixed(resolvedVersionData.version),
@@ -777,25 +783,41 @@ class PluginLifecycleServiceImpl :
     private suspend fun verifyHashIfAvailable(
         urlData: UrlData,
         versionName: String,
-        localJar: File
+        localJar: File,
+        progressCallback: ((String) -> Unit)? = null,
+        pluginName: String? = null
     ): String? {
+        val label = pluginName?.let { "[$it] " } ?: ""
         val repoHashes = try {
             downloaderRepository.getVersionHashesByName(urlData, versionName)
         } catch (_: Exception) {
+            progressCallback?.invoke("<gray>${label}ハッシュ取得不可 — スキップ")
             return null // ハッシュ取得に失敗した場合は警告なしでスキップ
         }
 
         // ハッシュ非対応のリポジトリ
-        if (repoHashes == null) return null
+        if (repoHashes == null) {
+            progressCallback?.invoke("<gray>${label}ハッシュ非対応リポジトリ — スキップ")
+            return null
+        }
 
         val repoSha1Values = repoHashes["sha1"]?.split(",") ?: return null
+
+        progressCallback?.invoke("<gray>${label}SHA-1ハッシュを計算中...")
         val localSha1 = computeSha1(localJar)
+        progressCallback?.invoke("<gray>${label}ローカル SHA-1: $localSha1")
+        repoSha1Values.forEachIndexed { index, repoSha1 ->
+            val suffix = if (repoSha1Values.size > 1) " [artifact ${index + 1}]" else ""
+            progressCallback?.invoke("<gray>${label}リモート SHA-1: ${repoSha1.trim()}$suffix")
+        }
 
         // 複数artifactのどれか1つでもsha1が一致すればOK（大文字小文字無視）
-        val matched = repoSha1Values.any { it.equals(localSha1, ignoreCase = true) }
+        val matched = repoSha1Values.any { it.trim().equals(localSha1, ignoreCase = true) }
         return if (!matched) {
-            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1)"
+            progressCallback?.invoke("<yellow>${label}ハッシュ不一致: ローカルJARとリポジトリのバージョンが異なる可能性があります")
+            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1, remote=${repoSha1Values.joinToString(",") { it.trim() }})"
         } else {
+            progressCallback?.invoke("<green>${label}ハッシュ一致 ✓")
             null // ハッシュ一致、問題なし
         }
     }
@@ -1186,7 +1208,8 @@ class PluginLifecycleServiceImpl :
      */
     override suspend fun adoptAll(
         includeSoftDependencies: Boolean,
-        pinToCurrentVersion: Boolean
+        pinToCurrentVersion: Boolean,
+        progressCallback: ((String) -> Unit)?
     ): Either<MpmError, AdoptResult> {
         // unmanagedプラグイン一覧を取得
         val unmanagedPlugins = infoService.list(PluginFilter.UNMANAGED)
@@ -1220,11 +1243,14 @@ class PluginLifecycleServiceImpl :
         val notFoundDependencies = mutableListOf<String>()
         val pinnedPlugins = mutableListOf<String>()
         val hashMismatchWarnings = mutableMapOf<String, String>()
+        val versionMismatchPlugins = mutableMapOf<String, String>()
 
         for ((unmanagedName, repoName) in matchedPlugins) {
+            progressCallback?.invoke("<gray>[$repoName] バージョン解決中...")
+
             // バージョン指定を決定（--pin時はJARのバージョンに固定を試みる）
             val pinResult = if (pinToCurrentVersion) {
-                resolveVersionForPin(unmanagedName, repoName)
+                resolveVersionForPin(unmanagedName, repoName, progressCallback)
             } else {
                 null
             }
@@ -1235,14 +1261,25 @@ class PluginLifecycleServiceImpl :
                 continue
             }
 
+            // --pin時にバージョンが一致しなかった場合はunmanagedのまま残す
+            if (pinResult is VersionPinResult.FallbackToLatest) {
+                progressCallback?.invoke("<yellow>[$repoName] ${pinResult.reason} — unmanagedのまま残します")
+                versionMismatchPlugins[repoName] = pinResult.reason
+                continue
+            }
+
             val versionSpecifier = when (pinResult) {
-                is VersionPinResult.Pinned -> pinResult.version
-                is VersionPinResult.FallbackToLatest -> {
-                    plugin.logger.warning("[$repoName] ${pinResult.reason} — latestを使用します")
-                    VersionSpecifier.Latest
+                is VersionPinResult.Pinned -> {
+                    progressCallback?.invoke("<green>[$repoName] バージョン ${pinResult.version.version} に固定")
+                    pinResult.version
                 }
                 else -> VersionSpecifier.Latest
             }
+
+            // adopt前に既存JARファイルのパスを記録（後で削除するため）
+            val oldJarFile = findJarForPlugin(unmanagedName)?.first
+
+            progressCallback?.invoke("<gray>[$repoName] ダウンロード中...")
 
             // addWithDependenciesを呼び出してプラグインを追加
             addWithDependencies(
@@ -1260,10 +1297,38 @@ class PluginLifecycleServiceImpl :
                     notFoundDependencies.addAll(result.notFoundPlugins)
                     failedPlugins.putAll(result.failedPlugins)
 
+                    // インストール結果を進捗表示
+                    result.addedPlugins.forEach { addResult ->
+                        val depLabel = if (addResult.isDependency) "[依存] " else ""
+                        // install()内で削除されたファイルの表示
+                        addResult.installResult.removed?.let { removed ->
+                            progressCallback?.invoke("<red>[$repoName] ${depLabel}削除: ${removed.name} ${removed.version}")
+                        }
+                        // インストールされた新ファイルの表示
+                        val installed = addResult.installResult.installed
+                        progressCallback?.invoke("<green>[$repoName] ${depLabel}インストール: ${installed.name} ${installed.currentVersion}")
+                    }
+
                     // adopt成功かつメインプラグインが失敗していない場合のみpin情報を記録
                     if (pinResult is VersionPinResult.Pinned && !result.failedPlugins.containsKey(repoName)) {
                         pinnedPlugins.add(repoName)
                         pinResult.hashWarning?.let { hashMismatchWarnings[repoName] = it }
+                    }
+
+                    // 古いJARファイルを削除（新しいファイルと異なる場合のみ）
+                    if (oldJarFile != null && oldJarFile.exists() && !result.failedPlugins.containsKey(repoName)) {
+                        // メタデータから新しいファイル名を取得して比較
+                        val newFileName = metadataManager.loadMetadata(repoName).getOrNull()
+                            ?.mpmInfo?.download?.fileName
+                        // 古いファイルと新しいファイルが異なる場合に削除（同名の場合はinstall()で上書き済み）
+                        if (newFileName == null || oldJarFile.name != newFileName) {
+                            try {
+                                oldJarFile.delete()
+                                progressCallback?.invoke("<red>[$repoName] 旧ファイル削除: ${oldJarFile.name}")
+                            } catch (e: Exception) {
+                                plugin.logger.warning("[$repoName] 旧ファイル削除に失敗: ${oldJarFile.name} (${e.message})")
+                            }
+                        }
                     }
                 }
             )
@@ -1275,7 +1340,8 @@ class PluginLifecycleServiceImpl :
             failedPlugins = failedPlugins,
             notFoundDependencies = notFoundDependencies.distinct(),
             pinnedPlugins = pinnedPlugins,
-            hashMismatchWarnings = hashMismatchWarnings
+            hashMismatchWarnings = hashMismatchWarnings,
+            versionMismatchPlugins = versionMismatchPlugins
         ).right()
     }
 
@@ -1290,7 +1356,8 @@ class PluginLifecycleServiceImpl :
      */
     private suspend fun resolveVersionForPin(
         unmanagedName: String,
-        repoName: String
+        repoName: String,
+        progressCallback: ((String) -> Unit)? = null
     ): VersionPinResult {
         // リポジトリファイルからURLデータを作成
         val repositoryFile = repositoryManager.getRepositoryFile(repoName)
@@ -1302,6 +1369,6 @@ class PluginLifecycleServiceImpl :
         }
 
         // JARからバージョンを検出してリポジトリで検索
-        return resolveCurrentVersionFromJar(repoName, unmanagedName, urlData)
+        return resolveCurrentVersionFromJar(repoName, unmanagedName, urlData, progressCallback)
     }
 }

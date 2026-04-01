@@ -128,10 +128,12 @@ interface PluginLifecycleService {
      *
      * @param includeSoftDependencies softDependenciesも含めるかどうか
      * @param pinToCurrentVersion trueの場合、既存JARのバージョンに固定する
+     * @param progressCallback 進捗メッセージを受け取るコールバック（MiniMessage形式）
      * @return adopt結果（adoptされたプラグイン、スキップされたプラグイン、失敗したプラグイン）
      */
     suspend fun adoptAll(
         includeSoftDependencies: Boolean = false,
-        pinToCurrentVersion: Boolean = false
+        pinToCurrentVersion: Boolean = false,
+        progressCallback: ((String) -> Unit)? = null
     ): Either<MpmError, AdoptResult>
 }

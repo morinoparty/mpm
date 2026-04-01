@@ -21,6 +21,7 @@ package party.morino.mpm.api.application.model
  * @property skippedPlugins リポジトリに見つからなかったプラグイン名のリスト
  * @property failedPlugins adopt中にエラーが発生したプラグインとエラーメッセージのマップ
  * @property notFoundDependencies 依存関係として必要だがリポジトリに見つからなかったプラグイン名のリスト
+ * @property versionMismatchPlugins --pin指定時にバージョンが一致せずスキップされたプラグインと理由のマップ
  */
 data class AdoptResult(
     val adoptedPlugins: List<PluginAddResult>,
@@ -28,7 +29,8 @@ data class AdoptResult(
     val failedPlugins: Map<String, String>,
     val notFoundDependencies: List<String>,
     val pinnedPlugins: List<String> = emptyList(),
-    val hashMismatchWarnings: Map<String, String> = emptyMap()
+    val hashMismatchWarnings: Map<String, String> = emptyMap(),
+    val versionMismatchPlugins: Map<String, String> = emptyMap()
 ) {
     /**
      * すべてのプラグインが正常にadoptされたかどうか
