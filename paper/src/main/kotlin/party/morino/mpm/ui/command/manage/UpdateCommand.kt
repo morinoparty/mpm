@@ -50,10 +50,13 @@ class UpdateCommand : KoinComponent {
             return
         }
 
-        sender.sendRichMessage("<gray>プラグインの更新を確認しています...</gray>")
+        // 進捗メッセージをsenderに転送するコールバック
+        val progressCallback: (String) -> Unit = { message ->
+            sender.sendRichMessage(message)
+        }
 
         // PluginUpdateServiceを実行（forceフラグを伝播）
-        updateService.update(force).fold(
+        updateService.update(force, progressCallback).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
