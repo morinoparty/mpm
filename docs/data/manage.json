@@ -39,7 +39,7 @@
             "status": "newly",
             "category": "manage",
             "section": "インストール・追加",
-            "description": "unmanagedプラグインをリポジトリから検索してmanaged状態に変更します",
+            "description": "unmanagedプラグインをリポジトリから検索してmanaged状態に変更します（デフォルトでバージョン固定）",
             "arguments": [
                 {
                     "name": "--soft",
@@ -47,6 +47,10 @@
                 },
                 {
                     "name": "--dry-run",
+                    "required": false
+                },
+                {
+                    "name": "--latest",
                     "required": false
                 }
             ]
