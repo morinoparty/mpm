@@ -11,6 +11,7 @@ package party.morino.mpm.utils
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.utils.PluginDataUtils
@@ -30,5 +31,34 @@ class PluginDataTest {
         val paperPluginData = PluginDataUtils.getPluginData(paperPluginFile) as PluginData.PaperPluginData
         println(paperPluginData)
         assertEquals("1.20", paperPluginData.apiVersion)
+    }
+
+    @Test
+    @DisplayName("parseApiVersion preserves trailing zero from SnakeYAML float")
+    fun testParseApiVersionTrailingZero() {
+        // SnakeYAML parses "api-version: 1.20" as Double 1.2
+        assertEquals("1.20", PluginDataUtils.parseApiVersion(1.2))
+    }
+
+    @Test
+    @DisplayName("parseApiVersion keeps normal version string as-is")
+    fun testParseApiVersionString() {
+        assertEquals("1.21", PluginDataUtils.parseApiVersion("1.21"))
+        assertEquals("1.20", PluginDataUtils.parseApiVersion("1.20"))
+    }
+
+    @Test
+    @DisplayName("parseApiVersion handles multi-digit minor version")
+    fun testParseApiVersionMultiDigit() {
+        // SnakeYAML parses "api-version: 1.21" as Double 1.21
+        assertEquals("1.21", PluginDataUtils.parseApiVersion(1.21))
+        assertEquals("1.13", PluginDataUtils.parseApiVersion(1.13))
+    }
+
+    @Test
+    @DisplayName("parseApiVersion handles null and empty")
+    fun testParseApiVersionNullEmpty() {
+        assertEquals("", PluginDataUtils.parseApiVersion(null))
+        assertEquals("", PluginDataUtils.parseApiVersion(""))
     }
 }
