@@ -32,6 +32,7 @@ plugins/mpm/
 
 ```json
 {
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
     "id": "LuckPerms",
     "website": "https://luckperms.net/",
     "repositories": [
@@ -43,6 +44,21 @@ plugins/mpm/
     ]
 }
 ```
+
+### 🧭 `$schema` によるIDE補完
+
+全てのリポジトリファイルは先頭に `$schema` フィールドを置くことを推奨します。
+mpmの公式リポジトリサーバー（`repo.mpm.nikomaru.dev`）が JSON Schema を配信しているため、
+VS CodeやIntelliJなどのJSONスキーマ対応エディタで補完・検証が自動的に有効になります。
+
+```json
+{
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json"
+}
+```
+
+- `mpm` はこのフィールドを無視するため、記述しても動作に影響はありません
+- スキーマはZodの型定義（`repo/src/type/plugin-info.ts`）から自動生成されています
 
 ## リポジトリタイプ
 
@@ -143,6 +159,36 @@ SpigotMCリソースからプラグインをダウンロードします。
   - 未指定の場合は `"latest"` がデフォルト
   - アドオンプラグインで親プラグインとのバージョン同期に有用
   - 例: `"sync:MineAuth"`, `"tag:beta"`, `"latest"`
+
+#### 🏷️ リリースチャンネルのリポジトリ側制御
+
+プラグインによってはstable(`release`)ではなくbetaチャンネルを通常運用している場合があります。
+このような場合、**`mpm.json` 側ではなくリポジトリファイル側で `defaultVersion` を指定**することで、
+ユーザーに毎回 `tag:beta` を書かせずに済みます。
+
+```json title="CarbonChat.json (betaチャンネルを常用する例)"
+{
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "id": "CarbonChat",
+    "license": "GPL-3.0-only",
+    "website": "https://modrinth.com/plugin/carbon",
+    "source": "https://github.com/Hexaoxide/Carbon",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "QzooIsZI",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta.(0|[1-9]\\d*)"
+        }
+    ],
+    "defaultVersion": "tag:beta"
+}
+```
+
+**動作:**
+- ユーザーの `mpm.json` で `"CarbonChat": "latest"` と書いた場合、
+  `defaultVersion` が解決されて実際には `tag:beta` として処理される
+- ユーザーが明示的に `"CarbonChat": "tag:release"` や固定バージョンを指定した場合はそちらが優先される
+- `versionModifier` により `3.0.0-beta.36` のような非semver文字列も正しく正規化される
 
 ```json title="アドオンプラグインの例"
 {

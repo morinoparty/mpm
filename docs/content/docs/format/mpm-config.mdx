@@ -133,6 +133,13 @@ GitHubは `prerelease` の2値（true/false）しか持たないため、`tag:be
 ベータ版とアルファ版を明確に区別したい場合は、Modrinthの使用を推奨します。
 </Callout>
 
+<Callout type="info" title="リポジトリ側でのチャンネル既定値">
+プラグインによってはstableではなくbeta等を通常運用している場合があります。その場合は
+`mpm.json` 側で毎回 `tag:beta` を書くのではなく、[リポジトリファイル](/docs/format/repository)の
+`defaultVersion` フィールドでチャンネル既定値を指定するのが推奨です。
+`"latest"` と書いたときに自動的に `defaultVersion` が解決されます。
+</Callout>
+
 #### 🔗 sync指定（バージョン同期）
 
 `sync:PluginName` 形式を使用すると、アドオンプラグインを親プラグインのバージョンに同期できます。
