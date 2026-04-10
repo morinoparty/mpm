@@ -127,12 +127,21 @@ data class RepositoryConfig(
      *   `release` は `latest` と等価に扱う。大文字小文字を区別しない。
      * @return マッチャー正規表現。該当フィールド未指定の場合はnull
      */
-    fun channelVersionMatcher(channel: String): String? {
+    fun channelVersionMatcher(channel: String): String? = channelConfig(channel)?.versionMatcher
+
+    /**
+     * 指定チャンネル名に対応する [ChannelConfig] を返す
+     *
+     * @param channel チャンネル名（"latest" / "release" / "beta" / "alpha"）
+     *   `release` は `latest` と等価に扱う。大文字小文字を区別しない。
+     * @return 該当するChannelConfig。未定義の場合はnull
+     */
+    fun channelConfig(channel: String): ChannelConfig? {
         val normalized = channel.lowercase()
         return when (normalized) {
-            "latest", "release" -> latest?.versionMatcher
-            "beta" -> beta?.versionMatcher
-            "alpha" -> alpha?.versionMatcher
+            "latest", "release" -> latest
+            "beta" -> beta
+            "alpha" -> alpha
             else -> null
         }
     }

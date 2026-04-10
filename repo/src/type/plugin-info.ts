@@ -11,8 +11,11 @@ import { z } from "zod";
 
 /**
  * リポジトリエントリ内のリリースチャンネル1件分の設定。
- * `versionMatcher` はバージョン文字列に対する正規表現で、そのチャンネルに属するバージョンを識別する。
- * `versionModifier` はそのチャンネル固有のバージョン正規化パターン（トップレベルの versionModifier より優先）。
+ * 解決優先順位:
+ *  1. versionMatcher (regex) でフィルタ
+ *  2. useUpstreamLabel=true ならプラットフォーム固有ラベル
+ *     (Modrinth `version_type` / GitHub `prerelease`) に委譲
+ *  3. どちらも未指定ならフォールバック
  */
 const ChannelSchema = z
     .object({
@@ -21,10 +24,16 @@ const ChannelSchema = z
         versionMatcher: z.string().optional(),
         // チャンネル固有のバージョン正規化パターン（トップレベルのversionModifierより優先）
         versionModifier: z.string().optional(),
+        // プラットフォーム固有のチャンネルラベルを使用するかのopt-inフラグ。
+        // trueのとき、Modrinthは `version_type`、GitHubは `prerelease` でフィルタする。
+        // `versionMatcher` が指定されている場合はそちらが優先される。
+        useUpstreamLabel: z.boolean().optional(),
     })
     .meta({
         id: "Channel",
-        description: "リリースチャンネルを識別する正規表現設定",
+        description:
+            "リリースチャンネルを識別する設定。" +
+            "versionMatcher (regex) が優先、なければuseUpstreamLabelによりネイティブラベルを使用",
     });
 
 /**

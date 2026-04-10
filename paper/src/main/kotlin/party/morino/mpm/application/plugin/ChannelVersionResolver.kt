@@ -26,15 +26,19 @@ import party.morino.mpm.api.domain.repository.RepositoryConfig
  */
 object ChannelVersionResolver {
     /**
-     * 指定チャンネルの最新バージョンを、リポジトリ設定の `versionMatcher` で解決する
+     * 指定チャンネルの最新バージョンを、リポジトリ設定の [ChannelConfig] で解決する
+     *
+     * 解決優先順位:
+     * 1. `versionMatcher` (regex) でフィルタ
+     * 2. `useUpstreamLabel` が `true` の場合はプラットフォーム固有ラベル
+     *    （Modrinth `version_type` / GitHub `prerelease`）に委譲
+     * 3. どちらも指定されていなければ null を返し、呼び出し側でフォールバックさせる
      *
      * @param downloaderRepository バージョン取得に使うダウンローダー
      * @param urlData 対象リポジトリのURL情報
-     * @param repoConfig リポジトリ設定（`latest` / `beta` / `alpha` のいずれかに
-     *   `versionMatcher` が入っている想定）
+     * @param repoConfig リポジトリ設定
      * @param channel 解決したいチャンネル名（"latest" / "release" / "beta" / "alpha"）
-     * @return マッチャーでフィルタした最新バージョン。マッチャー未定義、マッチなし、
-     *   またはAPIエラーの場合はnull
+     * @return 解決されたバージョン。設定なし・マッチなし・APIエラー時はnull
      */
     suspend fun resolveLatestInChannel(
         downloaderRepository: DownloaderRepository,
@@ -42,18 +46,34 @@ object ChannelVersionResolver {
         repoConfig: RepositoryConfig,
         channel: String
     ): VersionData? {
-        // 対応するマッチャー正規表現を取得（未指定ならフォールバック）
-        val matcherPattern = repoConfig.channelVersionMatcher(channel) ?: return null
+        val channelConfig = repoConfig.channelConfig(channel) ?: return null
 
-        // 正規表現のコンパイルに失敗した場合もフォールバック（ユーザー入力に起因するため）
-        val regex = runCatching { Regex(matcherPattern) }.getOrElse { return null }
-
-        return try {
-            val all = downloaderRepository.getAllVersions(urlData)
-            // getAllVersionsはプラットフォーム側で新しい順に返す想定。先頭マッチを採用
-            all.firstOrNull { regex.containsMatchIn(it.version) }
-        } catch (_: Exception) {
-            null
+        // (1) versionMatcher が指定されていればregexベースで解決
+        val matcherPattern = channelConfig.versionMatcher
+        if (matcherPattern != null) {
+            val regex = runCatching { Regex(matcherPattern) }.getOrElse { return null }
+            return try {
+                val all = downloaderRepository.getAllVersions(urlData)
+                // getAllVersionsはプラットフォーム側で新しい順に返す想定。先頭マッチを採用
+                all.firstOrNull { regex.containsMatchIn(it.version) }
+            } catch (_: Exception) {
+                null
+            }
         }
+
+        // (2) useUpstreamLabel が opt-in されていればプラットフォームネイティブ解決に委譲
+        if (channelConfig.useUpstreamLabel) {
+            return try {
+                when (channel.lowercase()) {
+                    "latest", "release" -> downloaderRepository.getLatestVersion(urlData)
+                    else -> downloaderRepository.getLatestVersionByTag(urlData, channel)
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        // (3) 未設定: フォールバックを呼び出し側に任せる
+        return null
     }
 }
