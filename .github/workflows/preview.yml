@@ -86,7 +86,7 @@ jobs:
         with:
           name: dokka-artifacts
           retention-days: 1
-          path: docs/docs/dokka/
+          path: docs/public/dokka/
 
   # Docs ビルド
   build-docs:
@@ -95,6 +95,12 @@ jobs:
       commit_sha: ${{ steps.vars.outputs.sha }}
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98 # v6.0.1
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
 
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
@@ -106,6 +112,9 @@ jobs:
           version: 10
           run_install: false
 
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
       - name: Set short git commit SHA
         id: vars
         run: |
@@ -115,6 +124,11 @@ jobs:
       - name: Install docs dependencies
         working-directory: docs
         run: pnpm i --frozen-lockfile
+
+      # サイドバーの Kotlin アイコンから Dokka に遷移できるよう、docs ビルド前に
+      # docs/public/dokka へ Dokka を生成しておく（pnpm build が public/ を同梱する）
+      - name: Generate Dokka into docs/public/dokka
+        run: ./gradlew dokkaGenerate
 
       - name: Build docs
         working-directory: docs
