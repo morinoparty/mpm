@@ -6,7 +6,8 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "QzooIsZI"
+      "id": "QzooIsZI",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta.(0|[1-9]\\d*)"
     }
   ]
 }
