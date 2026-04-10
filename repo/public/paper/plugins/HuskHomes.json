@@ -1,11 +1,17 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "HuskHomes",
   "license": "Apache-2.0",
   "website": "https://modrinth.com/plugin/huskhomes",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "J6U9o3JG"
+      "id": "J6U9o3JG",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+(-[a-f0-9]+)?$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?"
+      }
     }
   ]
 }

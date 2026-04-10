@@ -1,11 +1,21 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "GriefPrevention",
   "license": "GPL-3.0-only",
   "website": "https://modrinth.com/plugin/griefprevention",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "O4o4mKaq"
+      "id": "O4o4mKaq",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-beta",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\d+"
+      }
     }
   ]
 }

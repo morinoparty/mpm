@@ -32,6 +32,7 @@ plugins/mpm/
 
 ```json
 {
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
     "id": "LuckPerms",
     "website": "https://luckperms.net/",
     "repositories": [
@@ -43,6 +44,21 @@ plugins/mpm/
     ]
 }
 ```
+
+### 🧭 `$schema` によるIDE補完
+
+全てのリポジトリファイルは先頭に `$schema` フィールドを置くことを推奨します。
+mpmの公式リポジトリサーバー（`repo.mpm.nikomaru.dev`）が JSON Schema を配信しているため、
+VS CodeやIntelliJなどのJSONスキーマ対応エディタで補完・検証が自動的に有効になります。
+
+```json
+{
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json"
+}
+```
+
+- `mpm` はこのフィールドを無視するため、記述しても動作に影響はありません
+- スキーマはZodの型定義（`repo/src/type/plugin-info.ts`）から自動生成されています
 
 ## リポジトリタイプ
 
@@ -114,7 +130,71 @@ SpigotMCリソースからプラグインをダウンロードします。
 - **versionModifier**: バージョン文字列から特定のパターンを抽出して正規化する正規表現
   - バージョン番号に余計な文字列が含まれる場合に、必要な部分のみを抽出する
   - 例: `"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"` → "v1.2.3-beta" から "1.2.3" を抽出
-  - データ構造としてサポート済み、機能実装は今後予定
+  - 4-partバージョンや `-beta.N` 形式のプラグインでは必ず指定する
+  - バージョン比較（更新検知）のためだけに使われ、チャンネル分類には影響しない
+
+- **latest** / **beta** / **alpha**: リリースチャンネルごとの設定を定義する
+  - 各チャンネルは `{ "versionMatcher": "...", "versionModifier": "..." }` の形で指定する
+  - `versionMatcher`: `containsMatchIn` で評価され、マッチしたバージョンのみを
+    そのチャンネルの候補として扱う。指定がない場合はプラットフォーム固有のチャンネル分類
+    （Modrinthの `version_type`、GitHubの `prerelease` フラグ）にフォールバックする
+  - `versionModifier`: そのチャンネル固有のバージョン正規化パターン。指定すると、
+    チャンネルごとに異なるバージョン書式（例: stableは `X.Y.Z`、betaは `X.Y.Z-beta.N`）を
+    それぞれのキャプチャパターンで処理できる。未指定の場合はリポジトリルートの
+    `versionModifier` またはデフォルトsemverパターンにフォールバック
+
+```json title="CarbonChat（全リリースがbetaなのでデフォルトをbetaに寄せる例）"
+{
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "id": "CarbonChat",
+    "license": "GPL-3.0-only",
+    "website": "https://modrinth.com/plugin/carbon",
+    "source": "https://github.com/Hexaoxide/Carbon",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "QzooIsZI",
+            "beta": {
+                "versionMatcher": "-beta\\.",
+                "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)"
+            }
+        }
+    ],
+    "defaultVersion": "tag:beta"
+}
+```
+
+```json title="WorldEdit（beta/rcを明示的に振り分ける例）"
+{
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "id": "WorldEdit",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "1u6JkXh5",
+            "latest": {
+                "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+                "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+            },
+            "beta": {
+                "versionMatcher": "-beta",
+                "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+            },
+            "alpha": {
+                "versionMatcher": "-rc",
+                "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+            }
+        }
+    ]
+}
+```
+
+:::info
+**解決順序:** ユーザーが `latest` / `tag:beta` / `tag:alpha` を指定した場合、まず
+リポジトリ設定の `versionMatcher` を試し、マッチするバージョンがあればそれを返します。
+マッチャー未設定 or マッチなしの場合は従来通りプラットフォーム固有のチャンネル分類に
+フォールバックするので、既存のリポジトリファイルは影響を受けません。
+:::
 
 - **downloadUrl**: ダウンロードURLのテンプレート
   - カスタムダウンロードURLを指定する場合に使用
@@ -143,6 +223,36 @@ SpigotMCリソースからプラグインをダウンロードします。
   - 未指定の場合は `"latest"` がデフォルト
   - アドオンプラグインで親プラグインとのバージョン同期に有用
   - 例: `"sync:MineAuth"`, `"tag:beta"`, `"latest"`
+
+#### 🏷️ リリースチャンネルのリポジトリ側制御
+
+プラグインによってはstable(`release`)ではなくbetaチャンネルを通常運用している場合があります。
+このような場合、**`mpm.json` 側ではなくリポジトリファイル側で `defaultVersion` を指定**することで、
+ユーザーに毎回 `tag:beta` を書かせずに済みます。
+
+```json title="CarbonChat.json (betaチャンネルを常用する例)"
+{
+    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "id": "CarbonChat",
+    "license": "GPL-3.0-only",
+    "website": "https://modrinth.com/plugin/carbon",
+    "source": "https://github.com/Hexaoxide/Carbon",
+    "repositories": [
+        {
+            "type": "modrinth",
+            "id": "QzooIsZI",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta.(0|[1-9]\\d*)"
+        }
+    ],
+    "defaultVersion": "tag:beta"
+}
+```
+
+**動作:**
+- ユーザーの `mpm.json` で `"CarbonChat": "latest"` と書いた場合、
+  `defaultVersion` が解決されて実際には `tag:beta` として処理される
+- ユーザーが明示的に `"CarbonChat": "tag:release"` や固定バージョンを指定した場合はそちらが優先される
+- `versionModifier` により `3.0.0-beta.36` のような非semver文字列も正しく正規化される
 
 ```json title="アドオンプラグインの例"
 {

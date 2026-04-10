@@ -191,19 +191,28 @@ class PluginInfoServiceImpl :
                 ?: return MpmError.PluginError.UnsupportedRepository(firstRepository.type).left()
 
         // tag:指定の場合は該当チャンネルの最新、それ以外は絶対的な最新を取得
+        // チャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
         val pluginSpec = project.getPluginSpec(name)
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
         val latestVersion =
             try {
                 if (versionSpecifier is VersionSpecifier.Tag) {
-                    downloaderRepository.getLatestVersionByTag(urlData, versionSpecifier.tag)
-                        ?: return MpmError.PluginError
-                            .VersionResolutionFailed(
-                                name.value,
-                                "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
-                            ).left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        firstRepository,
+                        versionSpecifier.tag,
+                    ) ?: return MpmError.PluginError
+                        .VersionResolutionFailed(
+                            name.value,
+                            "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                        ).left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        firstRepository,
+                    )
                 }
             } catch (e: Exception) {
                 return MpmError.PluginError

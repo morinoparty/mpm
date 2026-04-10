@@ -1,11 +1,21 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "SignedVelocity",
   "license": "GPL-3.0-or-later",
   "website": "https://modrinth.com/plugin/signedvelocity",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "7IbzD4Zm"
+      "id": "7IbzD4Zm",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-BETA",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA(?:-\\d+)?"
+      }
     }
   ]
 }

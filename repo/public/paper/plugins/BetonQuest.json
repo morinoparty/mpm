@@ -1,11 +1,21 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "BetonQuest",
   "license": "GPL-3.0-only",
   "website": "https://modrinth.com/plugin/betonquest",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "uVhukxY9"
+      "id": "uVhukxY9",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-DEV",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-DEV-\\d+"
+      }
     }
   ]
 }

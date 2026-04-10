@@ -1,5 +1,5 @@
 {
     "title": "ファイル形式",
     "description": "mpmで使用するファイルの形式について",
-    "pages": ["repository", "mpm-config", "mpm-lock", "managed"]
+    "pages": ["repository", "mpm-config", "config", "mpm-lock", "managed"]
 }

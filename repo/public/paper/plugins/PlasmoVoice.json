@@ -1,11 +1,17 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "PlasmoVoice",
   "license": "LGPL-3.0-only",
   "website": "https://modrinth.com/plugin/plasmo-voice",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "1bZhdhsH"
+      "id": "1bZhdhsH",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?",
+      "latest": {
+        "versionMatcher": "^spigot-\\d+\\.\\d+\\.\\d+(\\+[a-f0-9]+)?$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?"
+      }
     }
   ]
 }

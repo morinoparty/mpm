@@ -1,11 +1,21 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "FancyHolograms",
   "license": "MIT",
   "website": "https://modrinth.com/plugin/fancyholograms",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "5QNgOj66"
+      "id": "5QNgOj66",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-SNAPSHOT",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-SNAPSHOT\\.\\d+"
+      }
     }
   ]
 }

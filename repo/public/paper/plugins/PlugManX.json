@@ -1,11 +1,21 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "PlugManX",
   "license": "MIT",
   "website": "https://modrinth.com/plugin/plugmanx",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "yro4niHu"
+      "id": "yro4niHu",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-RC",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-RC\\.\\d+"
+      }
     }
   ]
 }

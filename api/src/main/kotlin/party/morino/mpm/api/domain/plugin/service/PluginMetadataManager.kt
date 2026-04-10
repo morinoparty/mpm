@@ -28,13 +28,17 @@ interface PluginMetadataManager {
      * @param repository リポジトリ設定
      * @param versionData バージョン情報
      * @param action 実行したアクション（"add", "update" など）
+     * @param channel このバージョンを解決した際のチャンネル名（"latest" / "beta" / "alpha"）。
+     *   指定された場合、そのチャンネルの [ChannelConfig.versionModifier] が
+     *   リポジトリルートの [RepositoryConfig.versionPattern] より優先して使用される。
      * @return 成功時は作成されたメタデータ、失敗時はエラーメッセージ
      */
     suspend fun createMetadata(
         pluginName: String,
         repository: RepositoryConfig,
         versionData: VersionData,
-        action: String = "add"
+        action: String = "add",
+        channel: String? = null
     ): Either<String, ManagedPluginDto>
 
     /**

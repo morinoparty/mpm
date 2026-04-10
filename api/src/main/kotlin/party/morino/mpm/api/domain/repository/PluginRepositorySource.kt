@@ -99,6 +99,10 @@ data class RepositoryFile(
  *   ダウンロードしたファイルをリネームする場合に使用
  *   プレースホルダー: ex) <mpmInfo.version.current.raw>, <mpmInfo.version.latest.normalized> <pluginInfo.name>など
  *   例: "<mpmInfo.version.current.raw>-<mpmInfo.version.latest.normalized>.jar" → "luckperms-5.4.97.jar"
+ * @property latest stableチャンネル（"latest" / "tag:release"）に属するバージョンを識別する
+ *   正規表現。未指定の場合はプラットフォーム固有のデフォルト挙動にフォールバック
+ * @property beta betaチャンネル（"tag:beta"）に属するバージョンを識別する正規表現
+ * @property alpha alphaチャンネル（"tag:alpha"）に属するバージョンを識別する正規表現
  */
 @Serializable
 data class RepositoryConfig(
@@ -111,5 +115,52 @@ data class RepositoryConfig(
     val downloadUrlTemplate: String? = null,
     @SerialName("fileNameRegex")
     val fileNamePattern: String? = null,
-    val fileNameTemplate: String? = null
-)
+    val fileNameTemplate: String? = null,
+    val latest: ChannelConfig? = null,
+    val beta: ChannelConfig? = null,
+    val alpha: ChannelConfig? = null,
+) {
+    /**
+     * 指定チャンネルに対応する `versionMatcher` を返す
+     *
+     * @param channel チャンネル名（"latest" / "release" / "beta" / "alpha"）。
+     *   `release` は `latest` と等価に扱う。大文字小文字を区別しない。
+     * @return マッチャー正規表現。該当フィールド未指定の場合はnull
+     */
+    fun channelVersionMatcher(channel: String): String? = channelConfig(channel)?.versionMatcher
+
+    /**
+     * 指定チャンネル名に対応する [ChannelConfig] を返す
+     *
+     * @param channel チャンネル名（"latest" / "release" / "beta" / "alpha"）
+     *   `release` は `latest` と等価に扱う。大文字小文字を区別しない。
+     * @return 該当するChannelConfig。未定義の場合はnull
+     */
+    fun channelConfig(channel: String): ChannelConfig? {
+        val normalized = channel.lowercase()
+        return when (normalized) {
+            "latest", "release" -> latest
+            "beta" -> beta
+            "alpha" -> alpha
+            else -> null
+        }
+    }
+
+    /**
+     * バージョン正規化に使う実効的な正規表現パターンを返す
+     *
+     * 指定[channel]に [ChannelConfig.versionModifier] が設定されていればそれを優先し、
+     * なければリポジトリルートの [versionPattern] にフォールバックする。
+     * [channel] が null の場合はルートパターンをそのまま返す。
+     *
+     * @param channel チャンネル名（"latest" / "beta" / "alpha"）。nullの場合はルートのみを返す
+     * @return 実効的な versionModifier / versionPattern
+     */
+    fun effectiveVersionPattern(channel: String?): String? {
+        if (channel != null) {
+            val channelPattern = channelConfig(channel)?.versionModifier
+            if (channelPattern != null) return channelPattern
+        }
+        return versionPattern
+    }
+}

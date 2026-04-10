@@ -1,11 +1,21 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "PAPIProxyBridge",
   "license": "Apache-2.0",
   "website": "https://modrinth.com/plugin/papiproxybridge",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "bEIUEGTX"
+      "id": "bEIUEGTX",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-[a-f0-9]{6,}",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]{6,}"
+      }
     }
   ]
 }

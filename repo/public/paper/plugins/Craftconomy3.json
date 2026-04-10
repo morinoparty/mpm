@@ -1,4 +1,5 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "Craftconomy3",
   "license": "LGPL-3.0",
   "website": "https://github.com/pavog/craftconomy3",

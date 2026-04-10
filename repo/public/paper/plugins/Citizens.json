@@ -1,9 +1,15 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "Citizens",
   "repositories": [
     {
       "type": "spigotmc",
-      "id": "13811"
+      "id": "13811",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)[^)]*#[\\d.]+",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+ \\(.*BUILD",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)[^)]*#[\\d.]+"
+      }
     }
   ]
 }

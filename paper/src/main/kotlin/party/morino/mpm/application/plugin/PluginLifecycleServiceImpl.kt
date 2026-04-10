@@ -126,18 +126,27 @@ class PluginLifecycleServiceImpl :
         }
 
         // VersionSpecifierに応じてバージョンデータを決定
+        // firstRepositoryを渡すことで、リポファイル側のchannel.versionMatcherを尊重する
         val versionData: VersionData =
             resolveVersionData(
                 legacyVersion,
                 urlData,
                 project,
-                pluginName
+                pluginName,
+                firstRepository
             ).getOrElse { return it.left() }
 
-        // メタデータを作成
+        // このバージョンを解決した際のチャンネル名を特定する
+        // Latest/Sync/Fixed は "latest"、Tag は指定されたタグを使う
+        val resolvedChannel = when (legacyVersion) {
+            is LegacyVersionSpecifier.Tag -> legacyVersion.tag
+            else -> "latest"
+        }
+
+        // メタデータを作成（チャンネル固有のversionModifierを尊重する）
         val metadata =
             metadataManager
-                .createMetadata(pluginName, firstRepository, versionData, "add")
+                .createMetadata(pluginName, firstRepository, versionData, "add", resolvedChannel)
                 .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
 
         // PluginAddEventを発火して、他のプラグインがキャンセルできるようにする
@@ -321,19 +330,42 @@ class PluginLifecycleServiceImpl :
         val pluginSpec = project?.getPluginSpec(name)
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
 
+        // チャンネル設定(`latest`/`beta`/`alpha`)を取得するため、リポジトリファイルから
+        // metadata.repository に対応するRepositoryConfigを検索する。
+        // metadataはtype/idを保持するだけでchannel情報を含まないので別途取得する必要がある。
+        // add時に選択したrepoとリポファイルの最初のrepoは必ずしも一致しないため、
+        // type+idの組で厳密にマッチさせる（見つからなければ先頭のrepoにフォールバック）。
+        val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
+        val matchingRepositoryConfig = repositoryFile
+            ?.repositories
+            ?.firstOrNull {
+                it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
+                    it.repositoryId == repositoryInfo.id
+            }
+            ?: repositoryFile?.repositories?.firstOrNull()
+
         // 最新バージョン情報を取得（Tag指定の場合はそのタグでフィルタ）
+        // チャンネル設定 (versionMatcher / useUpstreamLabel) を尊重する
         val latestVersionData =
             try {
                 if (versionSpecifier is VersionSpecifier.Tag) {
                     // Tag指定: 該当タグの最新バージョンを取得（見つからなければエラー）
-                    downloaderRepository.getLatestVersionByTag(urlData, versionSpecifier.tag)
-                        ?: return MpmError.PluginError
-                            .VersionResolutionFailed(
-                                pluginName,
-                                "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
-                            ).left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        matchingRepositoryConfig,
+                        versionSpecifier.tag,
+                    ) ?: return MpmError.PluginError
+                        .VersionResolutionFailed(
+                            pluginName,
+                            "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                        ).left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        matchingRepositoryConfig,
+                    )
                 }
             } catch (e: Exception) {
                 return MpmError.PluginError
@@ -881,17 +913,28 @@ class PluginLifecycleServiceImpl :
 
     /**
      * VersionSpecifierに応じてバージョンデータを解決する
+     *
+     * Latest/Tagの場合、リポジトリ設定で `latest` / `beta` / `alpha` の
+     * `versionMatcher` が指定されていればそれを優先的に使用し、
+     * 未指定の場合はプラットフォーム固有のチャンネル分類にフォールバックする。
+     *
+     * @param repoConfig チャンネルマッチャー参照元のリポジトリ設定（nullの場合は既存挙動）
      */
     private suspend fun resolveVersionData(
         version: LegacyVersionSpecifier,
         urlData: UrlData,
         project: MpmProject,
-        pluginName: String
+        pluginName: String,
+        repoConfig: RepositoryConfig? = null
     ): Either<MpmError, VersionData> =
         when (version) {
             is LegacyVersionSpecifier.Latest -> {
                 try {
-                    downloaderRepository.getLatestVersion(urlData).right()
+                    // ChannelVersionResolverがchannel設定(matcher/useUpstreamLabel)を優先し、
+                    // なければgetLatestVersionにフォールバックする
+                    ChannelVersionResolver
+                        .resolveLatest(downloaderRepository, urlData, repoConfig)
+                        .right()
                 } catch (e: Exception) {
                     MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
                 }
@@ -906,7 +949,12 @@ class PluginLifecycleServiceImpl :
             }
             is LegacyVersionSpecifier.Tag -> {
                 try {
-                    val result = downloaderRepository.getLatestVersionByTag(urlData, version.tag)
+                    val result = ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        repoConfig,
+                        version.tag,
+                    )
                     result?.right()
                         ?: MpmError.PluginError.VersionResolutionFailed(
                             pluginName,
@@ -991,14 +1039,24 @@ class PluginLifecycleServiceImpl :
                             val targetReq = targetManaged.versionRequirement
                             if (targetReq is VersionSpecifier.Tag) {
                                 // Tag指定: 該当チャンネルの最新バージョンを取得
-                                downloaderRepository.getLatestVersionByTag(targetUrlData, targetReq.tag)?.version
+                                // targetRepoのchannel設定(useUpstreamLabel等)を尊重する
+                                ChannelVersionResolver.resolveTag(
+                                    downloaderRepository,
+                                    targetUrlData,
+                                    targetRepo,
+                                    targetReq.tag,
+                                )?.version
                                     ?: return MpmError.PluginError
                                         .VersionResolutionFailed(
                                             pluginName,
                                             "tag '${targetReq.tag}' に該当するバージョンが見つかりません"
                                         ).left()
                             } else {
-                                downloaderRepository.getLatestVersion(targetUrlData).version
+                                ChannelVersionResolver.resolveLatest(
+                                    downloaderRepository,
+                                    targetUrlData,
+                                    targetRepo,
+                                ).version
                             }
                         } catch (e: Exception) {
                             return MpmError.PluginError

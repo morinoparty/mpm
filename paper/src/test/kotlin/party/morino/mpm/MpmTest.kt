@@ -23,7 +23,9 @@ import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
+import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
+import party.morino.mpm.api.domain.config.model.ConfigData
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -42,6 +44,7 @@ import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.mock.config.PluginDirectoryMock
+import party.morino.mpm.utils.TestConfigLoader
 
 class MpmTest :
     BeforeEachCallback,
@@ -74,6 +77,18 @@ class MpmTest :
                 single<JavaPlugin> { plugin }
                 single<ServerMock> { server }
                 single<PluginDirectory> { PluginDirectoryMock() }
+
+                // ConfigManagerの登録
+                // インジェクトによるモックではなく、test resources配下のconfig.jsonから読み込む
+                // TestConfigLoaderはconfig.local.json > config.jsonの順で解決するので、
+                // 開発者はローカルでGitHub tokenなどを設定可能
+                single<ConfigManager> {
+                    object : ConfigManager {
+                        private val config: ConfigData = TestConfigLoader.load()
+                        override fun getConfig(): ConfigData = config
+                        override suspend fun reload() { /* テストでは動的リロードは不要 */ }
+                    }
+                }
 
                 // リポジトリマネージャーの登録
                 single<RepositoryManager> {

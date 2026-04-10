@@ -1,11 +1,16 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "CoreProtect",
   "license": "Artistic-2.0",
   "website": "https://modrinth.com/plugin/coreprotect",
   "repositories": [
     {
       "type": "modrinth",
-      "id": "Lu3KuzdV"
+      "id": "Lu3KuzdV",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      }
     }
   ]
 }

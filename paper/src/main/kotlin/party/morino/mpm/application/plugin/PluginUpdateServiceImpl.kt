@@ -701,14 +701,33 @@ class PluginUpdateServiceImpl :
         val versionString = mpmConfig?.plugins?.get(pluginName)
         val tagChannelForPlugin = versionString?.let { VersionSpecifierParser.extractTag(it) }
 
+        // チャンネル設定(versionMatcher/useUpstreamLabel)を取得するためリポファイルを参照。
+        // metadata.repositoryに対応する RepositoryConfig を厳密マッチで特定する（見つからなければ先頭）
+        val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
+        val matchingRepositoryConfig = repositoryFile
+            ?.repositories
+            ?.firstOrNull {
+                it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
+                    it.repositoryId == repositoryInfo.id
+            }
+            ?: repositoryFile?.repositories?.firstOrNull()
+
         // 最新バージョンを取得（tag:指定の場合は該当チャンネルの最新を取得）
         val latestVersionData =
             try {
                 if (tagChannelForPlugin != null) {
-                    downloaderRepository.getLatestVersionByTag(urlData, tagChannelForPlugin)
-                        ?: return "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName".left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        matchingRepositoryConfig,
+                        tagChannelForPlugin,
+                    ) ?: return "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName".left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        matchingRepositoryConfig,
+                    )
                 }
             } catch (e: Exception) {
                 return "最新バージョン情報の取得に失敗しました: ${e.message}".left()
@@ -857,14 +876,23 @@ class PluginUpdateServiceImpl :
                 ?: return "未対応のリポジトリタイプです: ${firstRepository.type}".left()
 
         // 最新バージョンを取得（tag:指定の場合は該当チャンネルの最新を取得）
+        // チャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
         val tagChannel = VersionSpecifierParser.extractTag(expectedVersion)
         val latestVersionData =
             try {
                 if (tagChannel != null) {
-                    downloaderRepository.getLatestVersionByTag(urlData, tagChannel)
-                        ?: return "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName".left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        firstRepository,
+                        tagChannel,
+                    ) ?: return "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName".left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        firstRepository,
+                    )
                 }
             } catch (e: Exception) {
                 return "バージョン情報の取得に失敗しました: ${e.message}".left()
@@ -884,12 +912,14 @@ class PluginUpdateServiceImpl :
             }
 
         // メタデータが存在するか確認し、更新または作成
+        // 新規作成時はチャンネル固有のversionModifierを尊重するため、解決チャンネルを渡す
+        val resolvedChannel = tagChannel ?: "latest"
         val metadata =
             pluginMetadataManager.loadMetadata(pluginName).fold(
                 // メタデータが存在しない場合は新規作成
                 {
                     pluginMetadataManager
-                        .createMetadata(pluginName, firstRepository, versionData, "install")
+                        .createMetadata(pluginName, firstRepository, versionData, "install", resolvedChannel)
                         .getOrElse { return it.left() }
                 },
                 // メタデータが存在する場合は更新

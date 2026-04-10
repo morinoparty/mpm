@@ -9,24 +9,98 @@
 
 import { z } from "zod";
 
-const RepositorySchema = z.object({
-    type: z.string(),
-    id: z.string(),
-    fileNameRegex: z.string(),
-    versionModifier: z
-        .string()
-        .default("(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)")
-        .optional(),
-    downloadUrl: z.string().optional(),
-    fileNameTemplate: z.string().optional(),
-});
+/**
+ * リポジトリエントリ内のリリースチャンネル1件分の設定。
+ * 解決優先順位:
+ *  1. versionMatcher (regex) でフィルタ
+ *  2. useUpstreamLabel=true ならプラットフォーム固有ラベル
+ *     (Modrinth `version_type` / GitHub `prerelease`) に委譲
+ *  3. どちらも未指定ならフォールバック
+ */
+const ChannelSchema = z
+    .object({
+        // バージョン文字列に対する正規表現（`containsMatchIn` で評価）
+        // 例: "-SNAPSHOT$", "-beta\\.", "^\\d+\\.\\d+\\.\\d+$"
+        versionMatcher: z.string().optional(),
+        // チャンネル固有のバージョン正規化パターン（トップレベルのversionModifierより優先）
+        versionModifier: z.string().optional(),
+        // プラットフォーム固有のチャンネルラベルを使用するかのopt-inフラグ。
+        // trueのとき、Modrinthは `version_type`、GitHubは `prerelease` でフィルタする。
+        // `versionMatcher` が指定されている場合はそちらが優先される。
+        useUpstreamLabel: z.boolean().optional(),
+    })
+    .meta({
+        id: "Channel",
+        description:
+            "リリースチャンネルを識別する設定。" +
+            "versionMatcher (regex) が優先、なければuseUpstreamLabelによりネイティブラベルを使用",
+    });
 
-export const PluginInfoSchema = z.object({
-    id: z.string(),
-    website: z.url(),
-    source: z.url(),
-    license: z.string(),
-    repositories: z.array(RepositorySchema),
-});
+/**
+ * リポジトリ1件の設定。
+ * `id` と `type` は必須。その他はリポジトリ種別ごとに任意。
+ */
+const RepositorySchema = z
+    .object({
+        // リポジトリタイプ（"modrinth", "github", "spigotmc", "hangar" を想定）
+        // Kotlin側は String 型なので、スキーマドリフトを避けるためここも文字列として緩く受ける
+        type: z.string().min(1),
+        // リポジトリ固有ID（GitHubは "owner/repo"、SpigotMCはリソースID、Modrinthはslug/ID）
+        id: z.string().min(1),
+        // 複数アセットから対象ファイルを選ぶための正規表現（主にGitHub用、任意）
+        fileNameRegex: z.string().optional(),
+        // バージョン文字列からsemver部分を抽出する正規表現（任意、デフォルトは `X.Y.Z`）
+        versionModifier: z.string().optional(),
+        // カスタムダウンロードURLテンプレート（任意）
+        downloadUrl: z.string().optional(),
+        // ダウンロード後のファイル名テンプレート（任意）
+        fileNameTemplate: z.string().optional(),
+        // stableチャンネル（"latest"/"tag:release"）の versionMatcher
+        latest: ChannelSchema.optional(),
+        // betaチャンネル（"tag:beta"）の versionMatcher
+        beta: ChannelSchema.optional(),
+        // alphaチャンネル（"tag:alpha"）の versionMatcher
+        alpha: ChannelSchema.optional(),
+    })
+    .meta({
+        id: "Repository",
+        description: "プラグインのダウンロード元を定義するリポジトリ設定",
+    });
+
+/**
+ * プラグインのリポジトリファイル（repo/public/paper/plugins/*.json）のスキーマ。
+ *
+ * `repositories` 以外はすべて任意。カタログの実態に合わせて website / source / license /
+ * dependencies / defaultVersion などは optional として扱う。
+ */
+export const PluginInfoSchema = z
+    .object({
+        // IDEでのスキーマ補完用（任意）
+        $schema: z.string().optional(),
+        // プラグイン識別子。リポジトリファイルのベースネームと一致させる
+        id: z.string().min(1),
+        // プラグインのウェブサイトURL（任意）
+        website: z.url().optional(),
+        // ソースコードのURL（任意）
+        source: z.url().optional(),
+        // SPDXライセンス識別子（任意、例: "GPL-3.0-only"）
+        license: z.string().optional(),
+        // ダウンロード元のリポジトリ設定（必須、少なくとも1件）
+        repositories: z.array(RepositorySchema).min(1),
+        // 必須の依存プラグイン（リポジトリ上のプラグイン名、任意）
+        dependencies: z.array(z.string()).optional(),
+        // オプションの依存プラグイン（任意）
+        softDependencies: z.array(z.string()).optional(),
+        // デフォルトのバージョン指定。mpm addで明示指定がない場合に使用される
+        // 例: "tag:beta"（betaチャンネルの最新）, "sync:OtherPlugin"
+        defaultVersion: z.string().optional(),
+    })
+    .meta({
+        id: "PluginInfo",
+        title: "mpm Plugin Repository File",
+        description:
+            "mpmのパブリックリポジトリにおける1プラグイン分の定義ファイル。" +
+            "repo.mpm.nikomaru.dev が配信するスキーマと対応する。",
+    });
 
 export type PluginInfo = z.infer<typeof PluginInfoSchema>;
