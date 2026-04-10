@@ -30,6 +30,7 @@ import java.io.FileOutputStream
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.logging.Logger
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -52,6 +53,7 @@ class ServerBackupManagerImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
+    private val logger: Logger = Logger.getLogger(ServerBackupManagerImpl::class.java.name)
 
     // インデックスファイル名
     private val indexFileName = "index.yaml"
@@ -315,7 +317,7 @@ class ServerBackupManagerImpl :
 
                 for (backup in backupsToDelete) {
                     deleteBackup(backup.id).fold(
-                        { /* エラーの場合はスキップ */ },
+                        { error -> logger.warning("バックアップ ${backup.id} の削除に失敗: $error") },
                         { deletedCount++ }
                     )
                 }
@@ -392,6 +394,8 @@ class ServerBackupManagerImpl :
                 val yamlString = indexFile.readText()
                 Yaml.default.decodeFromString(BackupIndex.serializer(), yamlString)
             } catch (e: Exception) {
+                // インデックスファイルの破損を警告し、空のインデックスで続行する
+                logger.warning("バックアップインデックスの読み込みに失敗しました（${indexFile.absolutePath}）: ${e.message}")
                 BackupIndex()
             }
         } else {

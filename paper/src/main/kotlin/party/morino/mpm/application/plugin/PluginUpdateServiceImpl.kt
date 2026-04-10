@@ -978,8 +978,15 @@ class PluginUpdateServiceImpl :
         pluginName: String,
         force: Boolean
     ): Either<String, Unit> {
-        // tempファイルからプラグインデータを抽出
-        val pluginData = PluginDataUtils.getPluginData(downloadedFile)
+        // tempファイルからプラグインデータを抽出（破損JARでも例外を握りつぶしてスキップする）
+        val pluginData = try {
+            PluginDataUtils.getPluginData(downloadedFile)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
+            null
+        }
 
         // APIバージョンの互換性チェック
         val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
