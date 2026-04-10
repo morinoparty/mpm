@@ -11,6 +11,7 @@ package party.morino.mpm.infrastructure.downloader
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -21,6 +22,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import party.morino.mpm.api.domain.downloader.model.UrlData
+import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.infrastructure.downloader.github.GithubDownloader
 import party.morino.mpm.infrastructure.downloader.modrinth.ModrinthDownloader
@@ -30,17 +32,25 @@ import java.util.stream.Stream
 
 /**
  * repo/public/paper/plugins/ 配下の全プラグインJSONに対して、
- * 各リポジトリのgetAllVersionsが正常に動作することを検証するインテグレーションテスト。
+ * 各リポジトリの `getAllVersions` が正常に動作することを検証するインテグレーションテスト。
  *
  * 実際のAPIにリクエストを送信するため、ネットワーク接続が必要。
  * レート制限や上流の一時的障害で落ちる可能性があるため、`integration` タグを付与して
  * デフォルトの `./gradlew test` からは除外し、`./gradlew integrationTest` でのみ実行する。
+ *
+ * 検証内容:
+ * 1. getAllVersions がエラーにならず、1件以上のバージョンを返す
+ * 2. 各バージョンエントリが空でない version/downloadId を持つ
+ * 3. リポジトリ設定でチャンネル（latest/beta/alpha）が定義されている場合、
+ *    各チャンネルに属するバージョンを [versionMatcher] でフィルタし、
+ *    チャンネルごとの [versionModifier] で正規化した結果に重複がないこと
+ *    （チャンネル未定義の場合はリポジトリルートの [versionModifier] で一括チェック）
  */
 @Tag("integration")
 class PluginRepositoryIntegrationTest {
 
     companion object {
-        // JSONパーサー
+        // JSONパーサー（未知フィールドを無視して $schema などを許容する）
         private val json = Json { ignoreUnknownKeys = true }
 
         // 各プラットフォームのダウンローダーインスタンス
@@ -49,11 +59,35 @@ class PluginRepositoryIntegrationTest {
         private val githubDownloader = GithubDownloader()
 
         /**
+         * 1チャンネル分の設定。matcher/modifier いずれも省略可能
+         */
+        data class TestChannel(
+            val name: String,
+            val versionMatcher: String?,
+            val versionModifier: String?,
+        )
+
+        /**
+         * 1リポジトリ分のテスト設定
+         *
+         * @property rootVersionModifier リポジトリルートの versionModifier（フォールバック用）
+         * @property channels 定義されているチャンネル設定（空の場合は「単一チャンネル」として扱う）
+         */
+        data class TestRepository(
+            val pluginId: String,
+            val type: String,
+            val id: String,
+            val rootVersionModifier: String?,
+            val channels: List<TestChannel>,
+        ) {
+            // パラメータ化テストの表示名に使うため、簡潔な1行表現にする
+            override fun toString(): String = "$pluginId ($type: $id)"
+        }
+
+        /**
          * プラグインJSONディレクトリのパスを解決する
-         * テスト実行ディレクトリに応じて正しいパスを返す
          */
         private fun resolvePluginDir(): File {
-            // Gradleからの実行: カレントディレクトリがプロジェクトルート or paperサブプロジェクト
             val candidates = listOf(
                 File("repo/public/paper/plugins"),
                 File("../repo/public/paper/plugins")
@@ -62,6 +96,18 @@ class PluginRepositoryIntegrationTest {
                 ?: throw IllegalStateException(
                     "プラグインJSONディレクトリが見つかりません: ${candidates.map { it.absolutePath }}"
                 )
+        }
+
+        /**
+         * JSON内のチャンネルオブジェクトから [TestChannel] を構築する
+         */
+        private fun parseChannel(name: String, obj: JsonObject?): TestChannel? {
+            if (obj == null) return null
+            val matcher = obj["versionMatcher"]?.jsonPrimitive?.content
+            val modifier = obj["versionModifier"]?.jsonPrimitive?.content
+            // どちらも未指定なら空のチャンネル定義として扱う意味がないのでnullで返す
+            if (matcher == null && modifier == null) return null
+            return TestChannel(name = name, versionMatcher = matcher, versionModifier = modifier)
         }
 
         /**
@@ -78,8 +124,7 @@ class PluginRepositoryIntegrationTest {
                 val content = file.readText()
                 val jsonObj = json.parseToJsonElement(content).jsonObject
                 val pluginId = jsonObj["id"]?.jsonPrimitive?.content ?: file.nameWithoutExtension
-                // RepositoryFileのデシリアライズは repositories 必須なので、
-                // 欠落はカタログの不正として即座に検出する（silent skipしない）
+                // repositories は必須。欠落はカタログの不正として即座に検出する
                 val repositories = jsonObj["repositories"]?.jsonArray
                     ?: throw IllegalStateException(
                         "${file.name}: 'repositories' フィールドが存在しません。" +
@@ -94,87 +139,132 @@ class PluginRepositoryIntegrationTest {
                     val repoObj = repoElement.jsonObject
                     val type = repoObj["type"]?.jsonPrimitive?.content ?: "unknown"
                     val id = repoObj["id"]?.jsonPrimitive?.content ?: "unknown"
-                    // versionModifierはバージョン文字列から正規化されたセマンティックバージョンを
-                    // 抽出するための正規表現パターン（オプション）
-                    val versionModifier = repoObj["versionModifier"]?.jsonPrimitive?.content
-                    Arguments.of(pluginId, type, id, versionModifier)
+                    val rootModifier = repoObj["versionModifier"]?.jsonPrimitive?.content
+                    val channels = listOfNotNull(
+                        parseChannel("latest", repoObj["latest"]?.jsonObject),
+                        parseChannel("beta", repoObj["beta"]?.jsonObject),
+                        parseChannel("alpha", repoObj["alpha"]?.jsonObject),
+                    )
+                    Arguments.of(
+                        TestRepository(
+                            pluginId = pluginId,
+                            type = type,
+                            id = id,
+                            rootVersionModifier = rootModifier,
+                            channels = channels,
+                        )
+                    )
                 }
             }.stream()
         }
     }
 
-    @ParameterizedTest(name = "{0} ({1}: {2})")
+    /**
+     * 指定リポジトリから全バージョンを取得する（プラットフォーム振り分け）
+     */
+    private suspend fun fetchAllVersions(type: String, repoId: String): List<VersionData> =
+        when (type) {
+            "modrinth" -> modrinthDownloader.getAllVersions(UrlData.ModrinthUrlData(repoId))
+            "spigotmc" -> spigotDownloader.getAllVersions(UrlData.SpigotMcUrlData(repoId))
+            "github" -> {
+                val parts = repoId.split("/")
+                githubDownloader.getAllVersions(UrlData.GithubUrlData(parts[0], parts[1]))
+            }
+            else -> throw IllegalArgumentException("未対応のリポジトリタイプ: $type")
+        }
+
+    /**
+     * 1チャンネル分のバージョン集合に対して、重複正規化チェックと基本検証を行う
+     *
+     * @return 失敗メッセージのリスト（空なら合格）
+     */
+    private fun validateChannelGroup(
+        label: String,
+        versions: List<VersionData>,
+        modifier: String?,
+    ): List<String> {
+        if (versions.isEmpty()) return emptyList() // 空チャンネルは検証対象外（スキップ）
+
+        val errors = mutableListOf<String>()
+        val normalized = versions.map { v ->
+            v.version to VersionDetail.normalizeWithPattern(v.version, modifier)
+        }
+
+        // 各バージョンエントリの基本検証
+        versions.forEach { v ->
+            if (v.version.isBlank()) errors += "$label: version が空のエントリあり"
+            if (v.downloadId.isBlank()) errors += "$label: downloadId が空のエントリあり"
+        }
+
+        // 正規化後の重複を検出
+        // ただし、上流APIが同一rawバージョン文字列を複数回返すケース（実データの重複）は
+        // 我々の管轄外なので無視し、「異なるrawが同じ正規化結果に潰れる」ケースのみを
+        // versionModifierの不足として検出する
+        val duplicates = normalized
+            .groupBy { it.second }
+            .filter { (_, pairs) -> pairs.map { it.first }.distinct().size > 1 }
+        if (duplicates.isNotEmpty()) {
+            val detail = duplicates.entries.joinToString("; ") { (norm, pairs) ->
+                val distinctRaws = pairs.map { it.first }.distinct()
+                "'$norm' <- [${distinctRaws.joinToString(", ")}]"
+            }
+            errors += "$label: versionModifierでは区別できない複数バージョンあり: $detail"
+        }
+
+        println("  [$label] ${versions.size} versions, sample normalized: ${normalized.take(3).map { it.second }}")
+        return errors
+    }
+
+    @ParameterizedTest(name = "{0}")
     @MethodSource("pluginRepositoryProvider")
-    @DisplayName("getAllVersions returns non-empty list")
-    fun getAllVersionsReturnsNonEmptyList(
-        pluginId: String,
-        repoType: String,
-        repoId: String,
-        versionModifier: String?
-    ) {
+    @DisplayName("getAllVersions per-channel validation")
+    fun getAllVersionsPerChannelValidation(repo: TestRepository) {
         runBlocking {
-            val versions = when (repoType) {
-                "modrinth" -> {
-                    val urlData = UrlData.ModrinthUrlData(repoId)
-                    modrinthDownloader.getAllVersions(urlData)
-                }
-                "spigotmc" -> {
-                    val urlData = UrlData.SpigotMcUrlData(repoId)
-                    spigotDownloader.getAllVersions(urlData)
-                }
-                "github" -> {
-                    // GitHub IDは "owner/repo" 形式
-                    val parts = repoId.split("/")
-                    val urlData = UrlData.GithubUrlData(parts[0], parts[1])
-                    githubDownloader.getAllVersions(urlData)
-                }
-                else -> {
-                    throw IllegalArgumentException("未対応のリポジトリタイプ: $repoType")
-                }
-            }
-
-            // versionModifier（= versionPattern）で正規化したバージョン文字列に変換
-            // modifier未指定の場合はデフォルトsemverパターンで正規化される
-            val normalizedVersions = versions.map { versionData ->
-                versionData.version to VersionDetail.normalizeWithPattern(versionData.version, versionModifier)
-            }
-            println(normalizedVersions.joinToString("\n") { "${it.first} -> ${it.second}" })
+            val allVersions = fetchAllVersions(repo.type, repo.id)
+            println("=== ${repo.pluginId} (${repo.type}: ${repo.id}) — ${allVersions.size} total versions ===")
 
             assertTrue(
-                versions.isNotEmpty(),
-                "$pluginId ($repoType: $repoId) のバージョンリストが空です"
+                allVersions.isNotEmpty(),
+                "${repo.pluginId} (${repo.type}: ${repo.id}) のバージョンリストが空です"
             )
 
-            // 各バージョンが有効な値を持つことを確認
-            versions.forEach { version ->
-                assertTrue(
-                    version.version.isNotBlank(),
-                    "$pluginId ($repoType: $repoId) にバージョン名が空のエントリがあります"
-                )
-                assertTrue(
-                    version.downloadId.isNotBlank(),
-                    "$pluginId ($repoType: $repoId) にdownloadIdが空のエントリがあります"
-                )
-            }
+            val errors = mutableListOf<String>()
 
-            // 正規化後のバージョンに重複がないことを確認
-            // 同じ正規化結果になるバージョンが存在するとバージョン比較が破綻するため、
-            // versionModifierが正しく機能していることを保証する
-            val duplicates = normalizedVersions
-                .groupBy { it.second }
-                .filter { it.value.size > 1 }
-            assertTrue(
-                duplicates.isEmpty(),
-                "$pluginId ($repoType: $repoId) に正規化後の重複バージョンがあります: " +
-                    duplicates.entries.joinToString("; ") { (normalized, pairs) ->
-                        "'$normalized' <- [${pairs.joinToString(", ") { it.first }}]"
+            if (repo.channels.isEmpty()) {
+                // チャンネル未定義: 全バージョンを1グループとしてルートmodifierで正規化チェック
+                errors += validateChannelGroup(
+                    label = "all",
+                    versions = allVersions,
+                    modifier = repo.rootVersionModifier,
+                )
+            } else {
+                // チャンネル定義あり: 各チャンネルごとにversionMatcherでフィルタして検証
+                // - versionMatcherが未指定のチャンネルは全バージョンを対象とする
+                //   （チャンネル固有のversionModifierだけで検証するケース）
+                // - versionModifierが未指定のチャンネルはルートmodifierにフォールバック
+                for (channel in repo.channels) {
+                    val matcherRegex = channel.versionMatcher?.let { runCatching { Regex(it) }.getOrNull() }
+                    val filtered = if (matcherRegex != null) {
+                        allVersions.filter { matcherRegex.containsMatchIn(it.version) }
+                    } else {
+                        allVersions
                     }
+                    val effectiveModifier = channel.versionModifier ?: repo.rootVersionModifier
+                    errors += validateChannelGroup(
+                        label = channel.name,
+                        versions = filtered,
+                        modifier = effectiveModifier,
+                    )
+                }
+            }
+
+            assertTrue(
+                errors.isEmpty(),
+                "${repo.pluginId} (${repo.type}: ${repo.id}) にカタログ不整合があります:\n" +
+                    errors.joinToString("\n") { "  - $it" }
             )
 
-            println(
-                "✓ $pluginId ($repoType): ${versions.size} versions found, " +
-                    "latest: ${normalizedVersions.first().second}"
-            )
+            println("✓ ${repo.pluginId} (${repo.type}) passed per-channel validation")
         }
     }
 }
