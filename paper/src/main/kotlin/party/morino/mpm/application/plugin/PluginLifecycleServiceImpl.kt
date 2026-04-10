@@ -323,19 +323,35 @@ class PluginLifecycleServiceImpl :
         val pluginSpec = project?.getPluginSpec(name)
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
 
+        // チャンネル設定(`latest`/`beta`/`alpha`)を取得するため、リポジトリファイルから
+        // RepositoryConfigを読み込む。メタデータのRepositoryInfoには含まれないため別取得。
+        val firstRepositoryConfig = repositoryManager
+            .getRepositoryFile(pluginName)
+            ?.repositories
+            ?.firstOrNull()
+
         // 最新バージョン情報を取得（Tag指定の場合はそのタグでフィルタ）
+        // チャンネル設定 (versionMatcher / useUpstreamLabel) を尊重する
         val latestVersionData =
             try {
                 if (versionSpecifier is VersionSpecifier.Tag) {
                     // Tag指定: 該当タグの最新バージョンを取得（見つからなければエラー）
-                    downloaderRepository.getLatestVersionByTag(urlData, versionSpecifier.tag)
-                        ?: return MpmError.PluginError
-                            .VersionResolutionFailed(
-                                pluginName,
-                                "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
-                            ).left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        firstRepositoryConfig,
+                        versionSpecifier.tag,
+                    ) ?: return MpmError.PluginError
+                        .VersionResolutionFailed(
+                            pluginName,
+                            "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                        ).left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        firstRepositoryConfig,
+                    )
                 }
             } catch (e: Exception) {
                 return MpmError.PluginError
@@ -1018,14 +1034,24 @@ class PluginLifecycleServiceImpl :
                             val targetReq = targetManaged.versionRequirement
                             if (targetReq is VersionSpecifier.Tag) {
                                 // Tag指定: 該当チャンネルの最新バージョンを取得
-                                downloaderRepository.getLatestVersionByTag(targetUrlData, targetReq.tag)?.version
+                                // targetRepoのchannel設定(useUpstreamLabel等)を尊重する
+                                ChannelVersionResolver.resolveTag(
+                                    downloaderRepository,
+                                    targetUrlData,
+                                    targetRepo,
+                                    targetReq.tag,
+                                )?.version
                                     ?: return MpmError.PluginError
                                         .VersionResolutionFailed(
                                             pluginName,
                                             "tag '${targetReq.tag}' に該当するバージョンが見つかりません"
                                         ).left()
                             } else {
-                                downloaderRepository.getLatestVersion(targetUrlData).version
+                                ChannelVersionResolver.resolveLatest(
+                                    downloaderRepository,
+                                    targetUrlData,
+                                    targetRepo,
+                                ).version
                             }
                         } catch (e: Exception) {
                             return MpmError.PluginError

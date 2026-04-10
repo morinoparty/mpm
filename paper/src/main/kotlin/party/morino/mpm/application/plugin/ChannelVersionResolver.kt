@@ -76,4 +76,39 @@ object ChannelVersionResolver {
         // (3) 未設定: フォールバックを呼び出し側に任せる
         return null
     }
+
+    /**
+     * `Latest` 相当のバージョンを、チャンネル設定を優先しつつ解決する便利メソッド
+     *
+     * [repoConfig] が null、あるいはチャンネル設定が未定義の場合は、従来どおり
+     * [DownloaderRepository.getLatestVersion] にフォールバックする。
+     */
+    suspend fun resolveLatest(
+        downloaderRepository: DownloaderRepository,
+        urlData: UrlData,
+        repoConfig: RepositoryConfig?,
+    ): VersionData {
+        val fromChannel = repoConfig?.let {
+            resolveLatestInChannel(downloaderRepository, urlData, it, "latest")
+        }
+        return fromChannel ?: downloaderRepository.getLatestVersion(urlData)
+    }
+
+    /**
+     * 指定タグチャンネルのバージョンを、チャンネル設定を優先しつつ解決する便利メソッド
+     *
+     * [repoConfig] が null、あるいは該当チャンネル設定が未定義の場合は、従来どおり
+     * [DownloaderRepository.getLatestVersionByTag] にフォールバックする。
+     */
+    suspend fun resolveTag(
+        downloaderRepository: DownloaderRepository,
+        urlData: UrlData,
+        repoConfig: RepositoryConfig?,
+        tag: String,
+    ): VersionData? {
+        val fromChannel = repoConfig?.let {
+            resolveLatestInChannel(downloaderRepository, urlData, it, tag)
+        }
+        return fromChannel ?: downloaderRepository.getLatestVersionByTag(urlData, tag)
+    }
 }

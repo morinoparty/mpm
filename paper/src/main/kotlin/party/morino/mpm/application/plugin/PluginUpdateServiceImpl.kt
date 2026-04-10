@@ -701,14 +701,28 @@ class PluginUpdateServiceImpl :
         val versionString = mpmConfig?.plugins?.get(pluginName)
         val tagChannelForPlugin = versionString?.let { VersionSpecifierParser.extractTag(it) }
 
+        // チャンネル設定(versionMatcher/useUpstreamLabel)を取得するためリポファイルを参照
+        val firstRepositoryConfig = repositoryManager
+            .getRepositoryFile(pluginName)
+            ?.repositories
+            ?.firstOrNull()
+
         // 最新バージョンを取得（tag:指定の場合は該当チャンネルの最新を取得）
         val latestVersionData =
             try {
                 if (tagChannelForPlugin != null) {
-                    downloaderRepository.getLatestVersionByTag(urlData, tagChannelForPlugin)
-                        ?: return "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName".left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        firstRepositoryConfig,
+                        tagChannelForPlugin,
+                    ) ?: return "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName".left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        firstRepositoryConfig,
+                    )
                 }
             } catch (e: Exception) {
                 return "最新バージョン情報の取得に失敗しました: ${e.message}".left()
@@ -857,14 +871,23 @@ class PluginUpdateServiceImpl :
                 ?: return "未対応のリポジトリタイプです: ${firstRepository.type}".left()
 
         // 最新バージョンを取得（tag:指定の場合は該当チャンネルの最新を取得）
+        // チャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
         val tagChannel = VersionSpecifierParser.extractTag(expectedVersion)
         val latestVersionData =
             try {
                 if (tagChannel != null) {
-                    downloaderRepository.getLatestVersionByTag(urlData, tagChannel)
-                        ?: return "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName".left()
+                    ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        firstRepository,
+                        tagChannel,
+                    ) ?: return "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName".left()
                 } else {
-                    downloaderRepository.getLatestVersion(urlData)
+                    ChannelVersionResolver.resolveLatest(
+                        downloaderRepository,
+                        urlData,
+                        firstRepository,
+                    )
                 }
             } catch (e: Exception) {
                 return "バージョン情報の取得に失敗しました: ${e.message}".left()
