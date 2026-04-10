@@ -916,16 +916,11 @@ class PluginLifecycleServiceImpl :
         when (version) {
             is LegacyVersionSpecifier.Latest -> {
                 try {
-                    // リポファイル側でlatestチャンネルにマッチャーが指定されていればそちらを優先
-                    val byMatcher = repoConfig?.let {
-                        ChannelVersionResolver.resolveLatestInChannel(
-                            downloaderRepository,
-                            urlData,
-                            it,
-                            "latest"
-                        )
-                    }
-                    (byMatcher ?: downloaderRepository.getLatestVersion(urlData)).right()
+                    // ChannelVersionResolverがchannel設定(matcher/useUpstreamLabel)を優先し、
+                    // なければgetLatestVersionにフォールバックする
+                    ChannelVersionResolver
+                        .resolveLatest(downloaderRepository, urlData, repoConfig)
+                        .right()
                 } catch (e: Exception) {
                     MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
                 }
@@ -940,16 +935,12 @@ class PluginLifecycleServiceImpl :
             }
             is LegacyVersionSpecifier.Tag -> {
                 try {
-                    // リポファイル側でbeta/alphaチャンネルにマッチャーが指定されていれば優先
-                    val byMatcher = repoConfig?.let {
-                        ChannelVersionResolver.resolveLatestInChannel(
-                            downloaderRepository,
-                            urlData,
-                            it,
-                            version.tag
-                        )
-                    }
-                    val result = byMatcher ?: downloaderRepository.getLatestVersionByTag(urlData, version.tag)
+                    val result = ChannelVersionResolver.resolveTag(
+                        downloaderRepository,
+                        urlData,
+                        repoConfig,
+                        version.tag,
+                    )
                     result?.right()
                         ?: MpmError.PluginError.VersionResolutionFailed(
                             pluginName,
