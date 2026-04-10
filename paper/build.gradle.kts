@@ -82,12 +82,39 @@ tasks {
         }
     }
     test {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            // デフォルトのtestタスクではintegrationタグを除外する
+            // （実APIを叩くテストはレート制限・一時的障害で不安定になるため）
+            excludeTags("integration")
+        }
         testLogging {
             showStandardStreams = true
             events("passed", "skipped", "failed")
             exceptionFormat = TestExceptionFormat.FULL
         }
+    }
+
+    // 実APIを叩くインテグレーションテスト専用タスク（opt-in実行）
+    // 実行例: ./gradlew :paper:integrationTest
+    register<Test>("integrationTest") {
+        description = "Runs integration tests that hit real upstream APIs (opt-in)."
+        group = "verification"
+
+        // testと同じクラスパス・ソースセットを利用
+        testClassesDirs = sourceSets.test.get().output.classesDirs
+        classpath = sourceSets.test.get().runtimeClasspath
+
+        useJUnitPlatform {
+            includeTags("integration")
+        }
+        testLogging {
+            showStandardStreams = true
+            events("passed", "skipped", "failed")
+            exceptionFormat = TestExceptionFormat.FULL
+        }
+
+        // 通常のtest実行後に走らせる（並列実行時の順序保証）
+        shouldRunAfter("test")
     }
 }
 

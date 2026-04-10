@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
@@ -32,7 +33,10 @@ import java.util.stream.Stream
  * 各リポジトリのgetAllVersionsが正常に動作することを検証するインテグレーションテスト。
  *
  * 実際のAPIにリクエストを送信するため、ネットワーク接続が必要。
+ * レート制限や上流の一時的障害で落ちる可能性があるため、`integration` タグを付与して
+ * デフォルトの `./gradlew test` からは除外し、`./gradlew integrationTest` でのみ実行する。
  */
+@Tag("integration")
 class PluginRepositoryIntegrationTest {
 
     companion object {
@@ -74,7 +78,17 @@ class PluginRepositoryIntegrationTest {
                 val content = file.readText()
                 val jsonObj = json.parseToJsonElement(content).jsonObject
                 val pluginId = jsonObj["id"]?.jsonPrimitive?.content ?: file.nameWithoutExtension
-                val repositories = jsonObj["repositories"]?.jsonArray ?: return@flatMap emptyList()
+                // RepositoryFileのデシリアライズは repositories 必須なので、
+                // 欠落はカタログの不正として即座に検出する（silent skipしない）
+                val repositories = jsonObj["repositories"]?.jsonArray
+                    ?: throw IllegalStateException(
+                        "${file.name}: 'repositories' フィールドが存在しません。" +
+                            "プラグインJSONには必ず repositories 配列を含めてください"
+                    )
+                check(repositories.isNotEmpty()) {
+                    "${file.name}: 'repositories' 配列が空です。" +
+                        "少なくとも1つのリポジトリ定義が必要です"
+                }
 
                 repositories.map { repoElement ->
                     val repoObj = repoElement.jsonObject
