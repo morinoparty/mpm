@@ -63,10 +63,17 @@ class LocalRepositorySource(
      */
     override suspend fun getRepositoryFile(pluginName: String): RepositoryFile? =
         withContext(Dispatchers.IO) {
-            val file = File(directory, "$pluginName.json")
+            // 大文字小文字を無視してファイルを検索（Linux環境ではファイル名がcase-sensitive）
+            val candidates = directory.listFiles { f ->
+                f.isFile && f.extension.equals("json", ignoreCase = true) &&
+                    f.nameWithoutExtension.equals(pluginName, ignoreCase = true)
+            } ?: emptyArray()
+            // 完全一致を優先し、なければcase-insensitiveの最初のマッチを使う
+            val file = candidates.firstOrNull { it.nameWithoutExtension == pluginName }
+                ?: candidates.firstOrNull()
 
-            // ファイルが存在しない場合はnullを返す
-            if (!file.exists() || !file.isFile) {
+            // ファイルが見つからない場合はnullを返す
+            if (file == null) {
                 return@withContext null
             }
 

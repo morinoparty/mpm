@@ -17,6 +17,29 @@ import java.io.File
 import java.util.jar.JarFile
 
 object PluginDataUtils {
+    /**
+     * YAMLからapi-versionの値を安全に文字列として取得する
+     * SnakeYAMLは "api-version: 1.20" をDouble 1.2としてパースするため、
+     * Number型の場合は元の表現を復元する
+     */
+    internal fun parseApiVersion(raw: Any?): String {
+        if (raw == null) return ""
+        // String型ならそのまま返す（クォートされたYAML値）
+        if (raw is String) return raw
+        // Number型の場合、SnakeYAMLがfloatとしてパースしている
+        // 例: 1.20 → Double(1.2), 1.21 → Double(1.21)
+        if (raw is Number) {
+            val str = raw.toString()
+            // "1.2" のようにマイナーバージョンが1桁の場合、"1.20"に復元する
+            val parts = str.split(".")
+            if (parts.size == 2 && parts[1].length == 1) {
+                return "${parts[0]}.${parts[1]}0"
+            }
+            return str
+        }
+        return raw.toString()
+    }
+
     fun getPluginData(file: File): PluginData? {
         // JarFileをuse{}で確実にクローズする（リソースリーク防止）
         return JarFile(file).use { jarFile ->
@@ -35,15 +58,16 @@ object PluginDataUtils {
 
     private fun getPaperPluginData(jarFile: JarFile): PluginData.PaperPluginData {
         val paperYml = jarFile.getEntry("paper-plugin.yml")
-        val paperYmlStream = jarFile.getInputStream(paperYml)
-        val paperYmlReader = paperYmlStream.bufferedReader()
-        val yaml = Yaml(SafeConstructor(LoaderOptions()))
-        val yamlData = yaml.load<Map<String, Any>>(paperYmlReader)
+        // InputStream/BufferedReaderをuse{}で確実にクローズする（リソースリーク防止）
+        val yamlData = jarFile.getInputStream(paperYml).bufferedReader().use { reader ->
+            val yaml = Yaml(SafeConstructor(LoaderOptions()))
+            yaml.load<Map<String, Any>>(reader)
+        }
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
         val main = (yamlData["main"] ?: "").toString()
         val description = (yamlData["description"] ?: "").toString()
-        val apiVersion = (yamlData["api-version"] ?: "").toString()
+        val apiVersion = parseApiVersion(yamlData["api-version"])
         val bootstrapper = (yamlData["bootstrapper"] ?: "").toString()
         val loader = (yamlData["loader"] ?: "").toString()
         val author = (yamlData["author"] ?: "").toString()
@@ -103,17 +127,18 @@ object PluginDataUtils {
 
     private fun getBukkitPluginData(jarFile: JarFile): PluginData.BukkitPluginData {
         val pluginYml = jarFile.getEntry("plugin.yml")
-        val pluginYmlStream = jarFile.getInputStream(pluginYml)
-        val pluginYmlReader = pluginYmlStream.bufferedReader()
-        val yaml = Yaml(SafeConstructor(LoaderOptions()))
-        val yamlData = yaml.load<Map<String, Any>>(pluginYmlReader)
+        // InputStream/BufferedReaderをuse{}で確実にクローズする（リソースリーク防止）
+        val yamlData = jarFile.getInputStream(pluginYml).bufferedReader().use { reader ->
+            val yaml = Yaml(SafeConstructor(LoaderOptions()))
+            yaml.load<Map<String, Any>>(reader)
+        }
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
         val main = (yamlData["main"] ?: "").toString()
         val description = (yamlData["description"] ?: "").toString()
         val author = (yamlData["author"] ?: "").toString()
         val website = (yamlData["website"] ?: "").toString()
-        val apiVersion = (yamlData["api-version"] ?: "").toString()
+        val apiVersion = parseApiVersion(yamlData["api-version"])
 
         // Bukkit形式の依存関係を解析
         val depend = parseStringList(yamlData["depend"])

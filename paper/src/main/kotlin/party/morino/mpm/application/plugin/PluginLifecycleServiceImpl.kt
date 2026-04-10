@@ -395,12 +395,11 @@ class PluginLifecycleServiceImpl :
                 ).left()
         }
 
-        // APIバージョンの互換性チェック
+        // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
         val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
         when (compatibilityResult) {
             is CompatibilityResult.Incompatible -> {
                 if (!force) {
-                    // 非互換かつforceでない場合、一時ファイルを削除してエラーを返す
                     downloadedFile.delete()
                     return MpmError.PluginError.ApiVersionIncompatible(
                         pluginName,
@@ -408,7 +407,6 @@ class PluginLifecycleServiceImpl :
                         compatibilityResult.serverApiVersion
                     ).left()
                 }
-                // forceの場合は警告ログを出して続行
                 plugin.logger.warning(
                     "api-version incompatible ($pluginName): " +
                         "plugin=${compatibilityResult.pluginApiVersion}, " +
@@ -416,13 +414,57 @@ class PluginLifecycleServiceImpl :
                 )
             }
             is CompatibilityResult.Unknown -> {
-                // 判定不能の場合はログに警告を出して続行
                 plugin.logger.warning(
                     "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
                 )
             }
             is CompatibilityResult.Compatible -> {
-                // 互換性あり、続行
+                // 互換性あり
+            }
+        }
+
+        // 必須依存関係のチェック（破損JARでも例外を握りつぶしてスキップする）
+        val pluginData = try {
+            PluginDataUtils.getPluginData(downloadedFile)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
+            null
+        }
+        if (pluginData != null) {
+            val requiredDeps = when (pluginData) {
+                is PluginData.BukkitPluginData -> pluginData.depend
+                is PluginData.PaperPluginData -> pluginData.depend
+            }
+            if (requiredDeps.isNotEmpty()) {
+                val project = projectRepository.find()
+                val managedPlugins = project?.plugins?.keys?.map { it.value }?.toSet().orEmpty()
+                val pluginsDir = pluginDirectory.getPluginsDirectory()
+                val installedPluginNames = pluginsDir.listFiles { f ->
+                    f.isFile && f.extension == "jar"
+                }?.mapNotNull { jar ->
+                    try {
+                        val data = PluginDataUtils.getPluginData(jar)
+                        when (data) {
+                            is PluginData.BukkitPluginData -> data.name
+                            is PluginData.PaperPluginData -> data.name
+                            null -> null
+                        }
+                    } catch (_: Exception) { null }
+                }?.toSet().orEmpty()
+
+                val missingDeps = requiredDeps.filter { dep ->
+                    !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
+                }
+                if (missingDeps.isNotEmpty()) {
+                    val message = "必須依存プラグインが不足しています: ${missingDeps.joinToString(", ")}"
+                    if (!force) {
+                        downloadedFile.delete()
+                        return MpmError.PluginError.InstallFailed(pluginName, message).left()
+                    }
+                    plugin.logger.warning("$pluginName: $message (forced install)")
+                }
             }
         }
 
@@ -430,11 +472,30 @@ class PluginLifecycleServiceImpl :
         val template = mpmInfo.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
         val newFileName = generateFileName(template, pluginInfo.name, mpmInfo.version.current.normalized)
 
-        // 古いファイルを削除（存在する場合）
+        // staged copy: 一時ファイル経由で安全にファイルを置換する
+        val pluginsDir = pluginDirectory.getPluginsDirectory()
+        val targetFile = File(pluginsDir, newFileName)
+        val stagedFile = File(pluginsDir, "$newFileName.tmp")
+        try {
+            downloadedFile.copyTo(stagedFile, overwrite = true)
+            downloadedFile.delete()
+            if (!stagedFile.renameTo(targetFile)) {
+                stagedFile.copyTo(targetFile, overwrite = true)
+                stagedFile.delete()
+            }
+        } catch (e: Exception) {
+            stagedFile.delete()
+            return MpmError.PluginError
+                .InstallFailed(
+                    pluginName,
+                    "Failed to move file: ${e.message}"
+                ).left()
+        }
+
+        // 新しいファイルの配置が成功してから古いファイルを削除する
         val oldFileName = mpmInfo.download.fileName
         var removedInfo: PluginRemovalInfo? = null
         if (oldFileName != null && oldFileName != newFileName) {
-            val pluginsDir = pluginDirectory.getPluginsDirectory()
             val oldFile = File(pluginsDir, oldFileName)
             if (oldFile.exists()) {
                 oldFile.delete()
@@ -444,20 +505,6 @@ class PluginLifecycleServiceImpl :
                         version = mpmInfo.version.current.normalized
                     )
             }
-        }
-
-        // ダウンロードしたファイルをpluginsディレクトリに移動
-        val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
-        try {
-            downloadedFile.copyTo(targetFile, overwrite = true)
-            downloadedFile.delete()
-        } catch (e: Exception) {
-            return MpmError.PluginError
-                .InstallFailed(
-                    pluginName,
-                    "Failed to move file: ${e.message}"
-                ).left()
         }
 
         // ファイル名をメタデータに記録して保存
@@ -565,8 +612,8 @@ class PluginLifecycleServiceImpl :
             }
         }
 
-        // 管理対象のプラグイン名セット
-        val managedPlugins = project.plugins.keys.map { it.value }.toSet()
+        // 管理対象のプラグイン名セット（大文字小文字を無視して比較するためlowercaseで保持）
+        val managedPlugins = project.plugins.keys.map { it.value.lowercase() }.toSet()
 
         // pluginsディレクトリからJARファイルを取得
         val pluginsDir = pluginDirectory.getPluginsDirectory()
@@ -599,8 +646,8 @@ class PluginLifecycleServiceImpl :
                             is PluginData.PaperPluginData -> pluginData.name
                         }
 
-                    // 管理対象でない場合は削除
-                    if (!managedPlugins.contains(jarPluginName)) {
+                    // 管理対象でない場合は削除（大文字小文字を無視）
+                    if (!managedPlugins.contains(jarPluginName.lowercase())) {
                         if (jarFile.delete()) {
                             removedCount++
                         }
@@ -1315,16 +1362,23 @@ class PluginLifecycleServiceImpl :
                         pinResult.hashWarning?.let { hashMismatchWarnings[repoName] = it }
                     }
 
-                    // 古いJARファイルを削除（新しいファイルと異なる場合のみ）
+                    // 古いJARファイルを削除（新しいファイルの存在を確認してから）
                     if (oldJarFile != null && oldJarFile.exists() && !result.failedPlugins.containsKey(repoName)) {
                         // メタデータから新しいファイル名を取得して比較
                         val newFileName = metadataManager.loadMetadata(repoName).getOrNull()
                             ?.mpmInfo?.download?.fileName
-                        // 古いファイルと新しいファイルが異なる場合に削除（同名の場合はinstall()で上書き済み）
-                        if (newFileName == null || oldJarFile.name != newFileName) {
+                        // メタデータが読めない場合は安全のため削除しない
+                        if (newFileName != null) {
+                            val newFile = File(pluginDirectory.getPluginsDirectory(), newFileName)
                             try {
-                                oldJarFile.delete()
-                                progressCallback?.invoke("<red>[$repoName] 旧ファイル削除: ${oldJarFile.name}")
+                                // canonicalFileで比較し、同一ファイルでないことを確認してから削除する
+                                if (newFile.exists() && oldJarFile.canonicalFile != newFile.canonicalFile) {
+                                    if (oldJarFile.delete()) {
+                                        progressCallback?.invoke("<red>[$repoName] 旧ファイル削除: ${oldJarFile.name}")
+                                    } else {
+                                        plugin.logger.warning("[$repoName] 旧ファイル削除に失敗: ${oldJarFile.name}")
+                                    }
+                                }
                             } catch (e: Exception) {
                                 plugin.logger.warning("[$repoName] 旧ファイル削除に失敗: ${oldJarFile.name} (${e.message})")
                             }

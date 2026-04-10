@@ -47,6 +47,7 @@ import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.event.PluginInstallEvent
@@ -55,6 +56,7 @@ import party.morino.mpm.event.PluginUnlockEvent
 import party.morino.mpm.event.PluginUpdateEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
+import party.morino.mpm.utils.PluginDataUtils
 import java.io.File
 
 /**
@@ -708,32 +710,11 @@ class PluginUpdateServiceImpl :
             return "プラグインファイルのダウンロードに失敗しました。".left()
         }
 
-        // APIバージョンの互換性チェック
-        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
-        when (compatibilityResult) {
-            is CompatibilityResult.Incompatible -> {
-                if (!force) {
-                    // 非互換かつforceでない場合、一時ファイルを削除してエラーを返す
-                    downloadedFile.delete()
-                    return ("[API_VERSION_INCOMPATIBLE] api-version非互換: " +
-                        "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
-                        "サーバーは${compatibilityResult.serverApiVersion}です").left()
-                }
-                // forceの場合は警告ログを出して続行
-                plugin.logger.warning(
-                    "api-version incompatible ($pluginName): " +
-                        "plugin=${compatibilityResult.pluginApiVersion}, " +
-                        "server=${compatibilityResult.serverApiVersion}. Forced install."
-                )
-            }
-            is CompatibilityResult.Unknown -> {
-                plugin.logger.warning(
-                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
-                )
-            }
-            is CompatibilityResult.Compatible -> {
-                // 互換性あり、続行
-            }
+        // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
+        // チェックに失敗した場合はtempファイルを削除して早期リターン
+        validateDownloadedPlugin(downloadedFile, pluginName, force).onLeft { error ->
+            downloadedFile.delete()
+            return error.left()
         }
 
         // 更新後のメタデータからバージョン情報を取得してファイル名を生成
@@ -741,11 +722,29 @@ class PluginUpdateServiceImpl :
         val updatedVersion = updatedMetadataWithLatest.mpmInfo.version.current.normalized
         val newFileName = generateFileName(template, pluginInfoDto.name, updatedVersion)
 
-        // 古いファイルを削除（存在する場合）
+        // staged copy: 一時ファイル経由で安全にファイルを置換する
+        // 同名ファイルの上書き中にクラッシュしても既存JARが壊れないようにする
+        val pluginsDir = pluginDirectory.getPluginsDirectory()
+        val targetFile = File(pluginsDir, newFileName)
+        val stagedFile = File(pluginsDir, "$newFileName.tmp")
+        try {
+            downloadedFile.copyTo(stagedFile, overwrite = true)
+            downloadedFile.delete()
+            // staged fileを最終位置にリネーム（同一ファイルシステム上ではアトミック）
+            if (!stagedFile.renameTo(targetFile)) {
+                // renameToが失敗した場合はcopy+deleteにフォールバック
+                stagedFile.copyTo(targetFile, overwrite = true)
+                stagedFile.delete()
+            }
+        } catch (e: Exception) {
+            stagedFile.delete()
+            return "プラグインファイルの移動に失敗しました: ${e.message}".left()
+        }
+
+        // 新しいファイルの配置が成功してから古いファイルを削除する
         val oldFileName = mpmInfoDto.download.fileName
         var removedInfo: PluginRemovalInfo? = null
         if (oldFileName != null && oldFileName != newFileName) {
-            val pluginsDir = pluginDirectory.getPluginsDirectory()
             val oldFile = File(pluginsDir, oldFileName)
             if (oldFile.exists()) {
                 oldFile.delete()
@@ -755,15 +754,6 @@ class PluginUpdateServiceImpl :
                         version = mpmInfoDto.version.current.normalized
                     )
             }
-        }
-
-        val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
-        try {
-            downloadedFile.copyTo(targetFile, overwrite = true)
-            downloadedFile.delete()
-        } catch (e: Exception) {
-            return "プラグインファイルの移動に失敗しました: ${e.message}".left()
         }
 
         // ファイル名をmetadataに記録して保存
@@ -875,64 +865,46 @@ class PluginUpdateServiceImpl :
             return "プラグインファイルのダウンロードに失敗しました。".left()
         }
 
-        // APIバージョンの互換性チェック
-        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
-        when (compatibilityResult) {
-            is CompatibilityResult.Incompatible -> {
-                if (!force) {
-                    // 非互換かつforceでない場合、一時ファイルを削除してエラーを返す
-                    downloadedFile.delete()
-                    return ("[API_VERSION_INCOMPATIBLE] api-version非互換: " +
-                        "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
-                        "サーバーは${compatibilityResult.serverApiVersion}です").left()
-                }
-                // forceの場合は警告ログを出して続行
-                plugin.logger.warning(
-                    "api-version incompatible ($pluginName): " +
-                        "plugin=${compatibilityResult.pluginApiVersion}, " +
-                        "server=${compatibilityResult.serverApiVersion}. Forced install."
-                )
-            }
-            is CompatibilityResult.Unknown -> {
-                plugin.logger.warning(
-                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
-                )
-            }
-            is CompatibilityResult.Compatible -> {
-                // 互換性あり、続行
-            }
+        // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
+        // チェックに失敗した場合はtempファイルを削除して早期リターン
+        validateDownloadedPlugin(downloadedFile, pluginName, force).onLeft { error ->
+            downloadedFile.delete()
+            return error.left()
         }
 
         // ファイル名を生成
         val template = firstRepository.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
         val newFileName = generateFileName(template, pluginName, metadata.mpmInfo.version.current.normalized)
 
-        // 古いファイルを削除（存在する場合）
+        // staged copy: 一時ファイル経由で安全にファイルを置換する
+        val pluginsDir = pluginDirectory.getPluginsDirectory()
+        val targetFile = File(pluginsDir, newFileName)
+        val stagedFile = File(pluginsDir, "$newFileName.tmp")
+        try {
+            downloadedFile.copyTo(stagedFile, overwrite = true)
+            downloadedFile.delete()
+            if (!stagedFile.renameTo(targetFile)) {
+                stagedFile.copyTo(targetFile, overwrite = true)
+                stagedFile.delete()
+            }
+        } catch (e: Exception) {
+            stagedFile.delete()
+            return "プラグインファイルの移動に失敗しました: ${e.message}".left()
+        }
+
+        // 新しいファイルの配置が成功してから古いファイルを削除する
         val oldFileName = metadata.mpmInfo.download.fileName
         var removedInfo: PluginRemovalInfo? = null
         if (oldFileName != null && oldFileName != newFileName) {
-            val pluginsDir = pluginDirectory.getPluginsDirectory()
             val oldFile = File(pluginsDir, oldFileName)
             if (oldFile.exists()) {
                 oldFile.delete()
-                pluginMetadataManager.loadMetadata(pluginName).onRight { existingMetadata ->
-                    removedInfo =
-                        PluginRemovalInfo(
-                            name = pluginName,
-                            version = existingMetadata.mpmInfo.version.current.normalized
-                        )
-                }
+                removedInfo =
+                    PluginRemovalInfo(
+                        name = pluginName,
+                        version = metadata.mpmInfo.version.current.normalized
+                    )
             }
-        }
-
-        // プラグインディレクトリにコピー
-        val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
-        try {
-            downloadedFile.copyTo(targetFile, overwrite = true)
-            downloadedFile.delete()
-        } catch (e: Exception) {
-            return "プラグインファイルの移動に失敗しました: ${e.message}".left()
         }
 
         // ファイル名をmetadataに記録して保存
@@ -991,6 +963,97 @@ class PluginUpdateServiceImpl :
                 )
             else -> expected
         }
+    }
+
+    /**
+     * ダウンロード済みのtempファイルに対してAPIバージョンと依存関係の事前検証を行う
+     *
+     * @param downloadedFile ダウンロード済みのtempファイル
+     * @param pluginName プラグイン名（ログ出力用）
+     * @param force trueの場合、非互換でも警告のみで続行する
+     * @return 検証成功時はUnit、失敗時はエラーメッセージ
+     */
+    private suspend fun validateDownloadedPlugin(
+        downloadedFile: File,
+        pluginName: String,
+        force: Boolean
+    ): Either<String, Unit> {
+        // tempファイルからプラグインデータを抽出（破損JARでも例外を握りつぶしてスキップする）
+        val pluginData = try {
+            PluginDataUtils.getPluginData(downloadedFile)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
+            null
+        }
+
+        // APIバージョンの互換性チェック
+        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
+        when (compatibilityResult) {
+            is CompatibilityResult.Incompatible -> {
+                if (!force) {
+                    return ("[API_VERSION_INCOMPATIBLE] api-version非互換: " +
+                        "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
+                        "サーバーは${compatibilityResult.serverApiVersion}です").left()
+                }
+                plugin.logger.warning(
+                    "api-version incompatible ($pluginName): " +
+                        "plugin=${compatibilityResult.pluginApiVersion}, " +
+                        "server=${compatibilityResult.serverApiVersion}. Forced install."
+                )
+            }
+            is CompatibilityResult.Unknown -> {
+                plugin.logger.warning(
+                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
+                )
+            }
+            is CompatibilityResult.Compatible -> {
+                // 互換性あり
+            }
+        }
+
+        // 必須依存関係のチェック
+        if (pluginData != null) {
+            val requiredDeps = when (pluginData) {
+                is PluginData.BukkitPluginData -> pluginData.depend
+                is PluginData.PaperPluginData -> pluginData.depend
+            }
+
+            if (requiredDeps.isNotEmpty()) {
+                // mpm.jsonに登録済みのプラグイン名を取得
+                val managedPlugins = loadMpmConfig()?.plugins?.keys.orEmpty()
+                // pluginsディレクトリに存在するプラグイン名を取得
+                val pluginsDir = pluginDirectory.getPluginsDirectory()
+                val installedPluginNames = pluginsDir.listFiles { f ->
+                    f.isFile && f.extension == "jar"
+                }?.mapNotNull { jar ->
+                    try {
+                        val data = PluginDataUtils.getPluginData(jar)
+                        when (data) {
+                            is PluginData.BukkitPluginData -> data.name
+                            is PluginData.PaperPluginData -> data.name
+                            null -> null
+                        }
+                    } catch (_: Exception) { null }
+                }?.toSet().orEmpty()
+
+                // 管理対象とインストール済みのどちらにもない依存関係を検出
+                val missingDeps = requiredDeps.filter { dep ->
+                    !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
+                }
+
+                if (missingDeps.isNotEmpty()) {
+                    val message = "必須依存プラグインが不足しています: ${missingDeps.joinToString(", ")}"
+                    if (!force) {
+                        return message.left()
+                    }
+                    plugin.logger.warning("$pluginName: $message (forced install)")
+                }
+            }
+        }
+
+        return Unit.right()
     }
 
     /**
