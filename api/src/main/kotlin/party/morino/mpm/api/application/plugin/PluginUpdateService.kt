@@ -30,9 +30,13 @@ interface PluginUpdateService {
      * ロックされていないプラグインを最新バージョンに更新する
      *
      * @param force trueの場合、api-version非互換でも強制更新する
+     * @param progressCallback 進捗メッセージを受け取るコールバック（MiniMessage形式）
      * @return 更新結果一覧
      */
-    suspend fun update(force: Boolean = false): Either<MpmError, List<UpdateResult>>
+    suspend fun update(
+        force: Boolean = false,
+        progressCallback: ((String) -> Unit)? = null
+    ): Either<MpmError, List<UpdateResult>>
 
     /**
      * 指定プラグインを更新する

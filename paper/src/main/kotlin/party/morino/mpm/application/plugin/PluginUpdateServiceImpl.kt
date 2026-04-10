@@ -86,13 +86,16 @@ class PluginUpdateServiceImpl :
      *
      * UpdatePluginUseCaseImplから移行したロジック
      */
-    override suspend fun update(force: Boolean): Either<MpmError, List<UpdateResult>> {
+    override suspend fun update(
+        force: Boolean,
+        progressCallback: ((String) -> Unit)?
+    ): Either<MpmError, List<UpdateResult>> {
         // 既に更新処理が実行中の場合はエラーを返す
         if (!updateMutex.tryLock()) {
             return MpmError.PluginError.UpdateInProgress.left()
         }
         try {
-            return executeUpdate(force)
+            return executeUpdate(force, progressCallback)
         } finally {
             updateMutex.unlock()
         }
@@ -101,8 +104,12 @@ class PluginUpdateServiceImpl :
     /**
      * 更新処理の本体（Mutex保護下で呼び出される）
      */
-    private suspend fun executeUpdate(force: Boolean): Either<MpmError, List<UpdateResult>> {
+    private suspend fun executeUpdate(
+        force: Boolean,
+        progressCallback: ((String) -> Unit)? = null
+    ): Either<MpmError, List<UpdateResult>> {
         // すべてのプラグインの更新情報を取得
+        progressCallback?.invoke("<gray>更新可能なプラグインを確認しています...")
         val checkResult =
             infoService.checkAllOutdated().getOrElse {
                 return it.left()
@@ -113,6 +120,9 @@ class PluginUpdateServiceImpl :
         // チェックに失敗したプラグインを警告表示し、UpdateResultとしても記録
         val checkFailResults = checkResult.errors.map { checkError ->
             plugin.logger.warning("Failed to check update for ${checkError.pluginName}: ${checkError.errorMessage}")
+            progressCallback?.invoke(
+                "<gray>[${checkError.pluginName}] <red>チェック失敗: ${checkError.errorMessage}"
+            )
             UpdateResult(
                 pluginName = checkError.pluginName,
                 oldVersion = "unknown",
@@ -124,10 +134,20 @@ class PluginUpdateServiceImpl :
 
         // 更新が必要なプラグインがある場合、バックアップを作成
         val hasUpdates = outdatedInfoList.any { it.needsUpdate }
+        if (!hasUpdates && checkFailResults.isEmpty()) {
+            progressCallback?.invoke("<green>すべてのプラグインは最新です。")
+        }
         if (hasUpdates) {
+            progressCallback?.invoke("<gray>バックアップを作成しています...")
             backupManager.createBackup(BackupReason.UPDATE).fold(
-                { plugin.logger.warning("バックアップの作成に失敗しました: $it") },
-                { plugin.logger.info("バックアップを作成しました: ${it.fileName}") }
+                {
+                    plugin.logger.warning("バックアップの作成に失敗しました: $it")
+                    progressCallback?.invoke("<yellow>バックアップの作成に失敗しましたが、更新を続行します")
+                },
+                {
+                    plugin.logger.info("バックアップを作成しました: ${it.fileName}")
+                    progressCallback?.invoke("<green>バックアップ完了: ${it.fileName}")
+                }
             )
         }
 
@@ -150,6 +170,9 @@ class PluginUpdateServiceImpl :
             // メタデータを読み込んでロック状態を確認
             val metadata = pluginMetadataManager.loadMetadata(outdatedInfo.pluginName).getOrNull()
             if (metadata == null) {
+                progressCallback?.invoke(
+                    "<gray>[${outdatedInfo.pluginName}] <red>メタデータの読み込みに失敗しました"
+                )
                 updateResults.add(
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
@@ -164,6 +187,7 @@ class PluginUpdateServiceImpl :
 
             // ロックされている場合はスキップ
             if (metadata.mpmInfo.settings.lock == true) {
+                progressCallback?.invoke("<gray>[${outdatedInfo.pluginName}] <yellow>ロック中のためスキップ")
                 updateResults.add(
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
@@ -190,6 +214,9 @@ class PluginUpdateServiceImpl :
 
             // イベントがキャンセルされた場合はスキップ
             if (updateEvent.isCancelled) {
+                progressCallback?.invoke(
+                    "<gray>[${outdatedInfo.pluginName}] <yellow>更新がキャンセルされました"
+                )
                 updateResults.add(
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
@@ -202,12 +229,20 @@ class PluginUpdateServiceImpl :
                 continue
             }
 
+            // イベント通過後にダウンロード開始を通知
+            progressCallback?.invoke(
+                "<gray>[${outdatedInfo.pluginName}] ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion} ダウンロード中..."
+            )
+
             // 最新バージョンでインストール（既存のファイルは上書きされる、forceフラグを伝播）
             val installResult = installSinglePlugin(outdatedInfo.pluginName, force, useLatest = true)
 
             installResult.fold(
                 // インストール失敗時
                 { errorMessage ->
+                    progressCallback?.invoke(
+                        "<gray>[${outdatedInfo.pluginName}] <red>更新失敗: $errorMessage"
+                    )
                     updateResults.add(
                         UpdateResult(
                             pluginName = outdatedInfo.pluginName,
@@ -220,6 +255,9 @@ class PluginUpdateServiceImpl :
                 },
                 // インストール成功時
                 {
+                    progressCallback?.invoke(
+                        "<gray>[${outdatedInfo.pluginName}] <green>更新完了 ✓"
+                    )
                     updateResults.add(
                         UpdateResult(
                             pluginName = outdatedInfo.pluginName,
@@ -236,7 +274,7 @@ class PluginUpdateServiceImpl :
 
         // Syncプラグインの連動更新（forceフラグを伝播）
         mpmConfig?.let { config ->
-            updateSyncPlugins(config, updatedPlugins, updateResults, force)
+            updateSyncPlugins(config, updatedPlugins, updateResults, force, progressCallback)
         }
 
         return (checkFailResults + updateResults).right()
@@ -534,7 +572,8 @@ class PluginUpdateServiceImpl :
         mpmConfig: MpmConfig,
         updatedPlugins: Set<String>,
         updateResults: MutableList<UpdateResult>,
-        force: Boolean = false
+        force: Boolean = false,
+        progressCallback: ((String) -> Unit)? = null
     ) {
         // 更新されたプラグインに同期しているプラグインを取得
         val syncPluginsToUpdate = mutableSetOf<String>()
@@ -547,12 +586,20 @@ class PluginUpdateServiceImpl :
         syncPluginsToUpdate.removeAll(updatedPlugins)
 
         // Syncプラグインを更新
+        if (syncPluginsToUpdate.isNotEmpty()) {
+            progressCallback?.invoke("<gray>連動更新を確認しています...")
+        }
         for (syncPluginName in syncPluginsToUpdate) {
             // メタデータを読み込んで現在のバージョンとロック状態を取得
             val metadataEither = pluginMetadataManager.loadMetadata(syncPluginName)
             val currentVersion =
                 metadataEither.fold(
-                    { "unknown" },
+                    {
+                        progressCallback?.invoke(
+                            "<gray>[${syncPluginName}] <yellow>メタデータの読み込みに失敗しました"
+                        )
+                        "unknown"
+                    },
                     { it.mpmInfo.version.current.raw }
                 )
 
@@ -563,6 +610,7 @@ class PluginUpdateServiceImpl :
                     { it.mpmInfo.settings.lock == true }
                 )
             if (isLocked) {
+                progressCallback?.invoke("<gray>[${syncPluginName}] <yellow>ロック中のためスキップ")
                 updateResults.add(
                     UpdateResult(
                         pluginName = syncPluginName,
@@ -576,11 +624,13 @@ class PluginUpdateServiceImpl :
             }
 
             // プラグインをインストール（forceフラグを伝播）
+            progressCallback?.invoke("<gray>[${syncPluginName}] 連動更新をダウンロード中...")
             val installResult = installSinglePlugin(syncPluginName, force)
 
             installResult.fold(
                 // インストール失敗時
                 { errorMessage ->
+                    progressCallback?.invoke("<gray>[${syncPluginName}] <red>連動更新失敗: $errorMessage")
                     updateResults.add(
                         UpdateResult(
                             pluginName = syncPluginName,
@@ -599,6 +649,7 @@ class PluginUpdateServiceImpl :
                             { "unknown" },
                             { it.mpmInfo.version.current.raw }
                         )
+                    progressCallback?.invoke("<gray>[${syncPluginName}] <green>連動更新完了 ✓")
                     updateResults.add(
                         UpdateResult(
                             pluginName = syncPluginName,
