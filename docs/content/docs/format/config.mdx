@@ -1,0 +1,428 @@
+---
+title: Plugin Configuration (config.json)
+description: config.jsonの仕様について
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## 概要
+
+`config.json`は、mpmプラグイン本体の動作設定ファイルです。
+リポジトリソース、グローバル設定、Discord Webhook通知、スケジュール自動更新などを定義します。
+
+<Callout type="info" title="mpm.jsonとの違い">
+mpmの設定ファイルは用途ごとに2つに分かれています。
+
+- [`mpm.json`](/docs/format/mpm-config) — プロジェクト名・プラグイン依存関係（バージョン管理対象・チーム共有）
+- [`config.json`](/docs/format/config)（このファイル） — リポジトリソース・Webhook・スケジュール（サーバー固有・バージョン管理対象外を推奨）
+
+`config.json` はサーバーごとに異なる可能性のある設定（Webhookトークン、ローカルリポジトリパスなど）を扱うため、
+通常は `.gitignore` に追加して個別管理することをおすすめします。
+</Callout>
+
+## ファイルの配置
+
+`config.json`は`plugins/mpm/`ディレクトリに配置されます。
+
+```
+your-server/
+├── mpm.json
+├── plugins/
+│   └── mpm/
+│       ├── config.json    ← このファイル
+│       ├── repository/    ← ローカルリポジトリ
+│       ├── metadata/      ← 個別プラグインの詳細情報
+│       └── temp/          ← ダウンロード用一時ディレクトリ
+└── ...
+```
+
+<Callout type="info" title="自動生成">
+`plugins/mpm/config.json` が存在しない場合、mpm起動時にデフォルト値で自動生成されます。
+</Callout>
+
+## 基本構造
+
+```jsonc title="plugins/mpm/config.json"
+{
+    "repositories": [                    // リポジトリソース（優先順位順）
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://example.com/repository/",
+            "headers": {
+                "Authorization": "Bearer token"
+            }
+        }
+    ],
+    "settings": {
+        "autoUpdate": false,
+        "autoCheck": false,
+        "lock": false,
+        "tempDir": "temp",
+        "githubToken": null,
+        "webhook": {
+            "enabled": false,
+            "endpoints": []
+        },
+        "schedule": {
+            "enabled": false,
+            "cron": "0 4 * * *",
+            "checkOnStartup": true,
+            "dryRun": false
+        }
+    }
+}
+```
+
+## フィールド詳細
+
+### 📦 repositories（リポジトリソース）
+
+プラグインのリポジトリファイルを取得するソースを定義します。
+複数のソースを優先順位順（配列の先頭から）に指定できます。
+
+#### ローカルソース
+
+ローカルファイルシステムからリポジトリファイルを取得します。
+
+```json
+{
+    "type": "local",
+    "path": "repository"
+}
+```
+
+- **type**: `"local"` を指定
+- **path**: リポジトリディレクトリのパス（`plugins/mpm/` 配下の相対パス、デフォルト: `"repository"`）
+
+**デフォルト値:**
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        }
+    ]
+}
+```
+
+#### リモートソース
+
+リモートURLからリポジトリファイルを取得します。
+
+```json
+{
+    "type": "remote",
+    "url": "https://example.com/repository/",
+    "headers": {
+        "Authorization": "Bearer your-token",
+        "Custom-Header": "value"
+    }
+}
+```
+
+- **type**: `"remote"` を指定
+- **url**: リポジトリのベースURL
+- **headers**: HTTPリクエストに追加するヘッダー（オプション）
+
+#### 複数ソースの動作
+
+複数のリポジトリソースを指定した場合、**優先順位順**（配列の先頭から）に検索します：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://official-repo.example.com/"
+        },
+        {
+            "type": "remote",
+            "url": "https://community-repo.example.com/"
+        }
+    ]
+}
+```
+
+**動作:**
+1. ローカルのリポジトリファイルを検索
+2. 見つからなければ、公式リモートリポジトリを検索
+3. それでも見つからなければ、コミュニティリポジトリを検索
+
+### ⚙️ settings（グローバル設定）
+
+mpm全体の動作設定を定義します。
+
+```json
+{
+    "settings": {
+        "autoUpdate": false,
+        "autoCheck": false,
+        "lock": false,
+        "tempDir": "temp",
+        "githubToken": null
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `autoUpdate` | 自動更新を有効にするか | `false` |
+| `autoCheck` | 自動バージョンチェックを有効にするか | `false` |
+| `lock` | デフォルトでバージョンをロックするか | `false` |
+| `tempDir` | 一時ファイルの保存ディレクトリ（`plugins/mpm/`配下） | `"temp"` |
+| `githubToken` | GitHub APIの認証トークン（レート制限回避用） | `null` |
+| `webhook` | Discord Webhook通知の設定（後述） | デフォルト値 |
+| `schedule` | スケジュール自動更新の設定（後述） | デフォルト値 |
+
+<Callout type="info" title="優先順位">
+個別プラグインのメタデータ（`metadata/*.yaml`）で設定が指定されている場合、そちらがこのグローバル設定より優先されます。
+</Callout>
+
+<Callout type="warn" title="githubTokenの扱い">
+`githubToken` は個人アクセストークンなど機密情報なのだ。`config.json` を公開リポジトリにコミットしないよう、`.gitignore` に追加するか環境変数経由で管理することをおすすめします。
+</Callout>
+
+#### ⏰ schedule（スケジュール自動更新）
+
+cron式を使用して、プラグインの自動更新をスケジュール実行できます。
+
+```json
+{
+    "settings": {
+        "schedule": {
+            "enabled": true,
+            "cron": "0 4 * * *",
+            "checkOnStartup": true,
+            "dryRun": false
+        }
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | スケジュール自動更新の有効/無効 | `false` |
+| `cron` | cron式（UNIX形式: 分 時 日 月 曜日） | `"0 4 * * *"` |
+| `checkOnStartup` | サーバー起動時に更新チェックを行うか | `true` |
+| `dryRun` | trueの場合、更新チェックと通知のみ行い、実際の更新は行わない | `false` |
+
+**cron式の例:**
+
+| cron式 | 説明 |
+|--------|------|
+| `0 4 * * *` | 毎日午前4時に実行 |
+| `0 3 * * 0` | 毎週日曜日の午前3時に実行 |
+| `0 */6 * * *` | 6時間ごとに実行 |
+| `30 2 1 * *` | 毎月1日の午前2時30分に実行 |
+
+<Callout type="info" title="起動時チェック">
+`checkOnStartup` が有効な場合、サーバー起動時に更新が必要なプラグインをチェックし、コンソールとDiscord Webhook（設定されている場合）に通知します。
+起動時には更新チェックのみ行い、実際の更新は行いません。
+</Callout>
+
+<Callout type="info" title="dry-runモード">
+`dryRun` を `true` に設定すると、スケジュール実行時に更新チェックと通知のみを行い、実際のプラグイン更新は行いません。
+本番環境に導入する前のテストや、更新の頻度を把握するために便利です。
+コマンドからも `/mpm update --dry-run` で同様の動作が可能です。
+</Callout>
+
+<Callout type="info" title="タイムゾーン">
+cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づきます。
+必要に応じてサーバー起動時に `-Duser.timezone=Asia/Tokyo` で変更してください。
+</Callout>
+
+#### 🔔 webhook（Discord Webhook通知）
+
+プラグインの管理イベントが発生した際に、Discord Webhookで通知を送信できます。
+複数のエンドポイントを設定でき、各エンドポイントごとに通知するイベントを選択できます。
+
+```json
+{
+    "settings": {
+        "webhook": {
+            "enabled": true,
+            "endpoints": [
+                {
+                    "url": "https://discord.com/api/webhooks/xxxx/yyyy",
+                    "events": {
+                        "install": true,
+                        "update": true,
+                        "remove": true,
+                        "uninstall": true,
+                        "lock": true,
+                        "unlock": true,
+                        "outdated": true
+                    }
+                },
+                {
+                    "url": "https://discord.com/api/webhooks/aaaa/bbbb",
+                    "events": {
+                        "install": false,
+                        "update": true,
+                        "remove": false,
+                        "uninstall": false,
+                        "lock": false,
+                        "unlock": false,
+                        "outdated": true
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | Webhook通知のマスタースイッチ | `false` |
+| `endpoints` | Webhookエンドポイントのリスト | `[]` |
+| `endpoints[].url` | Discord WebhookのURL | — |
+| `endpoints[].events.install` | プラグインインストール時の通知 | `true` |
+| `endpoints[].events.update` | プラグイン更新時の通知 | `true` |
+| `endpoints[].events.remove` | プラグイン管理対象除外時の通知 | `true` |
+| `endpoints[].events.uninstall` | プラグインアンインストール時の通知 | `true` |
+| `endpoints[].events.lock` | プラグインロック時の通知 | `true` |
+| `endpoints[].events.unlock` | プラグインロック解除時の通知 | `true` |
+| `endpoints[].events.outdated` | プラグイン更新可能検出時の通知 | `true` |
+
+<Callout type="info" title="通知タイミング">
+通知はイベントがキャンセルされずに処理された場合にのみ送信されます。
+送信は非同期で行われるため、サーバーのパフォーマンスに影響はありません。
+</Callout>
+
+<Callout type="warn" title="Webhook URLの扱い">
+Discord WebhookのURLはトークンを含む機密情報です。`config.json` を公開リポジトリにコミットしないように注意してください。
+</Callout>
+
+## 使用例
+
+### デフォルト構成（自動生成）
+
+`plugins/mpm/config.json` が存在しない場合、mpm起動時に以下のデフォルト設定で自動生成されます：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        }
+    ],
+    "settings": {
+        "autoUpdate": false,
+        "autoCheck": false,
+        "lock": false,
+        "tempDir": "temp"
+    }
+}
+```
+
+### 複数リポジトリソースの構成
+
+ローカルとリモートを併用する構成：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://plugins.example.com/repository/"
+        }
+    ],
+    "settings": {
+        "autoUpdate": false
+    }
+}
+```
+
+### チーム共有用の構成
+
+チームでリポジトリを共有し、認証付きリモートを使う場合：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://team-repo.internal/plugins/",
+            "headers": {
+                "Authorization": "Bearer ${REPO_TOKEN}"
+            }
+        }
+    ],
+    "settings": {
+        "autoUpdate": true,
+        "autoCheck": true,
+        "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx"
+    }
+}
+```
+
+### Webhook + スケジュール自動更新の構成
+
+毎日午前4時に自動更新を行い、Discord Webhookで結果を通知する構成：
+
+```json
+{
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        }
+    ],
+    "settings": {
+        "autoUpdate": true,
+        "schedule": {
+            "enabled": true,
+            "cron": "0 4 * * *",
+            "checkOnStartup": true,
+            "dryRun": false
+        },
+        "webhook": {
+            "enabled": true,
+            "endpoints": [
+                {
+                    "url": "https://discord.com/api/webhooks/xxxx/yyyy",
+                    "events": {
+                        "install": true,
+                        "update": true,
+                        "remove": false,
+                        "uninstall": false,
+                        "lock": false,
+                        "unlock": false,
+                        "outdated": true
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+## 設定の再読み込み
+
+設定変更後、サーバーを再起動せずに `/mpm reload` コマンドで設定を再読み込みできます。
+リロード時にはリポジトリマネージャーとスケジューラーも新しい設定で再初期化されます。
+
+## 関連ファイル
+
+- [mpm.json](/docs/format/mpm-config) - プロジェクト設定ファイル（プラグイン依存関係）
+- [repository](/docs/format/repository) - リポジトリファイルの形式
+- [metadata/*.yaml](/docs/format/managed) - 個別プラグインの詳細情報
