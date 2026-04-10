@@ -1,10 +1,11 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
   "id": "GSit",
   "repositories": [
     {
       "type": "spigotmc",
       "id": "62325",
-        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
     }
   ]
 }

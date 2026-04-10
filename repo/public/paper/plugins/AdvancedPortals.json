@@ -1,4 +1,5 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
   "id": "AdvancedPortals",
   "license": "LGPL-3.0-only",
   "website": "https://modrinth.com/plugin/advanced-portals",

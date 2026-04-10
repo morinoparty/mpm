@@ -1,4 +1,5 @@
 {
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
   "id": "LWC",
   "website": "https://modrinth.com/plugin/lwc",
   "repositories": [
