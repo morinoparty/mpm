@@ -65,12 +65,13 @@ class PluginRepositoryIntegrationTest {
         private val githubDownloader = GithubDownloader(testConfig.settings.githubToken)
 
         /**
-         * 1チャンネル分の設定。matcher/modifier いずれも省略可能
+         * 1チャンネル分の設定。matcher/modifier/useUpstreamLabel いずれも省略可能
          */
         data class TestChannel(
             val name: String,
             val versionMatcher: String?,
             val versionModifier: String?,
+            val useUpstreamLabel: Boolean = false,
         )
 
         /**
@@ -111,9 +112,15 @@ class PluginRepositoryIntegrationTest {
             if (obj == null) return null
             val matcher = obj["versionMatcher"]?.jsonPrimitive?.content
             val modifier = obj["versionModifier"]?.jsonPrimitive?.content
-            // どちらも未指定なら空のチャンネル定義として扱う意味がないのでnullで返す
-            if (matcher == null && modifier == null) return null
-            return TestChannel(name = name, versionMatcher = matcher, versionModifier = modifier)
+            val useUpstreamLabel = obj["useUpstreamLabel"]?.jsonPrimitive?.content?.toBoolean() ?: false
+            // すべて未指定なら空のチャンネル定義として扱う意味がないのでnullで返す
+            if (matcher == null && modifier == null && !useUpstreamLabel) return null
+            return TestChannel(
+                name = name,
+                versionMatcher = matcher,
+                versionModifier = modifier,
+                useUpstreamLabel = useUpstreamLabel,
+            )
         }
 
         /**
@@ -178,6 +185,43 @@ class PluginRepositoryIntegrationTest {
             }
             else -> throw IllegalArgumentException("未対応のリポジトリタイプ: $type")
         }
+
+    /**
+     * `useUpstreamLabel` チャンネルをプラットフォームのネイティブラベル経由で解決する
+     *
+     * Modrinthは `version_type`、GitHubは `prerelease` フラグを使う。
+     * `latest`/`release` は `getLatestVersion`、それ以外は `getLatestVersionByTag` に委譲する。
+     */
+    private suspend fun resolveViaUpstreamLabel(
+        type: String,
+        repoId: String,
+        channel: String,
+    ): VersionData? = try {
+        val lower = channel.lowercase()
+        when (type) {
+            "modrinth" -> {
+                val urlData = UrlData.ModrinthUrlData(repoId)
+                if (lower == "latest" || lower == "release") {
+                    modrinthDownloader.getLatestVersion(urlData)
+                } else {
+                    modrinthDownloader.getLatestVersionByTag(urlData, channel)
+                }
+            }
+            "github" -> {
+                val parts = repoId.split("/")
+                val urlData = UrlData.GithubUrlData(parts[0], parts[1])
+                if (lower == "latest" || lower == "release") {
+                    githubDownloader.getLatestVersion(urlData)
+                } else {
+                    githubDownloader.getLatestVersionByTag(urlData, channel)
+                }
+            }
+            // Spigotmcは useUpstreamLabel 非対応
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
 
     /**
      * 1チャンネル分のバージョン集合に対して、重複正規化チェックと基本検証を行う
@@ -249,23 +293,41 @@ class PluginRepositoryIntegrationTest {
                     modifier = repo.rootVersionModifier,
                 )
             } else {
-                // チャンネル定義あり: 各チャンネルごとにversionMatcherでフィルタして検証
-                // - versionMatcherが未指定のチャンネルは全バージョンを対象とする
-                //   （チャンネル固有のversionModifierだけで検証するケース）
-                // - versionModifierが未指定のチャンネルはルートmodifierにフォールバック
+                // チャンネル定義あり: 各チャンネルを個別に検証
                 for (channel in repo.channels) {
                     val matcherRegex = channel.versionMatcher?.let { runCatching { Regex(it) }.getOrNull() }
-                    val filtered = if (matcherRegex != null) {
-                        allVersions.filter { matcherRegex.containsMatchIn(it.version) }
-                    } else {
-                        allVersions
-                    }
                     val effectiveModifier = channel.versionModifier ?: repo.rootVersionModifier
-                    errors += validateChannelGroup(
-                        label = channel.name,
-                        versions = filtered,
-                        modifier = effectiveModifier,
-                    )
+                    when {
+                        // (1) versionMatcherがある: regexでフィルタしてから検証
+                        matcherRegex != null -> {
+                            val filtered = allVersions.filter { matcherRegex.containsMatchIn(it.version) }
+                            errors += validateChannelGroup(
+                                label = channel.name,
+                                versions = filtered,
+                                modifier = effectiveModifier,
+                            )
+                        }
+                        // (2) useUpstreamLabelのみ: プラットフォームネイティブ解決で動作確認
+                        //     （version_typeやprereleaseフラグはここから見えないので、
+                        //      ダウンローダー経由で最新1件を取得できることだけを検証する）
+                        channel.useUpstreamLabel -> {
+                            val resolved = resolveViaUpstreamLabel(repo.type, repo.id, channel.name)
+                            if (resolved == null) {
+                                errors += "${channel.name}: useUpstreamLabel による解決に失敗しました"
+                            } else {
+                                val norm = VersionDetail.normalizeWithPattern(resolved.version, effectiveModifier)
+                                println("  [${channel.name}] upstream-label resolved -> ${resolved.version} -> $norm")
+                            }
+                        }
+                        // (3) modifierのみ指定: 全バージョンをそのmodifierで正規化チェック
+                        else -> {
+                            errors += validateChannelGroup(
+                                label = channel.name,
+                                versions = allVersions,
+                                modifier = effectiveModifier,
+                            )
+                        }
+                    }
                 }
             }
 
