@@ -5,7 +5,13 @@ import {
     resolver, validator,
 } from "hono-openapi";
 import { z } from "zod";
-import { PluginInfoSchema} from "./type/plugin-info";
+import { PluginInfoSchema } from "./type/plugin-info";
+
+// ビルド時にPluginInfoSchemaからJSONSchemaを1度だけ生成し、/schema/plugin-info.json で配信する
+// これにより各プラグインJSONが `$schema` フィールドでIDEの補完・検証を受けられる
+const pluginInfoJsonSchema = z.toJSONSchema(PluginInfoSchema, {
+    target: "draft-2020-12",
+});
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone.js";
 import utc from "dayjs/plugin/utc.js";
@@ -47,6 +53,31 @@ app.get(
                 description: "現在時刻を返す",
                 content: {
                     "text/plain": { schema: resolver(z.string()) },
+                },
+            },
+        },
+    }),
+);
+
+// プラグインリポジトリファイルのJSONSchemaを配信
+// 各プラグインJSONの `$schema` から参照される想定
+app.get(
+    "/schema/plugin-info.json",
+    async (c) => {
+        // $idを応答時点のURLに合わせて上書きしておく（スキーマ参照の自己整合）
+        const url = new URL(c.req.url);
+        return c.json({
+            ...pluginInfoJsonSchema,
+            $id: `${url.origin}/schema/plugin-info.json`,
+        });
+    },
+    describeRoute({
+        description: "プラグインリポジトリファイル(PluginInfo)のJSONSchemaを返す",
+        responses: {
+            200: {
+                description: "PluginInfoのJSONSchema",
+                content: {
+                    "application/json": { schema: resolver(z.any()) },
                 },
             },
         },
