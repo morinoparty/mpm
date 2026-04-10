@@ -136,6 +136,10 @@ docs/next-env.d.ts
 # Dokkaで生成されるKotlin APIリファレンス（CI/ローカルビルドで自動生成）
 docs/public/dokka
 
+# ローカル用のテスト設定（GitHub tokenなど機密情報を入れるため）
+# config.json はテンプレートとして共有、config.local.json は各開発者が個別に作成
+paper/src/test/resources/plugins/mpm/config.local.json
+
 # Playwright MCP
 .playwright-mcp/
 

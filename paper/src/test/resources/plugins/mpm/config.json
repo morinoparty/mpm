@@ -1,0 +1,25 @@
+{
+  "repositories": [
+    {
+      "type": "local",
+      "path": "repository"
+    }
+  ],
+  "settings": {
+    "autoUpdate": false,
+    "autoCheck": false,
+    "lock": false,
+    "tempDir": "temp",
+    "githubToken": null,
+    "webhook": {
+      "enabled": false,
+      "endpoints": []
+    },
+    "schedule": {
+      "enabled": false,
+      "cron": "0 4 * * *",
+      "checkOnStartup": true,
+      "dryRun": false
+    }
+  }
+}

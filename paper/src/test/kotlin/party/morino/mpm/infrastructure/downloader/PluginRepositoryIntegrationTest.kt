@@ -27,6 +27,7 @@ import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.infrastructure.downloader.github.GithubDownloader
 import party.morino.mpm.infrastructure.downloader.modrinth.ModrinthDownloader
 import party.morino.mpm.infrastructure.downloader.spigot.SpigotDownloader
+import party.morino.mpm.utils.TestConfigLoader
 import java.io.File
 import java.util.stream.Stream
 
@@ -53,10 +54,15 @@ class PluginRepositoryIntegrationTest {
         // JSONパーサー（未知フィールドを無視して $schema などを許容する）
         private val json = Json { ignoreUnknownKeys = true }
 
+        // テスト用設定をresources/plugins/mpm/config.jsonから読み込む
+        // config.local.json が存在すればそちらを優先（GitHub tokenなどのローカル上書き用）
+        private val testConfig = TestConfigLoader.load()
+
         // 各プラットフォームのダウンローダーインスタンス
+        // GitHub は rate limit 緩和のため config の githubToken を使う
         private val modrinthDownloader = ModrinthDownloader()
         private val spigotDownloader = SpigotDownloader()
-        private val githubDownloader = GithubDownloader()
+        private val githubDownloader = GithubDownloader(testConfig.settings.githubToken)
 
         /**
          * 1チャンネル分の設定。matcher/modifier いずれも省略可能
