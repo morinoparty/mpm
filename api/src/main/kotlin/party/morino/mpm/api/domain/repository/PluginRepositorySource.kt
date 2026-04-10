@@ -99,6 +99,10 @@ data class RepositoryFile(
  *   ダウンロードしたファイルをリネームする場合に使用
  *   プレースホルダー: ex) <mpmInfo.version.current.raw>, <mpmInfo.version.latest.normalized> <pluginInfo.name>など
  *   例: "<mpmInfo.version.current.raw>-<mpmInfo.version.latest.normalized>.jar" → "luckperms-5.4.97.jar"
+ * @property latest stableチャンネル（"latest" / "tag:release"）に属するバージョンを識別する
+ *   正規表現。未指定の場合はプラットフォーム固有のデフォルト挙動にフォールバック
+ * @property beta betaチャンネル（"tag:beta"）に属するバージョンを識別する正規表現
+ * @property alpha alphaチャンネル（"tag:alpha"）に属するバージョンを識別する正規表現
  */
 @Serializable
 data class RepositoryConfig(
@@ -111,5 +115,25 @@ data class RepositoryConfig(
     val downloadUrlTemplate: String? = null,
     @SerialName("fileNameRegex")
     val fileNamePattern: String? = null,
-    val fileNameTemplate: String? = null
-)
+    val fileNameTemplate: String? = null,
+    val latest: ChannelConfig? = null,
+    val beta: ChannelConfig? = null,
+    val alpha: ChannelConfig? = null,
+) {
+    /**
+     * 指定チャンネルに対応する `versionMatcher` を返す
+     *
+     * @param channel チャンネル名（"latest" / "release" / "beta" / "alpha"）。
+     *   `release` は `latest` と等価に扱う。大文字小文字を区別しない。
+     * @return マッチャー正規表現。該当フィールド未指定の場合はnull
+     */
+    fun channelVersionMatcher(channel: String): String? {
+        val normalized = channel.lowercase()
+        return when (normalized) {
+            "latest", "release" -> latest?.versionMatcher
+            "beta" -> beta?.versionMatcher
+            "alpha" -> alpha?.versionMatcher
+            else -> null
+        }
+    }
+}

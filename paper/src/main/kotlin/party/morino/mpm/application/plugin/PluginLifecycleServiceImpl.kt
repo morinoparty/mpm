@@ -126,12 +126,14 @@ class PluginLifecycleServiceImpl :
         }
 
         // VersionSpecifierに応じてバージョンデータを決定
+        // firstRepositoryを渡すことで、リポファイル側のchannel.versionMatcherを尊重する
         val versionData: VersionData =
             resolveVersionData(
                 legacyVersion,
                 urlData,
                 project,
-                pluginName
+                pluginName,
+                firstRepository
             ).getOrElse { return it.left() }
 
         // メタデータを作成
@@ -881,17 +883,33 @@ class PluginLifecycleServiceImpl :
 
     /**
      * VersionSpecifierに応じてバージョンデータを解決する
+     *
+     * Latest/Tagの場合、リポジトリ設定で `latest` / `beta` / `alpha` の
+     * `versionMatcher` が指定されていればそれを優先的に使用し、
+     * 未指定の場合はプラットフォーム固有のチャンネル分類にフォールバックする。
+     *
+     * @param repoConfig チャンネルマッチャー参照元のリポジトリ設定（nullの場合は既存挙動）
      */
     private suspend fun resolveVersionData(
         version: LegacyVersionSpecifier,
         urlData: UrlData,
         project: MpmProject,
-        pluginName: String
+        pluginName: String,
+        repoConfig: RepositoryConfig? = null
     ): Either<MpmError, VersionData> =
         when (version) {
             is LegacyVersionSpecifier.Latest -> {
                 try {
-                    downloaderRepository.getLatestVersion(urlData).right()
+                    // リポファイル側でlatestチャンネルにマッチャーが指定されていればそちらを優先
+                    val byMatcher = repoConfig?.let {
+                        ChannelVersionResolver.resolveLatestInChannel(
+                            downloaderRepository,
+                            urlData,
+                            it,
+                            "latest"
+                        )
+                    }
+                    (byMatcher ?: downloaderRepository.getLatestVersion(urlData)).right()
                 } catch (e: Exception) {
                     MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
                 }
@@ -906,7 +924,16 @@ class PluginLifecycleServiceImpl :
             }
             is LegacyVersionSpecifier.Tag -> {
                 try {
-                    val result = downloaderRepository.getLatestVersionByTag(urlData, version.tag)
+                    // リポファイル側でbeta/alphaチャンネルにマッチャーが指定されていれば優先
+                    val byMatcher = repoConfig?.let {
+                        ChannelVersionResolver.resolveLatestInChannel(
+                            downloaderRepository,
+                            urlData,
+                            it,
+                            version.tag
+                        )
+                    }
+                    val result = byMatcher ?: downloaderRepository.getLatestVersionByTag(urlData, version.tag)
                     result?.right()
                         ?: MpmError.PluginError.VersionResolutionFailed(
                             pluginName,

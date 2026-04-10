@@ -10,6 +10,24 @@
 import { z } from "zod";
 
 /**
+ * リポジトリエントリ内のリリースチャンネル1件分の設定。
+ * `versionMatcher` はバージョン文字列に対する正規表現で、そのチャンネルに属するバージョンを識別する。
+ * `versionModifier` はそのチャンネル固有のバージョン正規化パターン（トップレベルの versionModifier より優先）。
+ */
+const ChannelSchema = z
+    .object({
+        // バージョン文字列に対する正規表現（`containsMatchIn` で評価）
+        // 例: "-SNAPSHOT$", "-beta\\.", "^\\d+\\.\\d+\\.\\d+$"
+        versionMatcher: z.string().optional(),
+        // チャンネル固有のバージョン正規化パターン（トップレベルのversionModifierより優先）
+        versionModifier: z.string().optional(),
+    })
+    .meta({
+        id: "Channel",
+        description: "リリースチャンネルを識別する正規表現設定",
+    });
+
+/**
  * リポジトリ1件の設定。
  * `id` と `type` は必須。その他はリポジトリ種別ごとに任意。
  */
@@ -27,6 +45,12 @@ const RepositorySchema = z
         downloadUrl: z.string().optional(),
         // ダウンロード後のファイル名テンプレート（任意）
         fileNameTemplate: z.string().optional(),
+        // stableチャンネル（"latest"/"tag:release"）の versionMatcher
+        latest: ChannelSchema.optional(),
+        // betaチャンネル（"tag:beta"）の versionMatcher
+        beta: ChannelSchema.optional(),
+        // alphaチャンネル（"tag:alpha"）の versionMatcher
+        alpha: ChannelSchema.optional(),
     })
     .meta({
         id: "Repository",
