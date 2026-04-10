@@ -164,13 +164,13 @@ Plugin 'ExamplePlugin' requires api-version 1.21, but the server supports 1.20
 1. **リポジトリファイルを確認**
    ```bash
    # ファイルが存在するか確認
-   ls plugins/MinecraftPluginManager/repository/
+   ls plugins/mpm/repository/
    ```
 
 2. **mpm.json を確認**
    ```bash
    # プラグインが追加されているか確認
-   cat plugins/MinecraftPluginManager/mpm.json
+   cat plugins/mpm/mpm.json
    ```
 
 3. **ログを確認**
@@ -182,7 +182,7 @@ mpm管理下にないプラグインを保持するには：
 
 ```bash
 # local/ ディレクトリに移動
-mv plugins/YourPlugin.jar plugins/MinecraftPluginManager/local/
+mv plugins/YourPlugin.jar plugins/mpm/local/
 ```
 
 `local/` ディレクトリ内のプラグインは `mpm removeUnmanaged` コマンドでも削除されません。

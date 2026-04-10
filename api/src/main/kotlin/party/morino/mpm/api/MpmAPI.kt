@@ -19,9 +19,9 @@ import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryManager
 
 /**
- * MinecraftPluginManagerのAPIインターフェース
+ * mpmのAPIインターフェース
  *
- * 外部プラグインやアドオンがMinecraftPluginManagerの機能にアクセスするための公開API
+ * 外部プラグインやアドオンがmpmの機能にアクセスするための公開API
  * 各マネージャーへのアクセサを提供する
  */
 interface MpmAPI {

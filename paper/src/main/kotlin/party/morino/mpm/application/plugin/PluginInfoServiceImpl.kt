@@ -145,13 +145,13 @@ class PluginInfoServiceImpl :
                     ).left()
             }
 
+        // versionPatternを取得（リポジトリ設定から）
+        val versionPattern = firstRepository.versionPattern
+
         // バージョン番号のリストをVersionDetailに変換して返す
         return versions
             .map { versionData ->
-                VersionDetail(
-                    raw = versionData.version,
-                    normalized = versionData.version.trimStart('v', 'V').lowercase()
-                )
+                VersionDetail.fromRaw(versionData.version, versionPattern)
             }.right()
     }
 
@@ -213,9 +213,12 @@ class PluginInfoServiceImpl :
                     ).left()
             }
 
-        // 現在のバージョンと最新バージョンを比較
+        // 現在のバージョンと最新バージョンを正規化して比較
+        val versionPattern = metadata.mpmInfo.versionPattern
+        val currentNormalized = VersionDetail.fromRaw(metadata.mpmInfo.version.current.raw, versionPattern).normalized
+        val latestNormalized = VersionDetail.fromRaw(latestVersion.version, versionPattern).normalized
         val currentVersion = metadata.mpmInfo.version.current.raw
-        val needsUpdate = currentVersion != latestVersion.version
+        val needsUpdate = currentNormalized != latestNormalized
 
         // 更新が必要な場合はBukkitイベントを発火
         // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用

@@ -1,5 +1,5 @@
 {
     "title": "ファイル形式",
-    "description": "MinecraftPluginManagerで使用するファイルの形式について",
+    "description": "mpmで使用するファイルの形式について",
     "pages": ["repository", "mpm-config", "mpm-lock", "managed"]
 }

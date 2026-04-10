@@ -1,5 +1,5 @@
 {
     "title": "使い方",
-    "description": "MinecraftPluginManagerの使い方を学びます",
+    "description": "mpmの使い方を学びます",
     "pages": ["getting-started", "install", "update"]
 }

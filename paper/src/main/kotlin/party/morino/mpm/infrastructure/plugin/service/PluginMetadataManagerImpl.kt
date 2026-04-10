@@ -28,6 +28,7 @@ import party.morino.mpm.api.domain.plugin.dto.PluginSettings
 import party.morino.mpm.api.domain.plugin.dto.RepositoryInfo
 import party.morino.mpm.api.domain.plugin.dto.VersionDetailDto
 import party.morino.mpm.api.domain.plugin.dto.VersionManagementDto
+import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryConfig
 import java.io.File
@@ -52,15 +53,8 @@ class PluginMetadataManagerImpl :
         versionData: VersionData,
         action: String
     ): Either<String, ManagedPluginDto> {
-        // バージョンを正規化
-        val versionPattern = repository.versionPattern
-        val normalizedVersion =
-            if (versionPattern != null) {
-                val versionRegex = Regex(versionPattern)
-                versionRegex.find(versionData.version)?.value ?: versionData.version
-            } else {
-                versionData.version
-            }
+        // バージョンを正規化（共通ロジックを使用）
+        val normalizedVersion = VersionDetail.normalizeWithPattern(versionData.version, repository.versionPattern)
 
         // 現在時刻を取得
         val now = Instant.now().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)
@@ -129,23 +123,10 @@ class PluginMetadataManagerImpl :
         // 既存のメタデータを読み込む
         val existingMetadata = loadMetadata(pluginName).getOrElse { return it.left() }
 
-        // バージョンを正規化
+        // バージョンを正規化（共通ロジックを使用）
         val versionPattern = existingMetadata.mpmInfo.versionPattern
-        val normalizedCurrentVersion =
-            if (versionPattern != null) {
-                val versionRegex = Regex(versionPattern)
-                versionRegex.find(versionData.version)?.value ?: versionData.version
-            } else {
-                versionData.version
-            }
-
-        val normalizedLatestVersion =
-            if (versionPattern != null) {
-                val versionRegex = Regex(versionPattern)
-                versionRegex.find(latestVersionData.version)?.value ?: latestVersionData.version
-            } else {
-                latestVersionData.version
-            }
+        val normalizedCurrentVersion = VersionDetail.normalizeWithPattern(versionData.version, versionPattern)
+        val normalizedLatestVersion = VersionDetail.normalizeWithPattern(latestVersionData.version, versionPattern)
 
         // 現在時刻を取得
         val now = Instant.now().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)

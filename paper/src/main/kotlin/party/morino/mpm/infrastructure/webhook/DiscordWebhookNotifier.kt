@@ -109,7 +109,7 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
                 )
             },
             timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
-            footer = DiscordEmbed.Footer(text = "MinecraftPluginManager")
+            footer = DiscordEmbed.Footer(text = "mpm")
         )
 
         val payload = DiscordWebhookPayload(embeds = listOf(embed))

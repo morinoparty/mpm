@@ -15,7 +15,7 @@ import io.papermc.paper.plugin.bootstrap.PluginProviderContext
 import org.bukkit.plugin.java.JavaPlugin
 
 /**
- * MinecraftPluginManagerのブートストラップクラス
+ * mpmのブートストラップクラス
  * プラグインの初期化処理を行う
  *
  * Lampコマンドフレームワークを使用してコマンドシステムを構築する

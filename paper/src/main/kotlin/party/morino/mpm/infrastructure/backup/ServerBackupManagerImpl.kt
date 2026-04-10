@@ -55,6 +55,9 @@ class ServerBackupManagerImpl :
     private val pluginDirectory: PluginDirectory by inject()
     private val logger: Logger = Logger.getLogger(ServerBackupManagerImpl::class.java.name)
 
+    // 自プラグインのデータフォルダ名（バックアップ対象から除外するため）
+    private val selfDirName: String by lazy { pluginDirectory.getRootDirectory().name }
+
     // インデックスファイル名
     private val indexFileName = "index.yaml"
 
@@ -85,8 +88,8 @@ class ServerBackupManagerImpl :
                 ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
                     // plugins/ディレクトリ内のファイルとフォルダを走査
                     pluginsDir.listFiles()?.forEach { file ->
-                        // MinecraftPluginManagerのディレクトリはスキップ（自分自身のバックアップを含めない）
-                        if (file.name == "MinecraftPluginManager") {
+                        // 自プラグインのディレクトリはスキップ（自分自身のバックアップを含めない）
+                        if (file.name == selfDirName) {
                             return@forEach
                         }
                         addToZip(zipOut, file, file.name)
@@ -195,10 +198,10 @@ class ServerBackupManagerImpl :
                     // Phase 3: 展開成功後にリネームベースでディレクトリを安全にスワップ
                     val backupDir = File(pluginsDir.parentFile, ".mpm-plugins-backup-${System.currentTimeMillis()}")
 
-                    // MinecraftPluginManagerディレクトリを一時ディレクトリにコピー（復元対象外のため保持）
-                    val mpmDir = File(pluginsDir, "MinecraftPluginManager")
+                    // 自プラグインのディレクトリを一時ディレクトリにコピー（復元対象外のため保持）
+                    val mpmDir = File(pluginsDir, selfDirName)
                     if (mpmDir.exists()) {
-                        mpmDir.copyRecursively(File(tempDir, "MinecraftPluginManager"), overwrite = true)
+                        mpmDir.copyRecursively(File(tempDir, selfDirName), overwrite = true)
                     }
 
                     // pluginsディレクトリをバックアップ名にリネーム
@@ -233,13 +236,13 @@ class ServerBackupManagerImpl :
 
     /**
      * plugins/ディレクトリ内のファイルをクリーンアップする
-     * MinecraftPluginManagerディレクトリは除外
+     * mpmディレクトリは除外
      * @param pluginsDir plugins/ディレクトリ
      */
     private fun cleanupPluginsDir(pluginsDir: File) {
         pluginsDir.listFiles()?.forEach { file ->
-            // MinecraftPluginManagerのディレクトリはスキップ
-            if (file.name == "MinecraftPluginManager") {
+            // 自プラグインのディレクトリはスキップ
+            if (file.name == selfDirName) {
                 return@forEach
             }
             // ファイルまたはディレクトリを削除
@@ -336,7 +339,7 @@ class ServerBackupManagerImpl :
     private fun collectPluginNames(pluginsDir: File): List<String> =
         pluginsDir
             .listFiles()
-            ?.filter { it.isFile && it.extension == "jar" && it.name != "MinecraftPluginManager.jar" }
+            ?.filter { it.isFile && it.extension == "jar" && it.name != "${selfDirName}.jar" }
             ?.mapNotNull { jarFile ->
                 try {
                     // jarファイルからプラグイン名を取得

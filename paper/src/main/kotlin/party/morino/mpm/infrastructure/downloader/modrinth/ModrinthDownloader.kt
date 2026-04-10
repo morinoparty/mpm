@@ -71,6 +71,9 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
 
     /**
      * 最新バージョンを取得
+     * チャンネル指定がない場合はreleaseのみを対象とする（beta/alphaを除外）
+     * releaseが存在しない場合はフォールバックとして全バージョンの最新を返す
+     *
      * @param urlData ModrinthのURL情報
      * @return 最新バージョン名
      */
@@ -82,8 +85,9 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
             throw Exception("このプロジェクトにはPaper/Spigot対応バージョンがありません")
         }
 
-        // 最初のバージョン（最新版）を返す
-        val latestVersion = versions[0]
+        // releaseチャンネルのバージョンを優先（beta/alphaを除外）
+        val releaseVersions = versions.filter { it.versionType.equals("release", ignoreCase = true) }
+        val latestVersion = releaseVersions.firstOrNull() ?: versions[0]
         return VersionData(downloadId = latestVersion.id, version = latestVersion.versionNumber)
     }
 

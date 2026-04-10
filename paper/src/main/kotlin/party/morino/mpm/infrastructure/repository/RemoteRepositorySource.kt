@@ -56,7 +56,7 @@ class RemoteRepositorySource(
                 val response =
                     httpClient.head("${url.trimEnd('/')}/list") {
                         headers {
-                            append(HttpHeaders.UserAgent, "MinecraftPluginManager")
+                            append(HttpHeaders.UserAgent, "mpm")
                             // カスタムヘッダーを追加
                             this@RemoteRepositorySource.headers.forEach { (key, value) ->
                                 append(key, value)
@@ -86,7 +86,7 @@ class RemoteRepositorySource(
                     httpClient.get(indexUrl) {
                         headers {
                             append(HttpHeaders.Accept, "application/json")
-                            append(HttpHeaders.UserAgent, "MinecraftPluginManager")
+                            append(HttpHeaders.UserAgent, "mpm")
                             // カスタムヘッダーを追加
                             this@RemoteRepositorySource.headers.forEach { (key, value) ->
                                 append(key, value)
@@ -123,7 +123,7 @@ class RemoteRepositorySource(
                     httpClient.get(fileUrl) {
                         headers {
                             append(HttpHeaders.Accept, "application/json")
-                            append(HttpHeaders.UserAgent, "MinecraftPluginManager")
+                            append(HttpHeaders.UserAgent, "mpm")
                             // カスタムヘッダーを追加
                             this@RemoteRepositorySource.headers.forEach { (key, value) ->
                                 append(key, value)

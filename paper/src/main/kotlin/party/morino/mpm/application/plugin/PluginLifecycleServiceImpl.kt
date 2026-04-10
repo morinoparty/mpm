@@ -36,6 +36,7 @@ import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
+import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
@@ -750,7 +751,8 @@ class PluginLifecycleServiceImpl :
         pluginName: String,
         unmanagedName: String,
         urlData: UrlData,
-        progressCallback: ((String) -> Unit)? = null
+        progressCallback: ((String) -> Unit)? = null,
+        versionPattern: String? = null
     ): VersionPinResult {
         // 既存JARを検索
         val (jarFile, pluginData) = findJarForPlugin(unmanagedName)
@@ -776,9 +778,17 @@ class PluginLifecycleServiceImpl :
         // 表記揺れを考慮したバージョン候補を生成
         val versionCandidates = buildVersionCandidates(currentVersion)
 
-        // ローカルでバージョン名を照合
-        val resolvedVersionData = versionCandidates.firstNotNullOfOrNull { candidate ->
+        // ローカルでバージョン名を照合（完全一致を優先）
+        var resolvedVersionData = versionCandidates.firstNotNullOfOrNull { candidate ->
             allVersions.firstOrNull { it.version == candidate }
+        }
+
+        // 完全一致が見つからない場合、versionPattern（またはデフォルトsemverパターン）で正規化して比較
+        if (resolvedVersionData == null) {
+            val currentNormalized = VersionDetail.normalizeWithPattern(currentVersion, versionPattern)
+            resolvedVersionData = allVersions.firstOrNull { versionData ->
+                VersionDetail.normalizeWithPattern(versionData.version, versionPattern) == currentNormalized
+            }
         }
 
         if (resolvedVersionData == null) {
@@ -1422,7 +1432,7 @@ class PluginLifecycleServiceImpl :
             return VersionPinResult.FallbackToLatest("リポジトリ情報が取得できません")
         }
 
-        // JARからバージョンを検出してリポジトリで検索
-        return resolveCurrentVersionFromJar(repoName, unmanagedName, urlData, progressCallback)
+        // JARからバージョンを検出してリポジトリで検索（versionPatternを伝播）
+        return resolveCurrentVersionFromJar(repoName, unmanagedName, urlData, progressCallback, firstRepository.versionPattern)
     }
 }
