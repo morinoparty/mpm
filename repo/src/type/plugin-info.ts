@@ -33,8 +33,9 @@ const ChannelSchema = z
  */
 const RepositorySchema = z
     .object({
-        // リポジトリタイプ（例: "modrinth", "github", "spigotmc", "hangar"）
-        type: z.enum(["modrinth", "github", "spigotmc", "hangar"]),
+        // リポジトリタイプ（"modrinth", "github", "spigotmc", "hangar" を想定）
+        // Kotlin側は String 型なので、スキーマドリフトを避けるためここも文字列として緩く受ける
+        type: z.string().min(1),
         // リポジトリ固有ID（GitHubは "owner/repo"、SpigotMCはリソースID、Modrinthはslug/ID）
         id: z.string().min(1),
         // 複数アセットから対象ファイルを選ぶための正規表現（主にGitHub用、任意）
