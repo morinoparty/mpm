@@ -6,7 +6,16 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "nfGCP9fk"
+      "id": "nfGCP9fk",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-RC",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-RC\\d*"
+      }
     }
   ]
 }

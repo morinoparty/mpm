@@ -8,7 +8,11 @@
     {
       "type": "modrinth",
       "id": "QzooIsZI",
-      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta.(0|[1-9]\\d*)"
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)",
+      "beta": {
+        "versionMatcher": "-beta\\.",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)"
+      }
     }
   ],
   "defaultVersion": "tag:beta"

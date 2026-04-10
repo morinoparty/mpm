@@ -6,7 +6,20 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "1u6JkXh5"
+      "id": "1u6JkXh5",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-beta",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta-\\d+(?:\\.\\d+)?"
+      },
+      "alpha": {
+        "versionMatcher": "-rc",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-rc-\\d+"
+      }
     }
   ]
 }

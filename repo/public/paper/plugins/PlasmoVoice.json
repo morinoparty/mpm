@@ -6,7 +6,12 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "1bZhdhsH"
+      "id": "1bZhdhsH",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?",
+      "latest": {
+        "versionMatcher": "^spigot-\\d+\\.\\d+\\.\\d+(\\+[a-f0-9]+)?$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?"
+      }
     }
   ]
 }

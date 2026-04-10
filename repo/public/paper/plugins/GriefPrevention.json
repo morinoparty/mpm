@@ -6,7 +6,16 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "O4o4mKaq"
+      "id": "O4o4mKaq",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-beta",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\d+"
+      }
     }
   ]
 }

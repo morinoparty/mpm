@@ -6,7 +6,11 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "Lu3KuzdV"
+      "id": "Lu3KuzdV",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      }
     }
   ]
 }

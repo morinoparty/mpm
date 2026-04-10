@@ -6,7 +6,16 @@
   "repositories": [
     {
       "type": "modrinth",
-      "id": "bEIUEGTX"
+      "id": "bEIUEGTX",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-[a-f0-9]{6,}",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]{6,}"
+      }
     }
   ]
 }

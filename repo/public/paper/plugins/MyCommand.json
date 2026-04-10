@@ -4,7 +4,12 @@
   "repositories": [
     {
       "type": "spigotmc",
-      "id": "22272"
+      "id": "22272",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^v\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      }
     }
   ]
 }
