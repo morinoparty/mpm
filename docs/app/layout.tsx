@@ -6,7 +6,7 @@ import { Provider } from "@/components/provider";
 export const metadata: Metadata = {
     title: {
         template: "%s | MPM",
-        default: "MinecraftPluginManager Documentation",
+        default: "mpm Documentation",
     },
     description: "Minecraft plugin manager for easy plugin installation and management",
 };

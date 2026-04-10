@@ -25,13 +25,34 @@ data class VersionDetail(
     val normalized: String
 ) {
     companion object {
+        // デフォルトのバージョン抽出パターン（セマンティックバージョニング）
+        // Repository File Generatorのデフォルト値と同一
+        const val DEFAULT_VERSION_PATTERN = "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+
+        /**
+         * versionPatternを使ってバージョン文字列を正規化する
+         * パターンが未指定の場合はデフォルトのsemverパターンで抽出する
+         * PluginMetadataManagerImplと同じロジック: Regex.find()?.value
+         *
+         * @param raw 元のバージョン文字列
+         * @param versionPattern バージョン番号の抽出用正規表現（nullの場合はデフォルトsemverパターン）
+         */
+        fun normalizeWithPattern(raw: String, versionPattern: String? = null): String {
+            val pattern = if (versionPattern.isNullOrBlank()) DEFAULT_VERSION_PATTERN else versionPattern
+            return runCatching {
+                Regex(pattern).find(raw)?.value
+            }.getOrNull() ?: raw
+        }
+
         /**
          * rawバージョン文字列からVersionDetailを作成
          * 正規化処理を自動的に行う
+         *
+         * @param raw 元のバージョン文字列
+         * @param versionPattern バージョン番号の抽出用正規表現（省略時はデフォルトsemverパターン）
          */
-        fun fromRaw(raw: String): VersionDetail {
-            // 正規化：先頭のv/Vを除去、小文字化
-            val normalized = raw.trimStart('v', 'V').lowercase()
+        fun fromRaw(raw: String, versionPattern: String? = null): VersionDetail {
+            val normalized = normalizeWithPattern(raw, versionPattern)
             return VersionDetail(raw = raw, normalized = normalized)
         }
     }

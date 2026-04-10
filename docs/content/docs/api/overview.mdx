@@ -1,14 +1,14 @@
 ---
 title: API Overview
-description: MinecraftPluginManagerの公開APIについて
+description: mpmの公開APIについて
 ---
 
-MinecraftPluginManagerは、他のプラグインやアドオンから利用できる公開APIを提供しています。
+mpmは、他のプラグインやアドオンから利用できる公開APIを提供しています。
 このAPIを使用することで、プラグインの管理機能をプログラムから制御することができます。
 
 ## API取得方法
 
-MinecraftPluginManagerのAPIは、`MpmAPI`インターフェースを通じて提供されます。
+mpmのAPIは、`MpmAPI`インターフェースを通じて提供されます。
 
 ### Bukkit APIを使用して取得
 
@@ -17,7 +17,7 @@ import org.bukkit.Bukkit
 import party.morino.mpm.api.MpmAPI
 
 // プラグインインスタンスを取得
-val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+val mpmPlugin = Bukkit.getPluginManager().getPlugin("mpm")
 
 // APIにキャスト
 if (mpmPlugin is MpmAPI) {
@@ -36,18 +36,18 @@ dependencies {
 }
 ```
 
-また、`plugin.yml`または`paper-plugin.yml`でMinecraftPluginManagerを依存関係として指定してください：
+また、`plugin.yml`または`paper-plugin.yml`でmpmを依存関係として指定してください：
 
 ```yaml
 # plugin.yml
-depend: [MinecraftPluginManager]
+depend: [mpm]
 ```
 
 ```yaml
 # paper-plugin.yml
 dependencies:
   server:
-    MinecraftPluginManager:
+    mpm:
       required: true
       load: BEFORE
       join-classpath: true
@@ -132,7 +132,7 @@ import party.morino.mpm.api.MpmAPI
 import kotlinx.coroutines.runBlocking
 
 fun getPluginInfo(pluginName: String) {
-    val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+    val mpmPlugin = Bukkit.getPluginManager().getPlugin("mpm")
 
     if (mpmPlugin is MpmAPI) {
         val pluginInfoService = mpmPlugin.getPluginInfoService()
@@ -158,7 +158,7 @@ import party.morino.mpm.api.domain.plugin.model.PluginName
 import kotlinx.coroutines.runBlocking
 
 fun installPlugin(pluginName: String) {
-    val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+    val mpmPlugin = Bukkit.getPluginManager().getPlugin("mpm")
 
     if (mpmPlugin is MpmAPI) {
         val lifecycleService = mpmPlugin.getPluginLifecycleService()
@@ -182,7 +182,7 @@ import party.morino.mpm.api.MpmAPI
 import kotlinx.coroutines.runBlocking
 
 fun checkOutdatedPlugins() {
-    val mpmPlugin = Bukkit.getPluginManager().getPlugin("MinecraftPluginManager")
+    val mpmPlugin = Bukkit.getPluginManager().getPlugin("mpm")
 
     if (mpmPlugin is MpmAPI) {
         val updateService = mpmPlugin.getPluginUpdateService()

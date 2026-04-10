@@ -1,7 +1,7 @@
 # Gitのルール
 
 ## Repository
-- [MinecraftPluginManager](https://github.com/morinoparty/MinecraftPluginManager)
+- [mpm](https://github.com/morinoparty/mpm)
 
 ## コミットメッセージ
 - コミットメッセージは英語で書き、以下のような形式で書く。

@@ -1,5 +1,5 @@
 {
     "title": "API",
-    "description": "MinecraftPluginManagerのAPIについて",
+    "description": "mpmのAPIについて",
     "pages": ["overview"]
 }

@@ -17,7 +17,7 @@ import org.eclipse.aether.graph.Dependency
 import org.eclipse.aether.repository.RemoteRepository
 
 /**
- * MinecraftPluginManagerのローダークラス
+ * mpmのローダークラス
  * プラグインの依存関係を管理するためのクラス
  */
 @Suppress("unused")

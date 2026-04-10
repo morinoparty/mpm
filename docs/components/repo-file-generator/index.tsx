@@ -204,7 +204,7 @@ export const RepoFileGenerator = () => {
                         <Input
                             id="repository-url"
                             type="text"
-                            placeholder="https://modrinth.com/plugin/minecraftpluginmanager"
+                            placeholder="https://modrinth.com/plugin/mpm"
                             value={newRepositoryUrl}
                             onChange={(e) => setNewRepositoryUrl(e.target.value)}
                         />

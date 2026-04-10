@@ -74,7 +74,7 @@ class ProjectServiceImpl :
         val pluginsDir = pluginDirectory.getPluginsDirectory()
         val pluginFiles =
             pluginsDir.listFiles { file ->
-                // .jarファイルのみを対象にし、自分自身（MinecraftPluginManager）は除外
+                // .jarファイルのみを対象にし、自分自身（mpm）は除外
                 file.isFile && file.extension == "jar"
             } ?: emptyArray()
 

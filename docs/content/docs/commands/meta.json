@@ -1,5 +1,5 @@
 {
     "title": "コマンド",
-    "description": "MinecraftPluginManagerのコマンドを実行する方法を紹介します",
+    "description": "mpmのコマンドを実行する方法を紹介します",
     "pages": ["index", "manage", "repo", "backup", "dependency", "plugin"]
 }
