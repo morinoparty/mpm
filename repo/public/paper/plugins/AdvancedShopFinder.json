@@ -1,5 +1,5 @@
 {
-  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "AdvancedShopFinder",
   "source": "https://github.com/Nlkomaru/AdvancedShopFinder",
   "repositories": [

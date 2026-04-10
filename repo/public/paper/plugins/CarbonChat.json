@@ -1,5 +1,5 @@
 {
-  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "CarbonChat",
   "license": "GPL-3.0-only",
   "website": "https://modrinth.com/plugin/carbon",
@@ -10,7 +10,7 @@
       "id": "QzooIsZI",
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)",
       "beta": {
-        "versionMatcher": "-beta\\.",
+        "useUpstreamLabel": true,
         "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)"
       }
     }

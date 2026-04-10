@@ -1,5 +1,5 @@
 {
-  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "MineAuth",
   "license": "GPL-3.0-or-later",
   "website": "https://modrinth.com/plugin/mineauth",
@@ -15,11 +15,11 @@
       "fileNameRegex": "MineAuth-core_.*\\.jar$",
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
       "latest": {
-        "versionMatcher": "^v\\d+\\.\\d+\\.\\d+$",
+        "useUpstreamLabel": true,
         "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
       },
       "beta": {
-        "versionMatcher": "^preview-pr\\d+-[a-f0-9]+$"
+        "useUpstreamLabel": true
       }
     }
   ]

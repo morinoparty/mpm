@@ -7,8 +7,15 @@ import {
 import { z } from "zod";
 import { PluginInfoSchema } from "./type/plugin-info";
 
-// ビルド時にPluginInfoSchemaからJSONSchemaを1度だけ生成し、/schema/plugin-info.json で配信する
-// これにより各プラグインJSONが `$schema` フィールドでIDEの補完・検証を受けられる
+// PluginInfoSchemaのバージョン。スキーマを破壊的変更する際に上げる。
+// 参照URL例: `https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json`
+// v1系の後方互換性を保つ変更は v1 のまま更新し、破壊的変更時は v2 を新規追加する。
+const PLUGIN_INFO_SCHEMA_VERSION = "v1" as const;
+
+// ビルド時にPluginInfoSchemaからJSONSchemaを1度だけ生成し、
+// `/schema/plugin-info/v1.json` で配信する（従来の `/schema/plugin-info.json` は
+// 互換エイリアスとして最新版を返す）。
+// これにより各プラグインJSONが `$schema` フィールドでIDEの補完・検証を受けられる。
 const pluginInfoJsonSchema = z.toJSONSchema(PluginInfoSchema, {
     target: "draft-2020-12",
 });
@@ -59,20 +66,65 @@ app.get(
     }),
 );
 
-// プラグインリポジトリファイルのJSONSchemaを配信
-// 各プラグインJSONの `$schema` から参照される想定
+/**
+ * PluginInfo JSON Schemaを返すレスポンスを構築する。
+ * レスポンスの `$id` と `x-schema-version` はリクエストされたURLとバージョンに合わせる。
+ */
+const buildSchemaResponse = (requestUrl: string, version: string) => {
+    const url = new URL(requestUrl);
+    return {
+        ...pluginInfoJsonSchema,
+        $id: `${url.origin}/schema/plugin-info/${version}.json`,
+        "x-schema-version": version,
+    };
+};
+
+// プラグインリポジトリファイルのJSONSchemaをバージョン付きパスで配信する
+// 推奨URL: `/schema/plugin-info/v1.json`
+// 将来の破壊的変更時は `/schema/plugin-info/v2.json` を別実装として追加する。
 app.get(
-    "/schema/plugin-info.json",
+    "/schema/plugin-info/:version{v\\d+}.json",
     async (c) => {
-        // $idを応答時点のURLに合わせて上書きしておく（スキーマ参照の自己整合）
-        const url = new URL(c.req.url);
-        return c.json({
-            ...pluginInfoJsonSchema,
-            $id: `${url.origin}/schema/plugin-info.json`,
-        });
+        const version = c.req.param("version");
+        // 現時点では v1 のみサポート
+        if (version !== PLUGIN_INFO_SCHEMA_VERSION) {
+            return c.json(
+                { error: `Unknown schema version: ${version}` },
+                404,
+            );
+        }
+        return c.json(buildSchemaResponse(c.req.url, version));
     },
     describeRoute({
-        description: "プラグインリポジトリファイル(PluginInfo)のJSONSchemaを返す",
+        description:
+            "プラグインリポジトリファイル(PluginInfo)の指定バージョンのJSONSchemaを返す。" +
+            "現在は v1 のみサポート",
+        responses: {
+            200: {
+                description: "PluginInfoのJSONSchema",
+                content: {
+                    "application/json": { schema: resolver(z.any()) },
+                },
+            },
+            404: {
+                description: "未知のスキーマバージョン",
+                content: {
+                    "application/json": { schema: resolver(z.object({ error: z.string() })) },
+                },
+            },
+        },
+    }),
+);
+
+// 後方互換エイリアス: バージョンを省略した場合は最新のサポート版を返す
+// 既存のプラグインJSONは `$schema: .../schema/plugin-info.json` で記述されていたので
+// 一定期間このパスも配信する
+app.get(
+    "/schema/plugin-info.json",
+    async (c) => c.json(buildSchemaResponse(c.req.url, PLUGIN_INFO_SCHEMA_VERSION)),
+    describeRoute({
+        description:
+            "プラグインリポジトリファイル(PluginInfo)のJSONSchemaを返す（最新サポート版へのエイリアス）",
         responses: {
             200: {
                 description: "PluginInfoのJSONSchema",

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+  "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "MineAuth-addon-betonquest",
   "source": "https://github.com/morinoparty/MineAuth",
   "repositories": [
@@ -9,11 +9,11 @@
       "fileNameRegex": "MineAuth-addon-betonquest-.*\\.jar$",
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
       "latest": {
-        "versionMatcher": "^v\\d+\\.\\d+\\.\\d+$",
+        "useUpstreamLabel": true,
         "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
       },
       "beta": {
-        "versionMatcher": "^preview-pr\\d+-[a-f0-9]+$"
+        "useUpstreamLabel": true
       }
     }
   ],
