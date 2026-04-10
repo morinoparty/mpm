@@ -136,10 +136,17 @@ class PluginLifecycleServiceImpl :
                 firstRepository
             ).getOrElse { return it.left() }
 
-        // メタデータを作成
+        // このバージョンを解決した際のチャンネル名を特定する
+        // Latest/Sync/Fixed は "latest"、Tag は指定されたタグを使う
+        val resolvedChannel = when (legacyVersion) {
+            is LegacyVersionSpecifier.Tag -> legacyVersion.tag
+            else -> "latest"
+        }
+
+        // メタデータを作成（チャンネル固有のversionModifierを尊重する）
         val metadata =
             metadataManager
-                .createMetadata(pluginName, firstRepository, versionData, "add")
+                .createMetadata(pluginName, firstRepository, versionData, "add", resolvedChannel)
                 .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
 
         // PluginAddEventを発火して、他のプラグインがキャンセルできるようにする

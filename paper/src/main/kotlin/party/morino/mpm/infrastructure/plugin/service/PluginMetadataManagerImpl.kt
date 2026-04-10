@@ -51,10 +51,16 @@ class PluginMetadataManagerImpl :
         pluginName: String,
         repository: RepositoryConfig,
         versionData: VersionData,
-        action: String
+        action: String,
+        channel: String?
     ): Either<String, ManagedPluginDto> {
+        // 実効パターンを決定: チャンネル固有のversionModifier > ルートのversionPattern > デフォルト
+        // これにより CarbonChat の beta チャンネルのような、チャンネルごとに
+        // 異なる書式のバージョン列を正規化できる
+        val effectivePattern = repository.effectiveVersionPattern(channel)
+
         // バージョンを正規化（共通ロジックを使用）
-        val normalizedVersion = VersionDetail.normalizeWithPattern(versionData.version, repository.versionPattern)
+        val normalizedVersion = VersionDetail.normalizeWithPattern(versionData.version, effectivePattern)
 
         // 現在時刻を取得
         val now = Instant.now().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)
@@ -105,7 +111,7 @@ class PluginMetadataManagerImpl :
                                     action = action
                                 )
                             ),
-                        versionPattern = repository.versionPattern,
+                        versionPattern = effectivePattern,
                         fileNamePattern = repository.fileNamePattern,
                         fileNameTemplate = repository.fileNameTemplate
                     )

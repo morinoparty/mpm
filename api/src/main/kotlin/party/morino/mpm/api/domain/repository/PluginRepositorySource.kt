@@ -145,4 +145,22 @@ data class RepositoryConfig(
             else -> null
         }
     }
+
+    /**
+     * バージョン正規化に使う実効的な正規表現パターンを返す
+     *
+     * 指定[channel]に [ChannelConfig.versionModifier] が設定されていればそれを優先し、
+     * なければリポジトリルートの [versionPattern] にフォールバックする。
+     * [channel] が null の場合はルートパターンをそのまま返す。
+     *
+     * @param channel チャンネル名（"latest" / "beta" / "alpha"）。nullの場合はルートのみを返す
+     * @return 実効的な versionModifier / versionPattern
+     */
+    fun effectiveVersionPattern(channel: String?): String? {
+        if (channel != null) {
+            val channelPattern = channelConfig(channel)?.versionModifier
+            if (channelPattern != null) return channelPattern
+        }
+        return versionPattern
+    }
 }

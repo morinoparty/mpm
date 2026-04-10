@@ -912,12 +912,14 @@ class PluginUpdateServiceImpl :
             }
 
         // メタデータが存在するか確認し、更新または作成
+        // 新規作成時はチャンネル固有のversionModifierを尊重するため、解決チャンネルを渡す
+        val resolvedChannel = tagChannel ?: "latest"
         val metadata =
             pluginMetadataManager.loadMetadata(pluginName).fold(
                 // メタデータが存在しない場合は新規作成
                 {
                     pluginMetadataManager
-                        .createMetadata(pluginName, firstRepository, versionData, "install")
+                        .createMetadata(pluginName, firstRepository, versionData, "install", resolvedChannel)
                         .getOrElse { return it.left() }
                 },
                 // メタデータが存在する場合は更新
