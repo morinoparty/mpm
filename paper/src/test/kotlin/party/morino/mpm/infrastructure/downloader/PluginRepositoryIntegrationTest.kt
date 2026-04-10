@@ -217,7 +217,12 @@ class PluginRepositoryIntegrationTest {
             errors += "$label: versionModifierでは区別できない複数バージョンあり: $detail"
         }
 
-        println("  [$label] ${versions.size} versions, sample normalized: ${normalized.take(3).map { it.second }}")
+        // 各バージョンのraw -> modified全件を表示（カタログ調整の判断材料とするため）
+        println("  [$label] ${versions.size} versions (modifier=${modifier ?: "default"}):")
+        normalized.forEach { (raw, norm) ->
+            val marker = if (raw == norm) "  " else " *" // 変換が発生したものを * で強調
+            println("    $marker $raw -> $norm")
+        }
         return errors
     }
 
