@@ -12,7 +12,15 @@
     {
       "type": "github",
       "id": "morinoparty/MineAuth",
-      "fileNameRegex": "MineAuth-core_.*\\.jar$"
+      "fileNameRegex": "MineAuth-core_.*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^v\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "^preview-pr\\d+-[a-f0-9]+$"
+      }
     }
   ]
 }
