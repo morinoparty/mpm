@@ -324,11 +324,18 @@ class PluginLifecycleServiceImpl :
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
 
         // チャンネル設定(`latest`/`beta`/`alpha`)を取得するため、リポジトリファイルから
-        // RepositoryConfigを読み込む。メタデータのRepositoryInfoには含まれないため別取得。
-        val firstRepositoryConfig = repositoryManager
-            .getRepositoryFile(pluginName)
+        // metadata.repository に対応するRepositoryConfigを検索する。
+        // metadataはtype/idを保持するだけでchannel情報を含まないので別途取得する必要がある。
+        // add時に選択したrepoとリポファイルの最初のrepoは必ずしも一致しないため、
+        // type+idの組で厳密にマッチさせる（見つからなければ先頭のrepoにフォールバック）。
+        val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
+        val matchingRepositoryConfig = repositoryFile
             ?.repositories
-            ?.firstOrNull()
+            ?.firstOrNull {
+                it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
+                    it.repositoryId == repositoryInfo.id
+            }
+            ?: repositoryFile?.repositories?.firstOrNull()
 
         // 最新バージョン情報を取得（Tag指定の場合はそのタグでフィルタ）
         // チャンネル設定 (versionMatcher / useUpstreamLabel) を尊重する
@@ -339,7 +346,7 @@ class PluginLifecycleServiceImpl :
                     ChannelVersionResolver.resolveTag(
                         downloaderRepository,
                         urlData,
-                        firstRepositoryConfig,
+                        matchingRepositoryConfig,
                         versionSpecifier.tag,
                     ) ?: return MpmError.PluginError
                         .VersionResolutionFailed(
@@ -350,7 +357,7 @@ class PluginLifecycleServiceImpl :
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
                         urlData,
-                        firstRepositoryConfig,
+                        matchingRepositoryConfig,
                     )
                 }
             } catch (e: Exception) {
