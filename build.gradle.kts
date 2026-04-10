@@ -83,7 +83,9 @@ dokka {
         footerMessage.set("No right reserved. This docs under CC0 1.0.")
     }
     dokkaPublications.html {
-        outputDirectory.set(file("${project.rootDir}/docs/static/dokka"))
+        // Next.jsが静的アセットとして配信するpublic/配下に出力する
+        // これによりdocsサイトの /dokka/ パスからKotlin APIリファレンスにアクセス可能
+        outputDirectory.set(file("${project.rootDir}/docs/public/dokka"))
     }
 }
 

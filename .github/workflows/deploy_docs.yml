@@ -36,6 +36,9 @@ jobs:
         working-directory: docs
         run: pnpm i --frozen-lockfile
 
+      - name: Generate Dokka
+        run: ./gradlew dokkaGenerate
+
       - name: Build
         working-directory: docs
         run: pnpm run build

@@ -15,5 +15,8 @@ export function baseOptions(): BaseLayoutProps {
         },
         githubUrl: "https://github.com/morinoparty/mpm",
         modrinthUrl: "https://modrinth.com/plugin/mpm-package",
+        // Kotlin APIリファレンス（Dokka生成ドキュメント）
+        // ビルド時に docs/public/dokka にDokkaが出力されるため、/dokka/で配信される
+        dokkaUrl: "/dokka/",
     };
 }
