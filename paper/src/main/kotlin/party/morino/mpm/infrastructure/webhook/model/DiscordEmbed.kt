@@ -34,5 +34,7 @@ data class DiscordEmbed(
      * @property text フッターテキスト
      */
     @Serializable
-    data class Footer(val text: String)
+    data class Footer(
+        val text: String
+    )
 }

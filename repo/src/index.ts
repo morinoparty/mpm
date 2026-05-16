@@ -83,9 +83,12 @@ const buildSchemaResponse = (requestUrl: string, version: string) => {
 // 推奨URL: `/schema/plugin-info/v1.json`
 // 将来の破壊的変更時は `/schema/plugin-info/v2.json` を別実装として追加する。
 app.get(
-    "/schema/plugin-info/:version{v\\d+}.json",
+    // NOTE: Honoの RegExpRouter は `:param{regex}.literal` 形式のパターンで
+    // クラッシュするため、`.json` 部分を正規表現制約内に含めている。
+    // その結果、`version` パラメータは `v1.json` の形で取得されるので末尾を取り除く。
+    "/schema/plugin-info/:version{v\\d+\\.json}",
     async (c) => {
-        const version = c.req.param("version");
+        const version = c.req.param("version").replace(/\.json$/, "");
         // 現時点では v1 のみサポート
         if (version !== PLUGIN_INFO_SCHEMA_VERSION) {
             return c.json(

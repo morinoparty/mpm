@@ -21,12 +21,14 @@ class OutdatedCheckResultTest {
     @Test
     @DisplayName("Contains both outdated plugins and errors")
     fun testPartialResult() {
-        val outdated = listOf(
-            OutdatedInfo("PluginA", "1.0.0", "2.0.0", true)
-        )
-        val errors = listOf(
-            PluginCheckError("PluginB", "Repository not found")
-        )
+        val outdated =
+            listOf(
+                OutdatedInfo("PluginA", "1.0.0", "2.0.0", true)
+            )
+        val errors =
+            listOf(
+                PluginCheckError("PluginB", "Repository not found")
+            )
 
         val result = OutdatedCheckResult(outdated, errors)
 
@@ -48,10 +50,11 @@ class OutdatedCheckResultTest {
     @Test
     @DisplayName("All errors result when no checks succeed")
     fun testAllErrorsResult() {
-        val errors = listOf(
-            PluginCheckError("PluginA", "Network error"),
-            PluginCheckError("PluginB", "Metadata not found")
-        )
+        val errors =
+            listOf(
+                PluginCheckError("PluginA", "Network error"),
+                PluginCheckError("PluginB", "Metadata not found")
+            )
 
         val result = OutdatedCheckResult(emptyList(), errors)
 

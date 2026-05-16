@@ -59,10 +59,11 @@ object PluginDataUtils {
     private fun getPaperPluginData(jarFile: JarFile): PluginData.PaperPluginData {
         val paperYml = jarFile.getEntry("paper-plugin.yml")
         // InputStream/BufferedReaderをuse{}で確実にクローズする（リソースリーク防止）
-        val yamlData = jarFile.getInputStream(paperYml).bufferedReader().use { reader ->
-            val yaml = Yaml(SafeConstructor(LoaderOptions()))
-            yaml.load<Map<String, Any>>(reader)
-        }
+        val yamlData =
+            jarFile.getInputStream(paperYml).bufferedReader().use { reader ->
+                val yaml = Yaml(SafeConstructor(LoaderOptions()))
+                yaml.load<Map<String, Any>>(reader)
+            }
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
         val main = (yamlData["main"] ?: "").toString()
@@ -128,10 +129,11 @@ object PluginDataUtils {
     private fun getBukkitPluginData(jarFile: JarFile): PluginData.BukkitPluginData {
         val pluginYml = jarFile.getEntry("plugin.yml")
         // InputStream/BufferedReaderをuse{}で確実にクローズする（リソースリーク防止）
-        val yamlData = jarFile.getInputStream(pluginYml).bufferedReader().use { reader ->
-            val yaml = Yaml(SafeConstructor(LoaderOptions()))
-            yaml.load<Map<String, Any>>(reader)
-        }
+        val yamlData =
+            jarFile.getInputStream(pluginYml).bufferedReader().use { reader ->
+                val yaml = Yaml(SafeConstructor(LoaderOptions()))
+                yaml.load<Map<String, Any>>(reader)
+            }
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
         val main = (yamlData["main"] ?: "").toString()

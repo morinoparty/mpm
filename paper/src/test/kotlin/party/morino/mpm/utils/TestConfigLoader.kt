@@ -36,12 +36,13 @@ object TestConfigLoader {
      */
     fun load(): ConfigData {
         val classLoader = this::class.java.classLoader
-        val resource = classLoader.getResource("plugins/mpm/config.local.json")
-            ?: classLoader.getResource("plugins/mpm/config.json")
-            ?: throw IllegalStateException(
-                "test config.json がクラスパス上に見つかりません: " +
-                    "paper/src/test/resources/plugins/mpm/config.json を確認してください"
-            )
+        val resource =
+            classLoader.getResource("plugins/mpm/config.local.json")
+                ?: classLoader.getResource("plugins/mpm/config.json")
+                ?: throw IllegalStateException(
+                    "test config.json がクラスパス上に見つかりません: " +
+                        "paper/src/test/resources/plugins/mpm/config.json を確認してください"
+                )
         val text = resource.openStream().bufferedReader().use { it.readText() }
         return json.decodeFromString<ConfigData>(text)
     }

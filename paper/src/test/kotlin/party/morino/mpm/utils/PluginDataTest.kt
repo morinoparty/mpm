@@ -74,8 +74,11 @@ class PluginDataTest {
         // SnakeYAML parses both as the same Double
         val parsed120 = yaml.load<Map<String, Any>>("api-version: 1.20")
         val parsed12 = yaml.load<Map<String, Any>>("api-version: 1.2")
-        assertEquals(parsed120["api-version"], parsed12["api-version"],
-            "SnakeYAML treats unquoted 1.2 and 1.20 as the same Double")
+        assertEquals(
+            parsed120["api-version"],
+            parsed12["api-version"],
+            "SnakeYAML treats unquoted 1.2 and 1.20 as the same Double"
+        )
 
         // parseApiVersion restores trailing zero for both
         assertEquals("1.20", PluginDataUtils.parseApiVersion(parsed120["api-version"]))

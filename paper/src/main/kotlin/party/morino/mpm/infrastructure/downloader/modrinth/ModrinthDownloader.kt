@@ -158,8 +158,9 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
         val matchedVersion = versions.firstOrNull { it.versionNumber == versionName } ?: return null
 
         // 全ファイルのsha1ハッシュを収集（複数artifact対応）
-        val sha1Hashes = matchedVersion.files
-            .mapNotNull { it.hashes?.sha1 }
+        val sha1Hashes =
+            matchedVersion.files
+                .mapNotNull { it.hashes?.sha1 }
         if (sha1Hashes.isEmpty()) return null
 
         return mapOf("sha1" to sha1Hashes.joinToString(","))

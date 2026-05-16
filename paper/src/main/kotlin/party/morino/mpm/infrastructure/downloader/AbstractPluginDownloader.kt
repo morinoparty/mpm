@@ -20,13 +20,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import party.morino.mpm.api.domain.downloader.PluginDownloader
+import java.io.Closeable
 import java.io.File
 
 /**
  * プラグインダウンローダーの抽象クラス
  * 共通の機能を提供する
  */
-abstract class AbstractPluginDownloader : PluginDownloader {
+abstract class AbstractPluginDownloader :
+    PluginDownloader,
+    Closeable {
     // HTTP クライアント（テストのためにopenかつ変更可能）
     protected open var httpClient: HttpClient =
         HttpClient(CIO) {
@@ -105,4 +108,13 @@ abstract class AbstractPluginDownloader : PluginDownloader {
 
             response.bodyAsText()
         }
+
+    /**
+     * HTTPクライアントを閉じてリソースを解放する
+     * プラグイン無効化時に呼び出し、コネクション/セレクタスレッドの
+     * リークを防ぐ
+     */
+    override fun close() {
+        httpClient.close()
+    }
 }

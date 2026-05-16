@@ -22,14 +22,14 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.model.BulkInstallResult
 import party.morino.mpm.api.application.model.InstallResult
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
-import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.application.model.PluginInstallInfo
 import party.morino.mpm.api.application.model.PluginRemovalInfo
 import party.morino.mpm.api.application.model.UpdateResult
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
+import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
+import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -118,19 +118,20 @@ class PluginUpdateServiceImpl :
         val outdatedInfoList = checkResult.outdatedPlugins
 
         // チェックに失敗したプラグインを警告表示し、UpdateResultとしても記録
-        val checkFailResults = checkResult.errors.map { checkError ->
-            plugin.logger.warning("Failed to check update for ${checkError.pluginName}: ${checkError.errorMessage}")
-            progressCallback?.invoke(
-                "<gray>[${checkError.pluginName}] <red>チェック失敗: ${checkError.errorMessage}"
-            )
-            UpdateResult(
-                pluginName = checkError.pluginName,
-                oldVersion = "unknown",
-                newVersion = "unknown",
-                success = false,
-                errorMessage = checkError.errorMessage
-            )
-        }
+        val checkFailResults =
+            checkResult.errors.map { checkError ->
+                plugin.logger.warning("Failed to check update for ${checkError.pluginName}: ${checkError.errorMessage}")
+                progressCallback?.invoke(
+                    "<gray>[${checkError.pluginName}] <red>チェック失敗: ${checkError.errorMessage}"
+                )
+                UpdateResult(
+                    pluginName = checkError.pluginName,
+                    oldVersion = "unknown",
+                    newVersion = "unknown",
+                    success = false,
+                    errorMessage = checkError.errorMessage
+                )
+            }
 
         // 更新が必要なプラグインがある場合、バックアップを作成
         val hasUpdates = outdatedInfoList.any { it.needsUpdate }
@@ -295,9 +296,10 @@ class PluginUpdateServiceImpl :
         }
         try {
             // 更新が必要かチェック
-            val outdatedInfo = infoService.checkOutdated(name).getOrElse {
-                return it.left()
-            }
+            val outdatedInfo =
+                infoService.checkOutdated(name).getOrElse {
+                    return it.left()
+                }
 
             // 更新が不要かつforceでない場合はスキップ
             if (outdatedInfo == null || (!outdatedInfo.needsUpdate && !force)) {
@@ -311,9 +313,10 @@ class PluginUpdateServiceImpl :
             }
 
             // ロック状態を確認
-            val metadata = pluginMetadataManager.loadMetadata(name.value).getOrElse {
-                return MpmError.PluginError.MetadataNotFound(name.value).left()
-            }
+            val metadata =
+                pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                    return MpmError.PluginError.MetadataNotFound(name.value).left()
+                }
             if (metadata.mpmInfo.settings.lock == true && !force) {
                 return MpmError.PluginError.Locked(name.value).left()
             }
@@ -372,9 +375,11 @@ class PluginUpdateServiceImpl :
      */
     private suspend fun executeInstallAll(force: Boolean): Either<MpmError, BulkInstallResult> {
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
-        val mpmConfig = projectRepository.findOrError()
-            .map { it.toDto() }
-            .getOrElse { return it.left() }
+        val mpmConfig =
+            projectRepository
+                .findOrError()
+                .map { it.toDto() }
+                .getOrElse { return it.left() }
 
         // Sync依存関係のバリデーション
         mpmConfig.validateSyncDependencies().onLeft { error ->
@@ -596,7 +601,7 @@ class PluginUpdateServiceImpl :
                 metadataEither.fold(
                     {
                         progressCallback?.invoke(
-                            "<gray>[${syncPluginName}] <yellow>メタデータの読み込みに失敗しました"
+                            "<gray>[$syncPluginName] <yellow>メタデータの読み込みに失敗しました"
                         )
                         "unknown"
                     },
@@ -610,7 +615,7 @@ class PluginUpdateServiceImpl :
                     { it.mpmInfo.settings.lock == true }
                 )
             if (isLocked) {
-                progressCallback?.invoke("<gray>[${syncPluginName}] <yellow>ロック中のためスキップ")
+                progressCallback?.invoke("<gray>[$syncPluginName] <yellow>ロック中のためスキップ")
                 updateResults.add(
                     UpdateResult(
                         pluginName = syncPluginName,
@@ -624,13 +629,13 @@ class PluginUpdateServiceImpl :
             }
 
             // プラグインをインストール（forceフラグを伝播）
-            progressCallback?.invoke("<gray>[${syncPluginName}] 連動更新をダウンロード中...")
+            progressCallback?.invoke("<gray>[$syncPluginName] 連動更新をダウンロード中...")
             val installResult = installSinglePlugin(syncPluginName, force)
 
             installResult.fold(
                 // インストール失敗時
                 { errorMessage ->
-                    progressCallback?.invoke("<gray>[${syncPluginName}] <red>連動更新失敗: $errorMessage")
+                    progressCallback?.invoke("<gray>[$syncPluginName] <red>連動更新失敗: $errorMessage")
                     updateResults.add(
                         UpdateResult(
                             pluginName = syncPluginName,
@@ -649,7 +654,7 @@ class PluginUpdateServiceImpl :
                             { "unknown" },
                             { it.mpmInfo.version.current.raw }
                         )
-                    progressCallback?.invoke("<gray>[${syncPluginName}] <green>連動更新完了 ✓")
+                    progressCallback?.invoke("<gray>[$syncPluginName] <green>連動更新完了 ✓")
                     updateResults.add(
                         UpdateResult(
                             pluginName = syncPluginName,
@@ -704,13 +709,14 @@ class PluginUpdateServiceImpl :
         // チャンネル設定(versionMatcher/useUpstreamLabel)を取得するためリポファイルを参照。
         // metadata.repositoryに対応する RepositoryConfig を厳密マッチで特定する（見つからなければ先頭）
         val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
-        val matchingRepositoryConfig = repositoryFile
-            ?.repositories
-            ?.firstOrNull {
-                it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
-                    it.repositoryId == repositoryInfo.id
-            }
-            ?: repositoryFile?.repositories?.firstOrNull()
+        val matchingRepositoryConfig =
+            repositoryFile
+                ?.repositories
+                ?.firstOrNull {
+                    it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
+                        it.repositoryId == repositoryInfo.id
+                }
+                ?: repositoryFile?.repositories?.firstOrNull()
 
         // 最新バージョンを取得（tag:指定の場合は該当チャンネルの最新を取得）
         val latestVersionData =
@@ -720,13 +726,13 @@ class PluginUpdateServiceImpl :
                         downloaderRepository,
                         urlData,
                         matchingRepositoryConfig,
-                        tagChannelForPlugin,
+                        tagChannelForPlugin
                     ) ?: return "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName".left()
                 } else {
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
                         urlData,
-                        matchingRepositoryConfig,
+                        matchingRepositoryConfig
                     )
                 }
             } catch (e: Exception) {
@@ -734,11 +740,12 @@ class PluginUpdateServiceImpl :
             }
 
         // useLatestの場合は最新バージョンでDL、そうでなければメタデータの現在バージョンでDL
-        val versionData = if (useLatest) {
-            latestVersionData
-        } else {
-            VersionData(mpmInfoDto.download.downloadId, mpmInfoDto.version.current.raw)
-        }
+        val versionData =
+            if (useLatest) {
+                latestVersionData
+            } else {
+                VersionData(mpmInfoDto.download.downloadId, mpmInfoDto.version.current.raw)
+            }
         val action = if (useLatest) "update" else "install"
 
         // メタデータを更新（最新バージョン情報を反映）
@@ -885,13 +892,13 @@ class PluginUpdateServiceImpl :
                         downloaderRepository,
                         urlData,
                         firstRepository,
-                        tagChannel,
+                        tagChannel
                     ) ?: return "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName".left()
                 } else {
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
                         urlData,
-                        firstRepository,
+                        firstRepository
                     )
                 }
             } catch (e: Exception) {
@@ -1018,9 +1025,7 @@ class PluginUpdateServiceImpl :
     /**
      * mpm.jsonを読み込む（ProjectRepository経由）
      */
-    private suspend fun loadMpmConfig(): MpmConfig? {
-        return projectRepository.find()?.toDto()
-    }
+    private suspend fun loadMpmConfig(): MpmConfig? = projectRepository.find()?.toDto()
 
     /**
      * バージョン指定文字列を実際のバージョンに解決する
@@ -1060,23 +1065,26 @@ class PluginUpdateServiceImpl :
         force: Boolean
     ): Either<String, Unit> {
         // tempファイルからプラグインデータを抽出（破損JARでも例外を握りつぶしてスキップする）
-        val pluginData = try {
-            PluginDataUtils.getPluginData(downloadedFile)
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
-            null
-        }
+        val pluginData =
+            try {
+                PluginDataUtils.getPluginData(downloadedFile)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
+                null
+            }
 
         // APIバージョンの互換性チェック
         val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
         when (compatibilityResult) {
             is CompatibilityResult.Incompatible -> {
                 if (!force) {
-                    return ("[API_VERSION_INCOMPATIBLE] api-version非互換: " +
-                        "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
-                        "サーバーは${compatibilityResult.serverApiVersion}です").left()
+                    return (
+                        "[API_VERSION_INCOMPATIBLE] api-version非互換: " +
+                            "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
+                            "サーバーは${compatibilityResult.serverApiVersion}です"
+                    ).left()
                 }
                 plugin.logger.warning(
                     "api-version incompatible ($pluginName): " +
@@ -1096,33 +1104,40 @@ class PluginUpdateServiceImpl :
 
         // 必須依存関係のチェック
         if (pluginData != null) {
-            val requiredDeps = when (pluginData) {
-                is PluginData.BukkitPluginData -> pluginData.depend
-                is PluginData.PaperPluginData -> pluginData.depend
-            }
+            val requiredDeps =
+                when (pluginData) {
+                    is PluginData.BukkitPluginData -> pluginData.depend
+                    is PluginData.PaperPluginData -> pluginData.depend
+                }
 
             if (requiredDeps.isNotEmpty()) {
                 // mpm.jsonに登録済みのプラグイン名を取得
                 val managedPlugins = loadMpmConfig()?.plugins?.keys.orEmpty()
                 // pluginsディレクトリに存在するプラグイン名を取得
                 val pluginsDir = pluginDirectory.getPluginsDirectory()
-                val installedPluginNames = pluginsDir.listFiles { f ->
-                    f.isFile && f.extension == "jar"
-                }?.mapNotNull { jar ->
-                    try {
-                        val data = PluginDataUtils.getPluginData(jar)
-                        when (data) {
-                            is PluginData.BukkitPluginData -> data.name
-                            is PluginData.PaperPluginData -> data.name
-                            null -> null
-                        }
-                    } catch (_: Exception) { null }
-                }?.toSet().orEmpty()
+                val installedPluginNames =
+                    pluginsDir
+                        .listFiles { f ->
+                            f.isFile && f.extension == "jar"
+                        }?.mapNotNull { jar ->
+                            try {
+                                val data = PluginDataUtils.getPluginData(jar)
+                                when (data) {
+                                    is PluginData.BukkitPluginData -> data.name
+                                    is PluginData.PaperPluginData -> data.name
+                                    null -> null
+                                }
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }?.toSet()
+                        .orEmpty()
 
                 // 管理対象とインストール済みのどちらにもない依存関係を検出
-                val missingDeps = requiredDeps.filter { dep ->
-                    !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
-                }
+                val missingDeps =
+                    requiredDeps.filter { dep ->
+                        !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
+                    }
 
                 if (missingDeps.isNotEmpty()) {
                     val message = "必須依存プラグインが不足しています: ${missingDeps.joinToString(", ")}"

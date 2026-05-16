@@ -23,12 +23,12 @@ import party.morino.mpm.api.application.model.AdoptResult
 import party.morino.mpm.api.application.model.InstallResult
 import party.morino.mpm.api.application.model.PluginAddResult
 import party.morino.mpm.api.application.model.PluginFilter
-import party.morino.mpm.api.application.plugin.PluginInfoService
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
-import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.application.model.PluginInstallInfo
 import party.morino.mpm.api.application.model.PluginRemovalInfo
+import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
+import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -38,6 +38,7 @@ import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
 import party.morino.mpm.api.domain.project.model.MpmProject
@@ -56,7 +57,6 @@ import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.PluginDataUtils
 import java.io.File
-import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier as LegacyVersionSpecifier
 
 /**
@@ -89,12 +89,13 @@ class PluginLifecycleServiceImpl :
         val pluginName = name.value
 
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
-        val project = projectRepository.findOrError().getOrElse { error ->
-            return when (error) {
-                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
-                else -> error.left()
+        val project =
+            projectRepository.findOrError().getOrElse { error ->
+                return when (error) {
+                    is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                    else -> error.left()
+                }
             }
-        }
 
         // リポジトリソースからプラグインが存在するか確認
         val repositoryFile =
@@ -102,11 +103,12 @@ class PluginLifecycleServiceImpl :
                 ?: return MpmError.DownloadError.RepositoryNotFound("unknown", pluginName).left()
 
         // Latestが指定されている場合、リポファイルのdefaultVersionがあればそちらを使用
-        val resolvedVersion = if (version is VersionSpecifier.Latest && repositoryFile.defaultVersion != null) {
-            VersionSpecifierParser.parse(repositoryFile.defaultVersion!!)
-        } else {
-            version
-        }
+        val resolvedVersion =
+            if (version is VersionSpecifier.Latest && repositoryFile.defaultVersion != null) {
+                VersionSpecifierParser.parse(repositoryFile.defaultVersion!!)
+            } else {
+                version
+            }
         val legacyVersion = toLegacyVersionSpecifier(resolvedVersion)
 
         // リポジトリ設定から最初のリポジトリを取得
@@ -138,10 +140,11 @@ class PluginLifecycleServiceImpl :
 
         // このバージョンを解決した際のチャンネル名を特定する
         // Latest/Sync/Fixed は "latest"、Tag は指定されたタグを使う
-        val resolvedChannel = when (legacyVersion) {
-            is LegacyVersionSpecifier.Tag -> legacyVersion.tag
-            else -> "latest"
-        }
+        val resolvedChannel =
+            when (legacyVersion) {
+                is LegacyVersionSpecifier.Tag -> legacyVersion.tag
+                else -> "latest"
+            }
 
         // メタデータを作成（チャンネル固有のversionModifierを尊重する）
         val metadata =
@@ -169,22 +172,24 @@ class PluginLifecycleServiceImpl :
 
         // MpmProjectのプラグインマップを更新
         // Fixed指定時はリポジトリから解決された正規バージョン名を使用する
-        val resolvedVersionSpec = when (version) {
-            is VersionSpecifier.Fixed -> VersionSpecifier.Fixed(versionData.version)
-            else -> version
-        }
+        val resolvedVersionSpec =
+            when (version) {
+                is VersionSpecifier.Fixed -> VersionSpecifier.Fixed(versionData.version)
+                else -> version
+            }
         val newSpec = PluginSpec.Managed(name, resolvedVersionSpec)
-        val updatedProject = if (existingSpec != null) {
-            // unmanagedからの変換
-            project.updatePlugin(name, newSpec).getOrElse {
-                return MpmError.PluginError.AddFailed(pluginName, it.message).left()
+        val updatedProject =
+            if (existingSpec != null) {
+                // unmanagedからの変換
+                project.updatePlugin(name, newSpec).getOrElse {
+                    return MpmError.PluginError.AddFailed(pluginName, it.message).left()
+                }
+            } else {
+                // 新規追加
+                project.addPlugin(newSpec).getOrElse {
+                    return MpmError.PluginError.AddFailed(pluginName, it.message).left()
+                }
             }
-        } else {
-            // 新規追加
-            project.addPlugin(newSpec).getOrElse {
-                return MpmError.PluginError.AddFailed(pluginName, it.message).left()
-            }
-        }
         val sortedProject = updatedProject.withSortedPlugins()
 
         // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
@@ -200,18 +205,23 @@ class PluginLifecycleServiceImpl :
             projectRepository.save(sortedProject)
         } catch (e: Exception) {
             // 保存失敗時はメタデータをロールバック（以前の状態に復元）
-            val rollbackError = if (previousMetadata != null) {
-                metadataManager.saveMetadata(pluginName, previousMetadata).fold(
-                    { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
-                    { "" }
-                )
-            } else {
-                metadataManager.deleteMetadata(pluginName).fold(
-                    { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
-                    { "" }
-                )
-            }
-            return MpmError.PluginError.AddFailed(pluginName, "Failed to save mpm.json: ${e.message}$rollbackError").left()
+            val rollbackError =
+                if (previousMetadata != null) {
+                    metadataManager.saveMetadata(pluginName, previousMetadata).fold(
+                        { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
+                        { "" }
+                    )
+                } else {
+                    metadataManager.deleteMetadata(pluginName).fold(
+                        { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
+                        { "" }
+                    )
+                }
+            return MpmError.PluginError
+                .AddFailed(
+                    pluginName,
+                    "Failed to save mpm.json: ${e.message}$rollbackError"
+                ).left()
         }
 
         // ManagedPluginを返す（メタデータから構築）
@@ -230,12 +240,13 @@ class PluginLifecycleServiceImpl :
         val pluginName = name.value
 
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
-        val project = projectRepository.findOrError().getOrElse { error ->
-            return when (error) {
-                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
-                else -> error.left()
+        val project =
+            projectRepository.findOrError().getOrElse { error ->
+                return when (error) {
+                    is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                    else -> error.left()
+                }
             }
-        }
 
         // プラグインが管理対象に含まれているか確認
         if (project.getPluginSpec(name) == null) {
@@ -271,9 +282,10 @@ class PluginLifecycleServiceImpl :
         }
 
         // MpmProjectからプラグインを削除
-        val updatedProject = project.removePlugin(name).getOrElse {
-            return MpmError.PluginError.RemoveFailed(pluginName, it.message).left()
-        }
+        val updatedProject =
+            project.removePlugin(name).getOrElse {
+                return MpmError.PluginError.RemoveFailed(pluginName, it.message).left()
+            }
         val sortedProject = updatedProject.withSortedPlugins()
 
         // ProjectRepositoryを通じて保存
@@ -336,13 +348,14 @@ class PluginLifecycleServiceImpl :
         // add時に選択したrepoとリポファイルの最初のrepoは必ずしも一致しないため、
         // type+idの組で厳密にマッチさせる（見つからなければ先頭のrepoにフォールバック）。
         val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
-        val matchingRepositoryConfig = repositoryFile
-            ?.repositories
-            ?.firstOrNull {
-                it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
-                    it.repositoryId == repositoryInfo.id
-            }
-            ?: repositoryFile?.repositories?.firstOrNull()
+        val matchingRepositoryConfig =
+            repositoryFile
+                ?.repositories
+                ?.firstOrNull {
+                    it.type.equals(repositoryInfo.type.name, ignoreCase = true) &&
+                        it.repositoryId == repositoryInfo.id
+                }
+                ?: repositoryFile?.repositories?.firstOrNull()
 
         // 最新バージョン情報を取得（Tag指定の場合はそのタグでフィルタ）
         // チャンネル設定 (versionMatcher / useUpstreamLabel) を尊重する
@@ -354,7 +367,7 @@ class PluginLifecycleServiceImpl :
                         downloaderRepository,
                         urlData,
                         matchingRepositoryConfig,
-                        versionSpecifier.tag,
+                        versionSpecifier.tag
                     ) ?: return MpmError.PluginError
                         .VersionResolutionFailed(
                             pluginName,
@@ -364,7 +377,7 @@ class PluginLifecycleServiceImpl :
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
                         urlData,
-                        matchingRepositoryConfig,
+                        matchingRepositoryConfig
                     )
                 }
             } catch (e: Exception) {
@@ -434,11 +447,12 @@ class PluginLifecycleServiceImpl :
             is CompatibilityResult.Incompatible -> {
                 if (!force) {
                     downloadedFile.delete()
-                    return MpmError.PluginError.ApiVersionIncompatible(
-                        pluginName,
-                        compatibilityResult.pluginApiVersion,
-                        compatibilityResult.serverApiVersion
-                    ).left()
+                    return MpmError.PluginError
+                        .ApiVersionIncompatible(
+                            pluginName,
+                            compatibilityResult.pluginApiVersion,
+                            compatibilityResult.serverApiVersion
+                        ).left()
                 }
                 plugin.logger.warning(
                     "api-version incompatible ($pluginName): " +
@@ -457,39 +471,53 @@ class PluginLifecycleServiceImpl :
         }
 
         // 必須依存関係のチェック（破損JARでも例外を握りつぶしてスキップする）
-        val pluginData = try {
-            PluginDataUtils.getPluginData(downloadedFile)
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
-            null
-        }
-        if (pluginData != null) {
-            val requiredDeps = when (pluginData) {
-                is PluginData.BukkitPluginData -> pluginData.depend
-                is PluginData.PaperPluginData -> pluginData.depend
+        val pluginData =
+            try {
+                PluginDataUtils.getPluginData(downloadedFile)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
+                null
             }
+        if (pluginData != null) {
+            val requiredDeps =
+                when (pluginData) {
+                    is PluginData.BukkitPluginData -> pluginData.depend
+                    is PluginData.PaperPluginData -> pluginData.depend
+                }
             if (requiredDeps.isNotEmpty()) {
                 val project = projectRepository.find()
-                val managedPlugins = project?.plugins?.keys?.map { it.value }?.toSet().orEmpty()
+                val managedPlugins =
+                    project
+                        ?.plugins
+                        ?.keys
+                        ?.map { it.value }
+                        ?.toSet()
+                        .orEmpty()
                 val pluginsDir = pluginDirectory.getPluginsDirectory()
-                val installedPluginNames = pluginsDir.listFiles { f ->
-                    f.isFile && f.extension == "jar"
-                }?.mapNotNull { jar ->
-                    try {
-                        val data = PluginDataUtils.getPluginData(jar)
-                        when (data) {
-                            is PluginData.BukkitPluginData -> data.name
-                            is PluginData.PaperPluginData -> data.name
-                            null -> null
-                        }
-                    } catch (_: Exception) { null }
-                }?.toSet().orEmpty()
+                val installedPluginNames =
+                    pluginsDir
+                        .listFiles { f ->
+                            f.isFile && f.extension == "jar"
+                        }?.mapNotNull { jar ->
+                            try {
+                                val data = PluginDataUtils.getPluginData(jar)
+                                when (data) {
+                                    is PluginData.BukkitPluginData -> data.name
+                                    is PluginData.PaperPluginData -> data.name
+                                    null -> null
+                                }
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }?.toSet()
+                        .orEmpty()
 
-                val missingDeps = requiredDeps.filter { dep ->
-                    !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
-                }
+                val missingDeps =
+                    requiredDeps.filter { dep ->
+                        !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
+                    }
                 if (missingDeps.isNotEmpty()) {
                     val message = "必須依存プラグインが不足しています: ${missingDeps.joinToString(", ")}"
                     if (!force) {
@@ -577,12 +605,13 @@ class PluginLifecycleServiceImpl :
         val pluginName = name.value
 
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
-        val project = projectRepository.findOrError().getOrElse { error ->
-            return when (error) {
-                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
-                else -> error.left()
+        val project =
+            projectRepository.findOrError().getOrElse { error ->
+                return when (error) {
+                    is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                    else -> error.left()
+                }
             }
-        }
 
         // プラグインが管理対象に含まれているか確認
         if (project.getPluginSpec(name) == null) {
@@ -612,9 +641,10 @@ class PluginLifecycleServiceImpl :
         targetJarFile?.delete()
 
         // MpmProjectからプラグインを削除
-        val updatedProject = project.removePlugin(name).getOrElse {
-            return MpmError.PluginError.UninstallFailed(pluginName, it.message).left()
-        }
+        val updatedProject =
+            project.removePlugin(name).getOrElse {
+                return MpmError.PluginError.UninstallFailed(pluginName, it.message).left()
+            }
         val sortedProject = updatedProject.withSortedPlugins()
 
         // ProjectRepositoryを通じて保存
@@ -638,15 +668,19 @@ class PluginLifecycleServiceImpl :
      */
     override suspend fun removeUnmanaged(): Either<MpmError, Int> {
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
-        val project = projectRepository.findOrError().getOrElse { error ->
-            return when (error) {
-                is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
-                else -> error.left()
+        val project =
+            projectRepository.findOrError().getOrElse { error ->
+                return when (error) {
+                    is MpmError.ProjectError.ConfigNotFound -> MpmError.ProjectError.NotInitialized.left()
+                    else -> error.left()
+                }
             }
-        }
 
         // 管理対象のプラグイン名セット（大文字小文字を無視して比較するためlowercaseで保持）
-        val managedPlugins = project.plugins.keys.map { it.value.lowercase() }.toSet()
+        val managedPlugins =
+            project.plugins.keys
+                .map { it.value.lowercase() }
+                .toSet()
 
         // pluginsディレクトリからJARファイルを取得
         val pluginsDir = pluginDirectory.getPluginsDirectory()
@@ -705,17 +739,19 @@ class PluginLifecycleServiceImpl :
      */
     private fun findJarForPlugin(pluginName: String): Pair<File, PluginData>? {
         val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val pluginFiles = pluginsDir.listFiles { file ->
-            file.isFile && file.extension == "jar"
-        } ?: return null
+        val pluginFiles =
+            pluginsDir.listFiles { file ->
+                file.isFile && file.extension == "jar"
+            } ?: return null
 
         for (jarFile in pluginFiles) {
             try {
                 val pluginData = PluginDataUtils.getPluginData(jarFile) ?: continue
-                val jarPluginName = when (pluginData) {
-                    is PluginData.BukkitPluginData -> pluginData.name
-                    is PluginData.PaperPluginData -> pluginData.name
-                }
+                val jarPluginName =
+                    when (pluginData) {
+                        is PluginData.BukkitPluginData -> pluginData.name
+                        is PluginData.PaperPluginData -> pluginData.name
+                    }
                 if (jarPluginName == pluginName) {
                     return jarFile to pluginData
                 }
@@ -765,10 +801,14 @@ class PluginLifecycleServiceImpl :
         ) : VersionPinResult()
 
         /** バージョンが見つからずLatestにフォールバック */
-        data class FallbackToLatest(val reason: String) : VersionPinResult()
+        data class FallbackToLatest(
+            val reason: String
+        ) : VersionPinResult()
 
         /** 通信/API失敗などの回復不能エラー（失敗扱い） */
-        data class Error(val reason: String) : VersionPinResult()
+        data class Error(
+            val reason: String
+        ) : VersionPinResult()
     }
 
     /**
@@ -787,8 +827,9 @@ class PluginLifecycleServiceImpl :
         versionPattern: String? = null
     ): VersionPinResult {
         // 既存JARを検索
-        val (jarFile, pluginData) = findJarForPlugin(unmanagedName)
-            ?: return VersionPinResult.FallbackToLatest("JARファイルが見つかりません")
+        val (jarFile, pluginData) =
+            findJarForPlugin(unmanagedName)
+                ?: return VersionPinResult.FallbackToLatest("JARファイルが見つかりません")
 
         val currentVersion = getVersionFromPluginData(pluginData).trim()
         if (currentVersion.isBlank()) {
@@ -798,29 +839,32 @@ class PluginLifecycleServiceImpl :
         progressCallback?.invoke("<gray>[$pluginName] JARバージョン: $currentVersion — リポジトリで検索中...")
 
         // リポジトリの全バージョンを1回取得（通信失敗は失敗扱い）
-        val allVersions = try {
-            downloaderRepository.getAllVersions(urlData)
-        } catch (e: Exception) {
-            // 通信/API失敗はlatestフォールバックではなく失敗として報告
-            return VersionPinResult.Error(
-                "リポジトリへの接続に失敗しました: ${e.message}"
-            )
-        }
+        val allVersions =
+            try {
+                downloaderRepository.getAllVersions(urlData)
+            } catch (e: Exception) {
+                // 通信/API失敗はlatestフォールバックではなく失敗として報告
+                return VersionPinResult.Error(
+                    "リポジトリへの接続に失敗しました: ${e.message}"
+                )
+            }
 
         // 表記揺れを考慮したバージョン候補を生成
         val versionCandidates = buildVersionCandidates(currentVersion)
 
         // ローカルでバージョン名を照合（完全一致を優先）
-        var resolvedVersionData = versionCandidates.firstNotNullOfOrNull { candidate ->
-            allVersions.firstOrNull { it.version == candidate }
-        }
+        var resolvedVersionData =
+            versionCandidates.firstNotNullOfOrNull { candidate ->
+                allVersions.firstOrNull { it.version == candidate }
+            }
 
         // 完全一致が見つからない場合、versionPattern（またはデフォルトsemverパターン）で正規化して比較
         if (resolvedVersionData == null) {
             val currentNormalized = VersionDetail.normalizeWithPattern(currentVersion, versionPattern)
-            resolvedVersionData = allVersions.firstOrNull { versionData ->
-                VersionDetail.normalizeWithPattern(versionData.version, versionPattern) == currentNormalized
-            }
+            resolvedVersionData =
+                allVersions.firstOrNull { versionData ->
+                    VersionDetail.normalizeWithPattern(versionData.version, versionPattern) == currentNormalized
+                }
         }
 
         if (resolvedVersionData == null) {
@@ -833,7 +877,8 @@ class PluginLifecycleServiceImpl :
         progressCallback?.invoke("<gray>[$pluginName] バージョン '${resolvedVersionData.version}' が一致 — ハッシュ検証中...")
 
         // ハッシュ検証（APIでハッシュが取得できるリポジトリのみ）
-        val hashWarning = verifyHashIfAvailable(urlData, resolvedVersionData.version, jarFile, progressCallback, pluginName)
+        val hashWarning =
+            verifyHashIfAvailable(urlData, resolvedVersionData.version, jarFile, progressCallback, pluginName)
 
         return VersionPinResult.Pinned(
             version = VersionSpecifier.Fixed(resolvedVersionData.version),
@@ -847,17 +892,18 @@ class PluginLifecycleServiceImpl :
      * "v" prefixの有無を切り替えた候補を返す。
      * "v" の除去は "v1.0.0" のように数字が続く場合のみ行う（"Version" 等の誤切断を防止）。
      */
-    private fun buildVersionCandidates(version: String): List<String> = buildList {
-        add(version)
-        val vPrefixPattern = Regex("^[vV](?=\\d)")
-        if (vPrefixPattern.containsMatchIn(version)) {
-            // "v1.0.0" → "1.0.0" も候補に追加
-            add(version.substring(1))
-        } else if (version.firstOrNull()?.isDigit() == true) {
-            // "1.0.0" → "v1.0.0" も候補に追加
-            add("v$version")
+    private fun buildVersionCandidates(version: String): List<String> =
+        buildList {
+            add(version)
+            val vPrefixPattern = Regex("^[vV](?=\\d)")
+            if (vPrefixPattern.containsMatchIn(version)) {
+                // "v1.0.0" → "1.0.0" も候補に追加
+                add(version.substring(1))
+            } else if (version.firstOrNull()?.isDigit() == true) {
+                // "1.0.0" → "v1.0.0" も候補に追加
+                add("v$version")
+            }
         }
-    }
 
     /**
      * APIでハッシュが取得可能な場合、既存JARのハッシュと比較検証する
@@ -877,12 +923,13 @@ class PluginLifecycleServiceImpl :
         pluginName: String? = null
     ): String? {
         val label = pluginName?.let { "[$it] " } ?: ""
-        val repoHashes = try {
-            downloaderRepository.getVersionHashesByName(urlData, versionName)
-        } catch (_: Exception) {
-            progressCallback?.invoke("<gray>${label}ハッシュ取得不可 — スキップ")
-            return null // ハッシュ取得に失敗した場合は警告なしでスキップ
-        }
+        val repoHashes =
+            try {
+                downloaderRepository.getVersionHashesByName(urlData, versionName)
+            } catch (_: Exception) {
+                progressCallback?.invoke("<gray>${label}ハッシュ取得不可 — スキップ")
+                return null // ハッシュ取得に失敗した場合は警告なしでスキップ
+            }
 
         // ハッシュ非対応のリポジトリ
         if (repoHashes == null) {
@@ -904,7 +951,9 @@ class PluginLifecycleServiceImpl :
         val matched = repoSha1Values.any { it.trim().equals(localSha1, ignoreCase = true) }
         return if (!matched) {
             progressCallback?.invoke("<yellow>${label}ハッシュ不一致: ローカルJARとリポジトリのバージョンが異なる可能性があります")
-            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1, remote=${repoSha1Values.joinToString(",") { it.trim() }})"
+            "ハッシュ不一致: ローカルJARがリポジトリのバージョンと異なる可能性があります (local=$localSha1, remote=${repoSha1Values.joinToString(
+                ","
+            ) { it.trim() }})"
         } else {
             progressCallback?.invoke("<green>${label}ハッシュ一致 ✓")
             null // ハッシュ一致、問題なし
@@ -949,23 +998,29 @@ class PluginLifecycleServiceImpl :
             }
             is LegacyVersionSpecifier.Tag -> {
                 try {
-                    val result = ChannelVersionResolver.resolveTag(
-                        downloaderRepository,
-                        urlData,
-                        repoConfig,
-                        version.tag,
-                    )
+                    val result =
+                        ChannelVersionResolver.resolveTag(
+                            downloaderRepository,
+                            urlData,
+                            repoConfig,
+                            version.tag
+                        )
                     result?.right()
-                        ?: MpmError.PluginError.VersionResolutionFailed(
-                            pluginName,
-                            "tag '${version.tag}' に該当するバージョンが見つかりません"
-                        ).left()
+                        ?: MpmError.PluginError
+                            .VersionResolutionFailed(
+                                pluginName,
+                                "tag '${version.tag}' に該当するバージョンが見つかりません"
+                            ).left()
                 } catch (e: Exception) {
                     MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Pattern -> {
-                MpmError.PluginError.VersionResolutionFailed(pluginName, "pattern: specifier is not yet implemented. Use 'latest' or a specific version instead.").left()
+                MpmError.PluginError
+                    .VersionResolutionFailed(
+                        pluginName,
+                        "pattern: specifier is not yet implemented. Use 'latest' or a specific version instead."
+                    ).left()
             }
             is LegacyVersionSpecifier.Sync -> {
                 resolveSyncVersion(version, urlData, project, pluginName)
@@ -1012,74 +1067,78 @@ class PluginLifecycleServiceImpl :
         }
 
         // ターゲットのバージョンを解決
-        val resolvedVersion = when (targetManaged.versionRequirement) {
-            is VersionSpecifier.Latest, is VersionSpecifier.Tag -> {
-                // Latest/Tag: メタデータがあれば現在のバージョンを使用、なければリポジトリから解決
-                metadataManager.loadMetadata(version.targetPlugin).fold(
-                    {
-                        // メタデータがない場合はターゲットのリポジトリからバージョンを取得
-                        val targetRepo =
-                            repositoryManager
-                                .getRepositoryFile(version.targetPlugin)
-                                ?.repositories
-                                ?.firstOrNull()
-                                ?: return MpmError.PluginError
-                                    .VersionResolutionFailed(
-                                        pluginName,
-                                        "Target repository not found"
-                                    ).left()
-                        val targetUrlData =
-                            createUrlData(targetRepo)
-                                ?: return MpmError.PluginError
-                                    .VersionResolutionFailed(
-                                        pluginName,
-                                        "Unsupported repository type"
-                                    ).left()
-                        try {
-                            val targetReq = targetManaged.versionRequirement
-                            if (targetReq is VersionSpecifier.Tag) {
-                                // Tag指定: 該当チャンネルの最新バージョンを取得
-                                // targetRepoのchannel設定(useUpstreamLabel等)を尊重する
-                                ChannelVersionResolver.resolveTag(
-                                    downloaderRepository,
-                                    targetUrlData,
-                                    targetRepo,
-                                    targetReq.tag,
-                                )?.version
+        val resolvedVersion =
+            when (targetManaged.versionRequirement) {
+                is VersionSpecifier.Latest, is VersionSpecifier.Tag -> {
+                    // Latest/Tag: メタデータがあれば現在のバージョンを使用、なければリポジトリから解決
+                    metadataManager.loadMetadata(version.targetPlugin).fold(
+                        {
+                            // メタデータがない場合はターゲットのリポジトリからバージョンを取得
+                            val targetRepo =
+                                repositoryManager
+                                    .getRepositoryFile(version.targetPlugin)
+                                    ?.repositories
+                                    ?.firstOrNull()
                                     ?: return MpmError.PluginError
                                         .VersionResolutionFailed(
                                             pluginName,
-                                            "tag '${targetReq.tag}' に該当するバージョンが見つかりません"
+                                            "Target repository not found"
                                         ).left()
-                            } else {
-                                ChannelVersionResolver.resolveLatest(
-                                    downloaderRepository,
-                                    targetUrlData,
-                                    targetRepo,
-                                ).version
+                            val targetUrlData =
+                                createUrlData(targetRepo)
+                                    ?: return MpmError.PluginError
+                                        .VersionResolutionFailed(
+                                            pluginName,
+                                            "Unsupported repository type"
+                                        ).left()
+                            try {
+                                val targetReq = targetManaged.versionRequirement
+                                if (targetReq is VersionSpecifier.Tag) {
+                                    // Tag指定: 該当チャンネルの最新バージョンを取得
+                                    // targetRepoのchannel設定(useUpstreamLabel等)を尊重する
+                                    ChannelVersionResolver
+                                        .resolveTag(
+                                            downloaderRepository,
+                                            targetUrlData,
+                                            targetRepo,
+                                            targetReq.tag
+                                        )?.version
+                                        ?: return MpmError.PluginError
+                                            .VersionResolutionFailed(
+                                                pluginName,
+                                                "tag '${targetReq.tag}' に該当するバージョンが見つかりません"
+                                            ).left()
+                                } else {
+                                    ChannelVersionResolver
+                                        .resolveLatest(
+                                            downloaderRepository,
+                                            targetUrlData,
+                                            targetRepo
+                                        ).version
+                                }
+                            } catch (e: Exception) {
+                                return MpmError.PluginError
+                                    .VersionResolutionFailed(
+                                        pluginName,
+                                        e.message ?: "Unknown error"
+                                    ).left()
                             }
-                        } catch (e: Exception) {
-                            return MpmError.PluginError
-                                .VersionResolutionFailed(
-                                    pluginName,
-                                    e.message ?: "Unknown error"
-                                ).left()
-                        }
-                    },
-                    { it.mpmInfo.version.current.raw }
-                )
+                        },
+                        { it.mpmInfo.version.current.raw }
+                    )
+                }
+                is VersionSpecifier.Fixed -> {
+                    // Fixed: 指定されたバージョン文字列をそのまま使用
+                    (targetManaged.versionRequirement as VersionSpecifier.Fixed).version
+                }
+                else -> {
+                    // Pattern等: DTO経由で取得
+                    val dto = project.toDto()
+                    dto.plugins[version.targetPlugin] ?: return MpmError.PluginError
+                        .VersionResolutionFailed(pluginName, "Target version not found")
+                        .left()
+                }
             }
-            is VersionSpecifier.Fixed -> {
-                // Fixed: 指定されたバージョン文字列をそのまま使用
-                (targetManaged.versionRequirement as VersionSpecifier.Fixed).version
-            }
-            else -> {
-                // Pattern等: DTO経由で取得
-                val dto = project.toDto()
-                dto.plugins[version.targetPlugin] ?: return MpmError.PluginError
-                    .VersionResolutionFailed(pluginName, "Target version not found").left()
-            }
-        }
 
         // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
         return try {
@@ -1248,9 +1307,11 @@ class PluginLifecycleServiceImpl :
         for (depName in allDependencies) {
             // 依存プラグインのリポファイルにdefaultVersionがあればそれを使用
             val depRepoFile = repositoryManager.getRepositoryFile(depName)
-            val depVersion = depRepoFile?.defaultVersion
-                ?.let { VersionSpecifierParser.parse(it) }
-                ?: VersionSpecifier.Latest
+            val depVersion =
+                depRepoFile
+                    ?.defaultVersion
+                    ?.let { VersionSpecifierParser.parse(it) }
+                    ?: VersionSpecifier.Latest
 
             addPluginRecursively(
                 pluginName = depName,
@@ -1278,11 +1339,12 @@ class PluginLifecycleServiceImpl :
         }
 
         // Latestが指定されている場合、リポファイルのdefaultVersionがあればそちらを使用
-        val resolvedVersion = if (version is VersionSpecifier.Latest && repositoryFile.defaultVersion != null) {
-            VersionSpecifierParser.parse(repositoryFile.defaultVersion!!)
-        } else {
-            version
-        }
+        val resolvedVersion =
+            if (version is VersionSpecifier.Latest && repositoryFile.defaultVersion != null) {
+                VersionSpecifierParser.parse(repositoryFile.defaultVersion!!)
+            } else {
+                version
+            }
 
         // プラグインを追加
         val addResult = add(PluginName(pluginName), resolvedVersion)
@@ -1364,11 +1426,12 @@ class PluginLifecycleServiceImpl :
             progressCallback?.invoke("<gray>[$repoName] バージョン解決中...")
 
             // バージョン指定を決定（--pin時はJARのバージョンに固定を試みる）
-            val pinResult = if (pinToCurrentVersion) {
-                resolveVersionForPin(unmanagedName, repoName, progressCallback)
-            } else {
-                null
-            }
+            val pinResult =
+                if (pinToCurrentVersion) {
+                    resolveVersionForPin(unmanagedName, repoName, progressCallback)
+                } else {
+                    null
+                }
 
             // pin解決がErrorの場合は失敗扱い
             if (pinResult is VersionPinResult.Error) {
@@ -1383,13 +1446,14 @@ class PluginLifecycleServiceImpl :
                 continue
             }
 
-            val versionSpecifier = when (pinResult) {
-                is VersionPinResult.Pinned -> {
-                    progressCallback?.invoke("<green>[$repoName] バージョン ${pinResult.version.version} に固定")
-                    pinResult.version
+            val versionSpecifier =
+                when (pinResult) {
+                    is VersionPinResult.Pinned -> {
+                        progressCallback?.invoke("<green>[$repoName] バージョン ${pinResult.version.version} に固定")
+                        pinResult.version
+                    }
+                    else -> VersionSpecifier.Latest
                 }
-                else -> VersionSpecifier.Latest
-            }
 
             // adopt前に既存JARファイルのパスを記録（後で削除するため）
             val oldJarFile = findJarForPlugin(unmanagedName)?.first
@@ -1417,11 +1481,15 @@ class PluginLifecycleServiceImpl :
                         val depLabel = if (addResult.isDependency) "[依存] " else ""
                         // install()内で削除されたファイルの表示
                         addResult.installResult.removed?.let { removed ->
-                            progressCallback?.invoke("<red>[$repoName] ${depLabel}削除: ${removed.name} ${removed.version}")
+                            progressCallback?.invoke(
+                                "<red>[$repoName] ${depLabel}削除: ${removed.name} ${removed.version}"
+                            )
                         }
                         // インストールされた新ファイルの表示
                         val installed = addResult.installResult.installed
-                        progressCallback?.invoke("<green>[$repoName] ${depLabel}インストール: ${installed.name} ${installed.currentVersion}")
+                        progressCallback?.invoke(
+                            "<green>[$repoName] ${depLabel}インストール: ${installed.name} ${installed.currentVersion}"
+                        )
                     }
 
                     // adopt成功かつメインプラグインが失敗していない場合のみpin情報を記録
@@ -1433,8 +1501,13 @@ class PluginLifecycleServiceImpl :
                     // 古いJARファイルを削除（新しいファイルの存在を確認してから）
                     if (oldJarFile != null && oldJarFile.exists() && !result.failedPlugins.containsKey(repoName)) {
                         // メタデータから新しいファイル名を取得して比較
-                        val newFileName = metadataManager.loadMetadata(repoName).getOrNull()
-                            ?.mpmInfo?.download?.fileName
+                        val newFileName =
+                            metadataManager
+                                .loadMetadata(repoName)
+                                .getOrNull()
+                                ?.mpmInfo
+                                ?.download
+                                ?.fileName
                         // メタデータが読めない場合は安全のため削除しない
                         if (newFileName != null) {
                             val newFile = File(pluginDirectory.getPluginsDirectory(), newFileName)
@@ -1491,6 +1564,12 @@ class PluginLifecycleServiceImpl :
         }
 
         // JARからバージョンを検出してリポジトリで検索（versionPatternを伝播）
-        return resolveCurrentVersionFromJar(repoName, unmanagedName, urlData, progressCallback, firstRepository.versionPattern)
+        return resolveCurrentVersionFromJar(
+            repoName,
+            unmanagedName,
+            urlData,
+            progressCallback,
+            firstRepository.versionPattern
+        )
     }
 }

@@ -38,7 +38,9 @@ import java.util.concurrent.atomic.AtomicLong
  * nextExecution()で次回実行時刻を正確に計算し、
  * BukkitSchedulerのrunTaskLaterAsynchronouslyで正確にスケジュールする
  */
-class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
+class UpdateSchedulerImpl :
+    UpdateScheduler,
+    KoinComponent {
     // Koinによる依存性注入
     private val plugin: JavaPlugin by inject()
     private val configManager: ConfigManager by inject()
@@ -60,9 +62,10 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
     private val generation = AtomicLong(0)
 
     // cron式パーサー（UNIX形式: 分 時 日 月 曜日）
-    private val cronParser = CronParser(
-        CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX)
-    )
+    private val cronParser =
+        CronParser(
+            CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX)
+        )
 
     /**
      * スケジューラーを開始する
@@ -81,12 +84,13 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
         }
 
         // cron式のバリデーション
-        val cron = try {
-            cronParser.parse(scheduleConfig.cron).validate()
-        } catch (e: Exception) {
-            plugin.logger.warning("Invalid cron expression '${scheduleConfig.cron}': ${e.message}")
-            return
-        }
+        val cron =
+            try {
+                cronParser.parse(scheduleConfig.cron).validate()
+            } catch (e: Exception) {
+                plugin.logger.warning("Invalid cron expression '${scheduleConfig.cron}': ${e.message}")
+                return
+            }
 
         // 新しいCoroutineScopeを作成し、世代を更新
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -157,7 +161,11 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
                     val lockedInfos = needsUpdate.filter { it.pluginName in lockResult.locked }
                     val unknownInfos = needsUpdate.filter { it.pluginName in lockResult.unknown }
 
-                    if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty() && checkResult.errors.isEmpty()) {
+                    if (updatableInfos.isEmpty() &&
+                        lockedInfos.isEmpty() &&
+                        unknownInfos.isEmpty() &&
+                        checkResult.errors.isEmpty()
+                    ) {
                         plugin.logger.info("All plugins are up to date.")
                     } else {
                         if (updatableInfos.isNotEmpty()) {
@@ -223,25 +231,26 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
         plugin.logger.info("Next scheduled update: $next (in ${delayMs / 1000}s)")
 
         // 指定時刻に一回限りのタスクを登録
-        schedulerTask = plugin.server.scheduler.runTaskLaterAsynchronously(
-            plugin,
-            Runnable {
-                // 停止フラグと世代を再チェック（stop/restartが呼ばれている可能性）
-                if (!running || generation.get() != expectedGeneration) return@Runnable
+        schedulerTask =
+            plugin.server.scheduler.runTaskLaterAsynchronously(
+                plugin,
+                Runnable {
+                    // 停止フラグと世代を再チェック（stop/restartが呼ばれている可能性）
+                    if (!running || generation.get() != expectedGeneration) return@Runnable
 
-                // 次回予約を処理の前に行う（長い更新でスロットを飛ばさない）
-                scheduleNext(executionTime, config, expectedGeneration)
+                    // 次回予約を処理の前に行う（長い更新でスロットを飛ばさない）
+                    scheduleNext(executionTime, config, expectedGeneration)
 
-                scope.launch {
-                    if (config.dryRun) {
-                        executeDryRun()
-                    } else {
-                        executeUpdate()
+                    scope.launch {
+                        if (config.dryRun) {
+                            executeDryRun()
+                        } else {
+                            executeUpdate()
+                        }
                     }
-                }
-            },
-            delayTicks
-        )
+                },
+                delayTicks
+            )
     }
 
     /**
@@ -271,7 +280,11 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
                 val lockedInfos = needsUpdate.filter { it.pluginName in lockResult.locked }
                 val unknownInfos = needsUpdate.filter { it.pluginName in lockResult.unknown }
 
-                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty() && checkResult.errors.isEmpty()) {
+                if (updatableInfos.isEmpty() &&
+                    lockedInfos.isEmpty() &&
+                    unknownInfos.isEmpty() &&
+                    checkResult.errors.isEmpty()
+                ) {
                     plugin.logger.info("[Scheduled/Dry-run] All plugins are up to date.")
                 } else if (updatableInfos.isNotEmpty()) {
                     plugin.logger.info(
@@ -348,7 +361,7 @@ class UpdateSchedulerImpl : UpdateScheduler, KoinComponent {
     private data class LockClassification(
         val locked: Set<String>,
         val updatable: Set<String>,
-        val unknown: Set<String>,
+        val unknown: Set<String>
     )
 
     /**

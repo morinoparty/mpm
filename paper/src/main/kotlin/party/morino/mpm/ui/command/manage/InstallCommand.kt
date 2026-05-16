@@ -69,9 +69,10 @@ class InstallCommand : KoinComponent {
                 // 失敗したプラグイン一覧を表示
                 if (result.failed.isNotEmpty()) {
                     // api-version非互換エラーが含まれているか確認
-                    val hasApiVersionError = result.failed.values.any {
-                        it.contains("[API_VERSION_INCOMPATIBLE]")
-                    }
+                    val hasApiVersionError =
+                        result.failed.values.any {
+                            it.contains("[API_VERSION_INCOMPATIBLE]")
+                        }
 
                     sender.sendRichMessage("<red>以下のプラグインのインストールに失敗しました:")
                     for ((pluginName, errorMessage) in result.failed) {

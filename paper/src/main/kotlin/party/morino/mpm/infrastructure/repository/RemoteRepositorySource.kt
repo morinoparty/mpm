@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import party.morino.mpm.api.domain.repository.PluginRepositorySource
 import party.morino.mpm.api.domain.repository.RepositoryFile
+import java.io.Closeable
 
 /**
  * リモートURLからリポジトリファイルを取得するソース
@@ -29,7 +30,8 @@ import party.morino.mpm.api.domain.repository.RepositoryFile
 class RemoteRepositorySource(
     private val url: String,
     private val headers: Map<String, String> = emptyMap()
-) : PluginRepositorySource {
+) : PluginRepositorySource,
+    Closeable {
     // HTTPクライアント（テストのためにopenかつ変更可能）
     private var httpClient: HttpClient =
         HttpClient(CIO) {
@@ -156,4 +158,13 @@ class RemoteRepositorySource(
      * @return ベースURL
      */
     override fun getIdentifier(): String = url
+
+    /**
+     * HTTPクライアントを閉じてリソースを解放する
+     * reloadやプラグイン無効化時に呼び出し、コネクション/セレクタスレッドの
+     * リークを防ぐ
+     */
+    override fun close() {
+        httpClient.close()
+    }
 }

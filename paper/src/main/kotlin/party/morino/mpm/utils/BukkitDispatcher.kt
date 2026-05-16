@@ -31,7 +31,10 @@ object BukkitDispatcher {
      * @param event 発火するイベント
      * @return 発火されたイベント（キャンセル状態などを確認可能）
      */
-    suspend fun <T : Event> callEventSync(plugin: Plugin, event: T): T {
+    suspend fun <T : Event> callEventSync(
+        plugin: Plugin,
+        event: T
+    ): T {
         // 既にメインスレッドにいる場合はそのまま実行
         if (Bukkit.isPrimaryThread()) {
             Bukkit.getPluginManager().callEvent(event)
@@ -40,10 +43,13 @@ object BukkitDispatcher {
 
         // 非同期スレッドからの場合はメインスレッドに切り替えて実行
         return suspendCancellableCoroutine { continuation ->
-            Bukkit.getScheduler().runTask(plugin, Runnable {
-                Bukkit.getPluginManager().callEvent(event)
-                continuation.resume(event)
-            })
+            Bukkit.getScheduler().runTask(
+                plugin,
+                Runnable {
+                    Bukkit.getPluginManager().callEvent(event)
+                    continuation.resume(event)
+                }
+            )
         }
     }
 }

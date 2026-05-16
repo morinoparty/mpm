@@ -86,11 +86,12 @@ object ChannelVersionResolver {
     suspend fun resolveLatest(
         downloaderRepository: DownloaderRepository,
         urlData: UrlData,
-        repoConfig: RepositoryConfig?,
+        repoConfig: RepositoryConfig?
     ): VersionData {
-        val fromChannel = repoConfig?.let {
-            resolveLatestInChannel(downloaderRepository, urlData, it, "latest")
-        }
+        val fromChannel =
+            repoConfig?.let {
+                resolveLatestInChannel(downloaderRepository, urlData, it, "latest")
+            }
         return fromChannel ?: downloaderRepository.getLatestVersion(urlData)
     }
 
@@ -104,11 +105,12 @@ object ChannelVersionResolver {
         downloaderRepository: DownloaderRepository,
         urlData: UrlData,
         repoConfig: RepositoryConfig?,
-        tag: String,
+        tag: String
     ): VersionData? {
-        val fromChannel = repoConfig?.let {
-            resolveLatestInChannel(downloaderRepository, urlData, it, tag)
-        }
+        val fromChannel =
+            repoConfig?.let {
+                resolveLatestInChannel(downloaderRepository, urlData, it, tag)
+            }
         return fromChannel ?: downloaderRepository.getLatestVersionByTag(urlData, tag)
     }
 }

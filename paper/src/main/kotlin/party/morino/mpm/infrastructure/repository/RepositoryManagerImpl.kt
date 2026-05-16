@@ -12,6 +12,7 @@ package party.morino.mpm.infrastructure.repository
 import party.morino.mpm.api.domain.repository.PluginRepositorySource
 import party.morino.mpm.api.domain.repository.RepositoryFile
 import party.morino.mpm.api.domain.repository.RepositoryManager
+import java.io.Closeable
 
 /**
  * リポジトリソースマネージャーの実装
@@ -113,13 +114,38 @@ class RepositoryManagerImpl(
 
     /**
      * リポジトリソースを再構築し、キャッシュをクリアする
+     * 再構築時は古いソースのHTTPクライアントを閉じてリークを防ぐ
      */
     override fun reload() {
         sourceFactory?.let { factory ->
-            sources = factory()
+            val oldSources = sources
+            val newSources = factory()
+            sources = newSources
+            // factoryが既存インスタンスを再利用した場合に現役ソースを
+            // 閉じないよう、再利用されていない古いソースのみ解放する
+            closeSources(oldSources.filter { old -> newSources.none { it === old } })
         }
         // キャッシュをクリア
         cachedPlugins = null
         cacheExpirationTime = 0
+    }
+
+    /**
+     * 保持しているすべてのリポジトリソースのリソースを解放する
+     * プラグイン無効化時に呼び出される
+     */
+    override fun shutdown() {
+        closeSources(sources)
+    }
+
+    /**
+     * Closeableなソースを安全にクローズする
+     * 1つのソースのクローズ失敗が他のソースのクローズを妨げないようにする
+     * @param targets クローズ対象のソースリスト
+     */
+    private fun closeSources(targets: List<PluginRepositorySource>) {
+        targets.filterIsInstance<Closeable>().forEach { closeable ->
+            runCatching { closeable.close() }
+        }
     }
 }

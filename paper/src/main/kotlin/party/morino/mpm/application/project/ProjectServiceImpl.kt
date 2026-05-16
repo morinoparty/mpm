@@ -48,7 +48,10 @@ class ProjectServiceImpl :
      * @param projectName プロジェクト名
      * @param overwrite 既存のmpm.jsonを上書きするかどうか
      */
-    override suspend fun init(projectName: String, overwrite: Boolean): Either<MpmError, MpmProject> =
+    override suspend fun init(
+        projectName: String,
+        overwrite: Boolean
+    ): Either<MpmError, MpmProject> =
         initializeInternal(projectName, overwrite = overwrite).fold(
             { error -> MpmError.ProjectError.InitializationFailed(error).left() },
             { MpmProject.create(projectName).right() }
@@ -92,7 +95,8 @@ class ProjectServiceImpl :
                         }
                     // 自分自身（mpm）は除外し、プラグイン名が空でない場合のみ追加
                     if (pluginName.isNotEmpty() && pluginName != plugin.name) {
-                        project.addPlugin(PluginSpec.Unmanaged(PluginName(pluginName)))
+                        project
+                            .addPlugin(PluginSpec.Unmanaged(PluginName(pluginName)))
                             .onRight { project = it }
                     }
                 }
@@ -118,28 +122,23 @@ class ProjectServiceImpl :
      *
      * mpm.jsonが存在しない場合はnullを返す
      */
-    override suspend fun getProject(): MpmProject? {
-        return projectRepository.find()
-    }
+    override suspend fun getProject(): MpmProject? = projectRepository.find()
 
     /**
      * プロジェクトを保存する
      *
      * ProjectRepositoryを使用してmpm.jsonに保存する
      */
-    override suspend fun save(project: MpmProject): Either<MpmError, Unit> {
-        return try {
+    override suspend fun save(project: MpmProject): Either<MpmError, Unit> =
+        try {
             projectRepository.save(project)
             Unit.right()
         } catch (e: Exception) {
             MpmError.ProjectError.SaveFailed(e.message ?: "不明なエラー").left()
         }
-    }
 
     /**
      * プロジェクトが初期化されているかどうかを確認する
      */
-    override suspend fun isInitialized(): Boolean {
-        return projectRepository.exists()
-    }
+    override suspend fun isInitialized(): Boolean = projectRepository.exists()
 }

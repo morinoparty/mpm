@@ -14,9 +14,9 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.domain.plugin.model.PluginName
-import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
+import party.morino.mpm.api.shared.error.MpmError
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -127,63 +127,64 @@ class AddCommand : KoinComponent {
     ) {
         sender.sendRichMessage("<gray>プラグイン '$pluginId' と依存関係を解決しています...")
 
-        lifecycleService.addWithDependencies(
-            PluginName(pluginId),
-            version,
-            includeSoftDependencies,
-            force
-        ).fold(
-            { error ->
-                sender.sendRichMessage("<red>${error.message}")
-            },
-            { result ->
-                // 追加されたプラグインを表示
-                if (result.addedPlugins.isNotEmpty()) {
-                    sender.sendRichMessage("<green>===== 追加されたプラグイン (${result.addedPlugins.size}) =====")
-                    result.addedPlugins.forEach { addResult ->
-                        val depMark = if (addResult.isDependency) "<gray>[依存]</gray> " else ""
-                        displayInstallResult(sender, addResult.installResult, depMark)
+        lifecycleService
+            .addWithDependencies(
+                PluginName(pluginId),
+                version,
+                includeSoftDependencies,
+                force
+            ).fold(
+                { error ->
+                    sender.sendRichMessage("<red>${error.message}")
+                },
+                { result ->
+                    // 追加されたプラグインを表示
+                    if (result.addedPlugins.isNotEmpty()) {
+                        sender.sendRichMessage("<green>===== 追加されたプラグイン (${result.addedPlugins.size}) =====")
+                        result.addedPlugins.forEach { addResult ->
+                            val depMark = if (addResult.isDependency) "<gray>[依存]</gray> " else ""
+                            displayInstallResult(sender, addResult.installResult, depMark)
+                        }
+                    }
+
+                    // スキップされたプラグインを表示
+                    if (result.skippedPlugins.isNotEmpty()) {
+                        sender.sendRichMessage("<yellow>===== スキップ (既に追加済み: ${result.skippedPlugins.size}) =====")
+                        result.skippedPlugins.forEach { name ->
+                            sender.sendRichMessage("<yellow>~<reset> $name")
+                        }
+                    }
+
+                    // 見つからなかった依存プラグインを表示
+                    if (result.notFoundPlugins.isNotEmpty()) {
+                        sender.sendRichMessage("<red>===== リポジトリに見つからない依存関係 (${result.notFoundPlugins.size}) =====")
+                        result.notFoundPlugins.forEach { name ->
+                            sender.sendRichMessage("<red>!<reset> $name <gray>(手動でインストールが必要)")
+                        }
+                    }
+
+                    // 失敗したプラグインを表示
+                    if (result.failedPlugins.isNotEmpty()) {
+                        sender.sendRichMessage("<red>===== 追加失敗 (${result.failedPlugins.size}) =====")
+                        result.failedPlugins.forEach { (name, error) ->
+                            sender.sendRichMessage("<red>✗<reset> $name: $error")
+                        }
+                    }
+
+                    // サマリー
+                    sender.sendRichMessage("<gray>-----")
+                    sender.sendRichMessage(
+                        "<gray>合計: " +
+                            "<green>${result.addedPlugins.size}個追加</green>, " +
+                            "<yellow>${result.skippedPlugins.size}個スキップ</yellow>, " +
+                            "<red>${result.failedPlugins.size + result.notFoundPlugins.size}個失敗</red>"
+                    )
+
+                    if (result.addedPlugins.isNotEmpty()) {
+                        sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。")
                     }
                 }
-
-                // スキップされたプラグインを表示
-                if (result.skippedPlugins.isNotEmpty()) {
-                    sender.sendRichMessage("<yellow>===== スキップ (既に追加済み: ${result.skippedPlugins.size}) =====")
-                    result.skippedPlugins.forEach { name ->
-                        sender.sendRichMessage("<yellow>~<reset> $name")
-                    }
-                }
-
-                // 見つからなかった依存プラグインを表示
-                if (result.notFoundPlugins.isNotEmpty()) {
-                    sender.sendRichMessage("<red>===== リポジトリに見つからない依存関係 (${result.notFoundPlugins.size}) =====")
-                    result.notFoundPlugins.forEach { name ->
-                        sender.sendRichMessage("<red>!<reset> $name <gray>(手動でインストールが必要)")
-                    }
-                }
-
-                // 失敗したプラグインを表示
-                if (result.failedPlugins.isNotEmpty()) {
-                    sender.sendRichMessage("<red>===== 追加失敗 (${result.failedPlugins.size}) =====")
-                    result.failedPlugins.forEach { (name, error) ->
-                        sender.sendRichMessage("<red>✗<reset> $name: $error")
-                    }
-                }
-
-                // サマリー
-                sender.sendRichMessage("<gray>-----")
-                sender.sendRichMessage(
-                    "<gray>合計: " +
-                        "<green>${result.addedPlugins.size}個追加</green>, " +
-                        "<yellow>${result.skippedPlugins.size}個スキップ</yellow>, " +
-                        "<red>${result.failedPlugins.size + result.notFoundPlugins.size}個失敗</red>"
-                )
-
-                if (result.addedPlugins.isNotEmpty()) {
-                    sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。")
-                }
-            }
-        )
+            )
     }
 
     /**

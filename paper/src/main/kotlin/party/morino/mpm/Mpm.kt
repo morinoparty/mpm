@@ -16,21 +16,21 @@ import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.plugin.PluginInfoService
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.backup.ServerBackupManager
+import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
-import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
+import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
@@ -39,16 +39,17 @@ import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
+import party.morino.mpm.event.listener.WebhookEventListener
+import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
 import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
+import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
-import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
-import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
-import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
-import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
+import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.AddCommand
 import party.morino.mpm.ui.command.manage.AdoptCommand
@@ -63,7 +64,6 @@ import party.morino.mpm.ui.command.manage.RemoveCommand
 import party.morino.mpm.ui.command.manage.UninstallCommand
 import party.morino.mpm.ui.command.manage.UpdateCommand
 import party.morino.mpm.ui.command.manage.VersionsCommand
-import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.ui.command.repo.RepositoryCommands
 import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
 import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
@@ -125,6 +125,11 @@ open class Mpm :
         // Webhookリソースの解放（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
 
+        // リポジトリソース・ダウンローダーのHTTPクライアントを解放（コネクションリーク防止）
+        // Bean未登録でも例外で後続cleanupを止めないようgetOrNullを使用する
+        GlobalContext.getOrNull()?.getOrNull<RepositoryManager>()?.shutdown()
+        GlobalContext.getOrNull()?.getOrNull<DownloaderRepository>()?.shutdown()
+
         // Koin DIコンテナを停止（リソースリーク防止）
         GlobalContext.stopKoin()
 
@@ -136,26 +141,28 @@ open class Mpm :
      * mpm.commandが全子パーミッションを含むように設定する（後方互換性）
      */
     private fun registerPermissions() {
-        val childPermissions = listOf(
-            "mpm.command.add",
-            "mpm.command.remove",
-            "mpm.command.install",
-            "mpm.command.uninstall",
-            "mpm.command.update",
-            "mpm.command.list",
-            "mpm.command.backup",
-            "mpm.command.lock",
-            "mpm.command.init",
-            "mpm.command.reload"
-        )
+        val childPermissions =
+            listOf(
+                "mpm.command.add",
+                "mpm.command.remove",
+                "mpm.command.install",
+                "mpm.command.uninstall",
+                "mpm.command.update",
+                "mpm.command.list",
+                "mpm.command.backup",
+                "mpm.command.lock",
+                "mpm.command.init",
+                "mpm.command.reload"
+            )
         // 子パーミッションを登録
         val children = childPermissions.associateWith { true }
-        val parentPermission = org.bukkit.permissions.Permission(
-            "mpm.command",
-            "All mpm commands",
-            org.bukkit.permissions.PermissionDefault.OP,
-            children
-        )
+        val parentPermission =
+            org.bukkit.permissions.Permission(
+                "mpm.command",
+                "All mpm commands",
+                org.bukkit.permissions.PermissionDefault.OP,
+                children
+            )
         server.pluginManager.addPermission(parentPermission)
     }
 

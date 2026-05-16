@@ -47,6 +47,65 @@ class PluginMetadataManagerImpl :
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
 
+    /**
+     * プラグイン名をメタデータファイル名として安全に使えるか検証する
+     *
+     * プラグイン名は悪意あるリポジトリファイル経由で外部から渡されうるため、
+     * パス区切り・親ディレクトリ参照・ドライブ指定(`:`)・制御文字を含む名前を
+     * 拒否してパストラバーサルを防ぐ。これは高速な一次フィルタであり、
+     * 最終的な防御は [resolveMetadataFile] の正規化パス検証で行う。
+     *
+     * @param pluginName 検証対象のプラグイン名
+     * @return 安全な場合は名前自身、不正な場合はエラーメッセージ
+     */
+    private fun sanitizePluginName(pluginName: String): Either<String, String> {
+        // 空文字・空白のみの名前はファイル名として不正
+        if (pluginName.isBlank()) {
+            return "プラグイン名が空です".left()
+        }
+        // パス区切り文字・親ディレクトリ参照・ドライブ指定・制御文字を含む名前は拒否する
+        // ':' を弾くことで Windows のドライブ修飾名(例: "C:evil")も防ぐ
+        if (pluginName.contains("..") ||
+            pluginName.contains('/') ||
+            pluginName.contains('\\') ||
+            pluginName.contains(':') ||
+            pluginName.any { it.isISOControl() }
+        ) {
+            return "不正なプラグイン名です: $pluginName".left()
+        }
+        return pluginName.right()
+    }
+
+    /**
+     * メタデータファイルのパスを安全に解決する
+     *
+     * 名前のサニタイズに加え、正規化（canonical）したパスが必ず metadata
+     * ディレクトリ直下を指すことを検証する。これによりOS依存のパス解釈の
+     * 違いに関わらずディレクトリ外への読み書きを防ぐ（パストラバーサル最終防御）。
+     *
+     * @param metadataDir metadataディレクトリ
+     * @param pluginName プラグイン名
+     * @return 安全に解決できた場合はFile、不正な場合はエラーメッセージ
+     */
+    private fun resolveMetadataFile(
+        metadataDir: File,
+        pluginName: String
+    ): Either<String, File> {
+        val safeName = sanitizePluginName(pluginName).getOrElse { return it.left() }
+        val metadataFile = File(metadataDir, "$safeName.yaml")
+
+        // 正規化後のパスが metadata ディレクトリ直下を指すか検証する
+        // canonicalFileの解決に失敗した場合も安全側に倒して拒否する
+        val withinDir =
+            runCatching {
+                metadataFile.canonicalFile.parentFile == metadataDir.canonicalFile
+            }.getOrElse { false }
+        if (!withinDir) {
+            return "不正なプラグイン名です: $pluginName".left()
+        }
+        return metadataFile.right()
+    }
+
     override suspend fun createMetadata(
         pluginName: String,
         repository: RepositoryConfig,
@@ -54,6 +113,9 @@ class PluginMetadataManagerImpl :
         action: String,
         channel: String?
     ): Either<String, ManagedPluginDto> {
+        // プラグイン名を検証（不正な名前は早期に弾く）
+        val safeName = sanitizePluginName(pluginName).getOrElse { return it.left() }
+
         // 実効パターンを決定: チャンネル固有のversionModifier > ルートのversionPattern > デフォルト
         // これにより CarbonChat の beta チャンネルのような、チャンネルごとに
         // 異なる書式のバージョン列を正規化できる
@@ -70,7 +132,7 @@ class PluginMetadataManagerImpl :
             ManagedPluginDto(
                 pluginInfo =
                     PluginInfoDto(
-                        name = pluginName,
+                        name = safeName,
                         version = normalizedVersion
                     ),
                 mpmInfo =
@@ -178,13 +240,13 @@ class PluginMetadataManagerImpl :
     }
 
     override fun loadMetadata(pluginName: String): Either<String, ManagedPluginDto> {
-        // メタデータディレクトリを取得
+        // メタデータディレクトリを取得し、安全なファイルパスを解決（パストラバーサル防止）
         val metadataDir = pluginDirectory.getMetadataDirectory()
-        val metadataFile = File(metadataDir, "$pluginName.yaml")
+        val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
 
         // ファイルが存在しない場合はエラー
         if (!metadataFile.exists()) {
-            return "メタデータファイルが見つかりません: $pluginName.yaml".left()
+            return "メタデータファイルが見つかりません: ${metadataFile.name}".left()
         }
 
         // メタデータを読み込む
@@ -207,8 +269,8 @@ class PluginMetadataManagerImpl :
             metadataDir.mkdirs()
         }
 
-        // メタデータファイルのパスを作成
-        val metadataFile = File(metadataDir, "$pluginName.yaml")
+        // 安全なファイルパスを解決（パストラバーサル防止）
+        val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
 
         // メタデータをYAML形式で保存
         return try {
@@ -221,13 +283,13 @@ class PluginMetadataManagerImpl :
     }
 
     override fun deleteMetadata(pluginName: String): Either<String, Unit> {
-        // メタデータディレクトリからファイルを削除
+        // メタデータディレクトリを取得し、安全なファイルパスを解決（パストラバーサル防止）
         val metadataDir = pluginDirectory.getMetadataDirectory()
-        val metadataFile = File(metadataDir, "$pluginName.yaml")
+        val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
 
         return try {
             if (metadataFile.exists() && !metadataFile.delete()) {
-                return "メタデータファイルの削除に失敗しました: $pluginName.yaml".left()
+                return "メタデータファイルの削除に失敗しました: ${metadataFile.name}".left()
             }
             Unit.right()
         } catch (e: Exception) {
