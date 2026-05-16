@@ -28,17 +28,19 @@ import party.morino.mpm.event.PluginUpdateEvent
  * プラグイン管理イベントをDiscord Webhookに転送するリスナー
  * EventPriority.MONITORで登録し、キャンセルされなかったイベントのみ通知する
  */
-class WebhookEventListener : Listener, KoinComponent {
+class WebhookEventListener :
+    Listener,
+    KoinComponent {
     // KoinによるDI
     private val webhookNotifier: WebhookNotifier by inject()
 
     // Embed配色定数
     companion object {
-        private const val COLOR_GREEN = 0x57F287   // Install
-        private const val COLOR_BLUE = 0x5865F2    // Update
-        private const val COLOR_RED = 0xED4245     // Remove / Uninstall
-        private const val COLOR_YELLOW = 0xFEE75C  // Lock / Unlock
-        private const val COLOR_ORANGE = 0xE67E22  // Outdated
+        private const val COLOR_GREEN = 0x57F287 // Install
+        private const val COLOR_BLUE = 0x5865F2 // Update
+        private const val COLOR_RED = 0xED4245 // Remove / Uninstall
+        private const val COLOR_YELLOW = 0xFEE75C // Lock / Unlock
+        private const val COLOR_ORANGE = 0xE67E22 // Outdated
     }
 
     /**
@@ -53,11 +55,12 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Installed",
             description = "プラグイン '${event.repositoryPlugin.pluginId}' がインストールされました",
             color = COLOR_GREEN,
-            fields = listOf(
-                "Plugin" to event.repositoryPlugin.pluginId,
-                "Version" to event.version,
-                "Repository" to event.repositoryType
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.repositoryPlugin.pluginId,
+                    "Version" to event.version,
+                    "Repository" to event.repositoryType
+                )
         )
     }
 
@@ -73,11 +76,12 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Updated",
             description = "プラグイン '${event.installedPlugin.pluginId}' が更新されました",
             color = COLOR_BLUE,
-            fields = listOf(
-                "Plugin" to event.installedPlugin.pluginId,
-                "Before" to event.beforeVersion.toString(),
-                "After" to event.targetVersion.toString()
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.installedPlugin.pluginId,
+                    "Before" to event.beforeVersion.toString(),
+                    "After" to event.targetVersion.toString()
+                )
         )
     }
 
@@ -93,9 +97,10 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Removed",
             description = "プラグイン '${event.installedPlugin.pluginId}' が管理対象から除外されました",
             color = COLOR_RED,
-            fields = listOf(
-                "Plugin" to event.installedPlugin.pluginId
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.installedPlugin.pluginId
+                )
         )
     }
 
@@ -111,9 +116,10 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Uninstalled",
             description = "プラグイン '${event.installedPlugin.pluginId}' がアンインストールされました",
             color = COLOR_RED,
-            fields = listOf(
-                "Plugin" to event.installedPlugin.pluginId
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.installedPlugin.pluginId
+                )
         )
     }
 
@@ -129,10 +135,11 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Locked",
             description = "プラグイン '${event.installedPlugin.pluginId}' がロックされました",
             color = COLOR_YELLOW,
-            fields = listOf(
-                "Plugin" to event.installedPlugin.pluginId,
-                "Version" to event.currentVersion
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.installedPlugin.pluginId,
+                    "Version" to event.currentVersion
+                )
         )
     }
 
@@ -148,10 +155,11 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Unlocked",
             description = "プラグイン '${event.installedPlugin.pluginId}' のロックが解除されました",
             color = COLOR_YELLOW,
-            fields = listOf(
-                "Plugin" to event.installedPlugin.pluginId,
-                "Version" to event.currentVersion
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.installedPlugin.pluginId,
+                    "Version" to event.currentVersion
+                )
         )
     }
 
@@ -168,11 +176,12 @@ class WebhookEventListener : Listener, KoinComponent {
             title = "Plugin Outdated",
             description = "プラグイン '${event.installedPlugin.pluginId}' に新しいバージョンがあります",
             color = COLOR_ORANGE,
-            fields = listOf(
-                "Plugin" to event.installedPlugin.pluginId,
-                "Current" to event.currentVersion,
-                "Latest" to event.latestVersion
-            )
+            fields =
+                listOf(
+                    "Plugin" to event.installedPlugin.pluginId,
+                    "Current" to event.currentVersion,
+                    "Latest" to event.latestVersion
+                )
         )
     }
 }

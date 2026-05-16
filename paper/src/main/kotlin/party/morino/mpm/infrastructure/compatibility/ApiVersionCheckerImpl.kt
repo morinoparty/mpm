@@ -24,7 +24,9 @@ import java.io.File
  *
  * JARファイルからapi-versionを抽出し、サーバーのMinecraftバージョンと比較する
  */
-class ApiVersionCheckerImpl : ApiVersionChecker, KoinComponent {
+class ApiVersionCheckerImpl :
+    ApiVersionChecker,
+    KoinComponent {
     // サーバーバージョンは起動後不変のため、初回取得時にキャッシュ（スレッドセーフティ確保）
     private val cachedServerApiVersion: String by lazy { resolveServerApiVersion() }
 
@@ -35,14 +37,16 @@ class ApiVersionCheckerImpl : ApiVersionChecker, KoinComponent {
         // 壊れたJARや不正なYAMLでも例外を拾いUnknownに落とす
         return try {
             // JARからプラグインデータを抽出
-            val pluginData = PluginDataUtils.getPluginData(jarFile)
-                ?: return CompatibilityResult.Unknown("plugin.yml or paper-plugin.yml not found")
+            val pluginData =
+                PluginDataUtils.getPluginData(jarFile)
+                    ?: return CompatibilityResult.Unknown("plugin.yml or paper-plugin.yml not found")
 
             // api-versionを取得
-            val pluginApiVersion = when (pluginData) {
-                is PluginData.BukkitPluginData -> pluginData.apiVersion
-                is PluginData.PaperPluginData -> pluginData.apiVersion
-            }
+            val pluginApiVersion =
+                when (pluginData) {
+                    is PluginData.BukkitPluginData -> pluginData.apiVersion
+                    is PluginData.PaperPluginData -> pluginData.apiVersion
+                }
 
             // api-versionが未指定の場合は判定不能
             if (pluginApiVersion.isBlank()) {

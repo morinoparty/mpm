@@ -16,6 +16,7 @@ import party.morino.mpm.api.domain.repository.RepositoryManager
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.bukkit.annotation.CommandPermission
+
 /**
  * リポジトリ管理コマンドのコントローラー
  * リポジトリの一覧表示を担当する

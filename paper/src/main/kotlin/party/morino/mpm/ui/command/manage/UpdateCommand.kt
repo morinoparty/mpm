@@ -83,15 +83,17 @@ class UpdateCommand : KoinComponent {
                     // 失敗した更新を表示
                     if (failedResults.isNotEmpty()) {
                         // api-version非互換エラーが含まれているか確認
-                        val hasApiVersionError = failedResults.any {
-                            it.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
-                        }
+                        val hasApiVersionError =
+                            failedResults.any {
+                                it.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
+                            }
 
                         sender.sendRichMessage("<red>以下のプラグインの更新に失敗しました:</red>")
                         failedResults.forEach { result ->
                             // マーカーを除去して表示
-                            val displayMessage = result.errorMessage
-                                ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
+                            val displayMessage =
+                                result.errorMessage
+                                    ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
                             sender.sendRichMessage("  ✗ ${result.pluginName}: $displayMessage")
                         }
 
@@ -153,7 +155,11 @@ class UpdateCommand : KoinComponent {
                 val lockedInfos = needsUpdate.filter { it.pluginName in locked }
                 val unknownInfos = needsUpdate.filter { it.pluginName in unknown }
 
-                if (updatableInfos.isEmpty() && lockedInfos.isEmpty() && unknownInfos.isEmpty() && result.errors.isEmpty()) {
+                if (updatableInfos.isEmpty() &&
+                    lockedInfos.isEmpty() &&
+                    unknownInfos.isEmpty() &&
+                    result.errors.isEmpty()
+                ) {
                     sender.sendRichMessage("<green>[Dry-run] すべてのプラグインは最新です。</green>")
                 } else {
                     if (updatableInfos.isNotEmpty()) {

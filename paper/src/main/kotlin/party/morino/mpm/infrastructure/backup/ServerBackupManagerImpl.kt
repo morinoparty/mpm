@@ -339,7 +339,7 @@ class ServerBackupManagerImpl :
     private fun collectPluginNames(pluginsDir: File): List<String> =
         pluginsDir
             .listFiles()
-            ?.filter { it.isFile && it.extension == "jar" && it.name != "${selfDirName}.jar" }
+            ?.filter { it.isFile && it.extension == "jar" && it.name != "$selfDirName.jar" }
             ?.mapNotNull { jarFile ->
                 try {
                     // jarファイルからプラグイン名を取得

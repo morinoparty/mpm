@@ -75,7 +75,11 @@ class AdoptCommand : KoinComponent {
      * @param pin バージョン固定モード表示
      * @param includeSoft softDependenciesも含めるか
      */
-    private suspend fun executeDryRun(sender: CommandSender, pin: Boolean, includeSoft: Boolean) {
+    private suspend fun executeDryRun(
+        sender: CommandSender,
+        pin: Boolean,
+        includeSoft: Boolean
+    ) {
         sender.sendRichMessage("<gray>unmanagedプラグインをリポジトリから検索しています...")
 
         // unmanagedプラグイン一覧を取得
@@ -132,9 +136,16 @@ class AdoptCommand : KoinComponent {
                 // canonical name で再帰的に依存解析（キャッシュ済みデータを使用）
                 visited.add(repoName.lowercase())
                 displayDependencyTree(
-                    sender, repoName, 1, includeSoft, repoFileCache,
-                    managedNamesLower, willBeAdoptedLower, availablePluginsMap,
-                    visited, notFoundDependencies
+                    sender,
+                    repoName,
+                    1,
+                    includeSoft,
+                    repoFileCache,
+                    managedNamesLower,
+                    willBeAdoptedLower,
+                    availablePluginsMap,
+                    visited,
+                    notFoundDependencies
                 )
             }
         }
@@ -321,9 +332,16 @@ class AdoptCommand : KoinComponent {
                     // 再帰的にこの依存の依存も解析（循環防止）
                     if (visited.add(depLower)) {
                         displayDependencyTree(
-                            sender, dep, depth + 1, includeSoft, cache,
-                            managedNamesLower, willBeAdoptedLower, availablePluginsMap,
-                            visited, notFoundDependencies
+                            sender,
+                            dep,
+                            depth + 1,
+                            includeSoft,
+                            cache,
+                            managedNamesLower,
+                            willBeAdoptedLower,
+                            availablePluginsMap,
+                            visited,
+                            notFoundDependencies
                         )
                     }
                 }

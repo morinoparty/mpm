@@ -73,9 +73,10 @@ class ProjectRepositoryImpl :
         return try {
             val jsonString = configFile.readText()
             val config = Utils.json.decodeFromString<MpmConfig>(jsonString)
-            MpmProject.fromDto(config) { versionString ->
-                VersionSpecifierParser.parse(versionString)
-            }.right()
+            MpmProject
+                .fromDto(config) { versionString ->
+                    VersionSpecifierParser.parse(versionString)
+                }.right()
         } catch (e: Exception) {
             MpmError.ProjectError.ConfigParseError(e.message ?: "Unknown error").left()
         }
@@ -97,9 +98,7 @@ class ProjectRepositoryImpl :
     /**
      * プロジェクトが存在するかどうかを確認
      */
-    override suspend fun exists(): Boolean {
-        return getConfigFile().exists()
-    }
+    override suspend fun exists(): Boolean = getConfigFile().exists()
 
     /**
      * プロジェクトを削除

@@ -201,7 +201,7 @@ class PluginInfoServiceImpl :
                         downloaderRepository,
                         urlData,
                         firstRepository,
-                        versionSpecifier.tag,
+                        versionSpecifier.tag
                     ) ?: return MpmError.PluginError
                         .VersionResolutionFailed(
                             name.value,
@@ -211,7 +211,7 @@ class PluginInfoServiceImpl :
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
                         urlData,
-                        firstRepository,
+                        firstRepository
                     )
                 }
             } catch (e: Exception) {

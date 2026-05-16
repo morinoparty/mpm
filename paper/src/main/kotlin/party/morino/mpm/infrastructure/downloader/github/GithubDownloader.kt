@@ -149,8 +149,9 @@ open class GithubDownloader(
         val perPage = 100
         val maxPages = 10
         for (page in 1..maxPages) {
-            val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}" +
-                "/releases?per_page=$perPage&page=$page"
+            val url =
+                "https://api.github.com/repos/${urlData.owner}/${urlData.repository}" +
+                    "/releases?per_page=$perPage&page=$page"
             val response = getRequest(url, "application/vnd.github+json")
             val releases = json.parseToJsonElement(response).jsonArray
 
@@ -159,13 +160,14 @@ open class GithubDownloader(
 
             // 該当チャンネルの最初のリリースを返す（新しい順）
             // draftリリースは除外（認証トークン付きだとdraftも返される）
-            val matched = releases.firstOrNull { releaseElement ->
-                val releaseJson = releaseElement.jsonObject
-                val draft = releaseJson["draft"]?.jsonPrimitive?.boolean ?: false
-                if (draft) return@firstOrNull false
-                val prerelease = releaseJson["prerelease"]?.jsonPrimitive?.boolean ?: false
-                prerelease == isPrerelease
-            }
+            val matched =
+                releases.firstOrNull { releaseElement ->
+                    val releaseJson = releaseElement.jsonObject
+                    val draft = releaseJson["draft"]?.jsonPrimitive?.boolean ?: false
+                    if (draft) return@firstOrNull false
+                    val prerelease = releaseJson["prerelease"]?.jsonPrimitive?.boolean ?: false
+                    prerelease == isPrerelease
+                }
 
             if (matched != null) {
                 val obj = matched.jsonObject

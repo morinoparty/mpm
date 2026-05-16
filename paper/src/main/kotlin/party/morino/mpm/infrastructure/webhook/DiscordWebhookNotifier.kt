@@ -25,7 +25,6 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.ConfigManager
-import party.morino.mpm.api.domain.config.model.WebhookEndpoint
 import party.morino.mpm.api.domain.config.model.WebhookEvents
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
@@ -40,7 +39,9 @@ import java.time.format.DateTimeFormatter
  * Discord Webhook APIを使用した通知送信の実装
  * fire-and-forget方式で非同期に通知を送信する
  */
-class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
+class DiscordWebhookNotifier :
+    WebhookNotifier,
+    KoinComponent {
     // KoinによるDI
     private val configManager: ConfigManager by inject()
     private val plugin: JavaPlugin by inject()
@@ -49,19 +50,21 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // HTTP クライアント（Discord Webhook専用）
-    private val httpClient = HttpClient(CIO) {
-        install(HttpTimeout) {
-            requestTimeoutMillis = 10000
-            connectTimeoutMillis = 10000
-            socketTimeoutMillis = 10000
+    private val httpClient =
+        HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = 10000
+                connectTimeoutMillis = 10000
+                socketTimeoutMillis = 10000
+            }
         }
-    }
 
     // JSONシリアライザ（Discord APIにはprettyPrint不要）
-    private val json = Json {
-        encodeDefaults = true
-        ignoreUnknownKeys = true
-    }
+    private val json =
+        Json {
+            encodeDefaults = true
+            ignoreUnknownKeys = true
+        }
 
     companion object {
         // Discord Webhook URLの許可ドメイン
@@ -92,25 +95,28 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
         if (!config.enabled) return
 
         // 該当イベントが有効なエンドポイントをフィルタ
-        val targetEndpoints = config.endpoints.filter { endpoint ->
-            endpoint.url.isNotBlank() && isEventEnabledForEndpoint(endpoint.events, eventType)
-        }
+        val targetEndpoints =
+            config.endpoints.filter { endpoint ->
+                endpoint.url.isNotBlank() && isEventEnabledForEndpoint(endpoint.events, eventType)
+            }
         if (targetEndpoints.isEmpty()) return
 
         // Embedを構築（Discord仕様の文字数制限に従い切り詰め）
-        val embed = DiscordEmbed(
-            title = title.take(MAX_TITLE_LENGTH),
-            description = description.take(MAX_DESCRIPTION_LENGTH),
-            color = color,
-            fields = fields.map { (name, value) ->
-                DiscordEmbedField(
-                    name.take(MAX_FIELD_NAME_LENGTH),
-                    value.take(MAX_FIELD_VALUE_LENGTH)
-                )
-            },
-            timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
-            footer = DiscordEmbed.Footer(text = "mpm")
-        )
+        val embed =
+            DiscordEmbed(
+                title = title.take(MAX_TITLE_LENGTH),
+                description = description.take(MAX_DESCRIPTION_LENGTH),
+                color = color,
+                fields =
+                    fields.map { (name, value) ->
+                        DiscordEmbedField(
+                            name.take(MAX_FIELD_NAME_LENGTH),
+                            value.take(MAX_FIELD_VALUE_LENGTH)
+                        )
+                    },
+                timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                footer = DiscordEmbed.Footer(text = "mpm")
+            )
 
         val payload = DiscordWebhookPayload(embeds = listOf(embed))
         val payloadJson = json.encodeToString(payload)
@@ -126,10 +132,11 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
             // fire-and-forget: 非同期でPOSTリクエストを送信
             scope.launch {
                 try {
-                    val response = httpClient.post(endpoint.url) {
-                        contentType(ContentType.Application.Json)
-                        setBody(payloadJson)
-                    }
+                    val response =
+                        httpClient.post(endpoint.url) {
+                            contentType(ContentType.Application.Json)
+                            setBody(payloadJson)
+                        }
 
                     // Discord Webhookは204 No Contentを返す
                     if (!response.status.isSuccess()) {
@@ -153,8 +160,8 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
      * @param url 検証対象のURL
      * @return 有効なDiscord Webhook URLならtrue
      */
-    private fun isValidWebhookUrl(url: String): Boolean {
-        return try {
+    private fun isValidWebhookUrl(url: String): Boolean =
+        try {
             val uri = URI(url)
             // httpsスキームのみ許可
             uri.scheme == "https" &&
@@ -163,7 +170,6 @@ class DiscordWebhookNotifier : WebhookNotifier, KoinComponent {
         } catch (e: Exception) {
             false
         }
-    }
 
     /**
      * 指定されたイベント種別の通知が、いずれかのエンドポイントで有効かどうかを返す

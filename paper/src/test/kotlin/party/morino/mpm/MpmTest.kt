@@ -31,6 +31,8 @@ import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
+import party.morino.mpm.api.domain.webhook.WebhookEventType
+import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
@@ -40,8 +42,6 @@ import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
-import party.morino.mpm.api.domain.webhook.WebhookEventType
-import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.mock.config.PluginDirectoryMock
 import party.morino.mpm.utils.TestConfigLoader
@@ -85,7 +85,9 @@ class MpmTest :
                 single<ConfigManager> {
                     object : ConfigManager {
                         private val config: ConfigData = TestConfigLoader.load()
+
                         override fun getConfig(): ConfigData = config
+
                         override suspend fun reload() { /* テストでは動的リロードは不要 */ }
                     }
                 }
