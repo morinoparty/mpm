@@ -35,9 +35,13 @@ class DownloaderRepositoryImpl :
     private val configManager: ConfigManager by inject()
 
     // ダウンローダーインスタンスを再利用（HttpClientリーク防止）
-    private val spigotDownloader: SpigotDownloader by lazy { SpigotDownloader() }
-    private val modrinthDownloader: ModrinthDownloader by lazy { ModrinthDownloader() }
-    private val githubDownloader: GithubDownloader by lazy { createGithubDownloader() }
+    // shutdown時に「初期化済みかどうか」を判定するためLazyデリゲートを保持する
+    private val spigotDownloaderLazy = lazy { SpigotDownloader() }
+    private val modrinthDownloaderLazy = lazy { ModrinthDownloader() }
+    private val githubDownloaderLazy = lazy { createGithubDownloader() }
+    private val spigotDownloader: SpigotDownloader by spigotDownloaderLazy
+    private val modrinthDownloader: ModrinthDownloader by modrinthDownloaderLazy
+    private val githubDownloader: GithubDownloader by githubDownloaderLazy
 
     /**
      * GitHubダウンローダーを生成する
@@ -281,5 +285,18 @@ class DownloaderRepositoryImpl :
             // UNKNOWNタイプはダウンロードできない
             RepositoryType.UNKNOWN -> null
         }
+    }
+
+    /**
+     * 保持しているダウンローダーのHTTPクライアントを解放する
+     * 初期化済みのダウンローダーのみクローズし、未使用のものは生成しない
+     * 1つのクローズ失敗が他のクローズを妨げないようにする
+     */
+    override fun shutdown() {
+        listOf(spigotDownloaderLazy, modrinthDownloaderLazy, githubDownloaderLazy)
+            .filter { it.isInitialized() }
+            .forEach { lazy ->
+                runCatching { lazy.value.close() }
+            }
     }
 }

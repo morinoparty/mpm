@@ -125,6 +125,11 @@ open class Mpm :
         // Webhookリソースの解放（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
 
+        // リポジトリソース・ダウンローダーのHTTPクライアントを解放（コネクションリーク防止）
+        // Bean未登録でも例外で後続cleanupを止めないようgetOrNullを使用する
+        GlobalContext.getOrNull()?.getOrNull<RepositoryManager>()?.shutdown()
+        GlobalContext.getOrNull()?.getOrNull<DownloaderRepository>()?.shutdown()
+
         // Koin DIコンテナを停止（リソースリーク防止）
         GlobalContext.stopKoin()
 
