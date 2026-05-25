@@ -1,6 +1,6 @@
 [versions]
 lamp = "4.0.0-rc.16"
-paper = "1.21.11-R0.1-SNAPSHOT"
+paper = "26.1.2.build.65-stable"
 mccoroutine = "2.22.0"
 koin = "4.2.1"
 coroutine = "1.11.0"
