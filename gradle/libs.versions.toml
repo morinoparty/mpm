@@ -13,7 +13,7 @@ commonsIo = "2.22.0"
 mockk = "1.14.11"
 kaml = "0.77.1"
 ktlint = "14.2.0"
-arrow = "2.2.2.1"
+arrow = "2.2.3"
 cronUtils = "9.2.1"
 
 [libraries]
