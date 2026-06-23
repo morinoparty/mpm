@@ -27,24 +27,32 @@ class MineAuthIntegration(
      * MineAuth が存在しない場合は警告を出さずにスキップする。
      */
     fun setup() {
-        // MineAuth プラグインのインスタンスを取得（存在しない場合は null）
-        val mineAuthPlugin = plugin.server.pluginManager.getPlugin("MineAuth")
-        val mineAuthApi = mineAuthPlugin as? MineAuthAPI
-        if (mineAuthApi == null) {
-            plugin.logger.info("MineAuth not found - HTTP API integration disabled")
-            return
-        }
-
-        // mpm のエンドポイントを MineAuth に登録する
-        // 登録後は /api/v1/plugins/mpm/ 配下でアクセス可能になる
-        // soft dependency のため、例外が発生しても mpm 自体を無効化しない
+        // NoClassDefFoundError など Throwable も含めて全体を保護する。
+        // 古いバージョンや互換性のない MineAuth が存在する場合に as? キャストで
+        // クラスロードが失敗する可能性があるため、try-catch は最外側に配置する。
         try {
+            val mineAuthPlugin = plugin.server.pluginManager.getPlugin("MineAuth")
+            if (mineAuthPlugin == null) {
+                plugin.logger.info("MineAuth not found - HTTP API integration disabled")
+                return
+            }
+
+            // 互換性のない MineAuth の場合 ClassCastException / NoClassDefFoundError が発生しうる
+            val mineAuthApi = mineAuthPlugin as? MineAuthAPI
+            if (mineAuthApi == null) {
+                plugin.logger.warning("MineAuth found but doesn't implement MineAuthAPI - HTTP API integration disabled")
+                return
+            }
+
+            // mpm のエンドポイントを MineAuth に登録する
+            // 登録後は /api/v1/plugins/mpm/ 配下でアクセス可能になる
             mineAuthApi
                 .createHandler(plugin)
                 .register(MpmPluginHandler())
             plugin.logger.info("MineAuth integration enabled - endpoints registered at /api/v1/plugins/mpm/")
-        } catch (e: Exception) {
-            plugin.logger.warning("MineAuth integration failed: ${e.message} - HTTP API will be unavailable")
+        } catch (e: Throwable) {
+            // NoClassDefFoundError、ClassCastException など を含む全エラーをキャッチ
+            plugin.logger.warning("MineAuth integration failed (${e::class.simpleName}): ${e.message} - HTTP API will be unavailable")
         }
     }
 }

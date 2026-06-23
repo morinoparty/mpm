@@ -8,7 +8,7 @@
     {
       "type": "github",
       "id": "pavog/craftconomy3",
-      "fileNameRegex": ".*\\.jar$",
+      "fileNameRegex": "craftconomy3-.*\\.jar$",
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
     }
   ]

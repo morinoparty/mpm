@@ -7,14 +7,10 @@
     {
       "type": "modrinth",
       "id": "bEIUEGTX",
-      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
       "latest": {
-        "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
-        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-      },
-      "beta": {
-        "versionMatcher": "-[a-f0-9]{6,}",
-        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]{6,}"
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+-[a-f0-9]+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]+"
       }
     }
   ]

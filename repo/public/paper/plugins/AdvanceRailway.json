@@ -6,7 +6,7 @@
     {
       "type": "github",
       "id": "Nlkomaru/AdvanceRailway",
-      "fileNameRegex": ".*\\.jar$"
+      "fileNameRegex": "AdvanceRailway_.*\\.jar$"
     }
   ]
 }
