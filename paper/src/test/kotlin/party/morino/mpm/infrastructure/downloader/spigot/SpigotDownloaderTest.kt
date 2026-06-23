@@ -58,7 +58,7 @@ class SpigotDownloaderTest {
         val mockEngine =
             MockEngine { request ->
                 when (request.url.toString()) {
-                    "https://api.spiget.org/v2/resources/9089/versions?sort=-name&size=1" -> {
+                    "https://api.spiget.org/v2/resources/9089/versions?sort=-releaseDate&size=1" -> {
                         respond(
                             content = ByteReadChannel(MockDataLoader.Spigot.getLatestVersion()),
                             status = HttpStatusCode.OK,
