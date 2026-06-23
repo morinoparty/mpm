@@ -1,13 +1,13 @@
 [versions]
 lamp = "4.0.0-rc.17"
-paper = "1.21.11-R0.1-SNAPSHOT"
+paper = "26.1.2.build.72-stable"
 mccoroutine = "2.22.0"
 koin = "4.2.2"
 coroutine = "1.11.0"
 serialization = "1.11.0"
 reflect = "2.4.0"
 ktor = "3.5.0"
-junit = "6.2.0-SNAPSHOT"
+junit = "6.1.0"
 mockBukkit = "3.93.2"
 commonsIo = "2.22.0"
 mockk = "1.14.11"
@@ -40,6 +40,7 @@ ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.2.29" }
 
 commons-io = { group = "commons-io", name = "commons-io", version.ref = "commonsIo" }
 snakeyaml = { group = "org.yaml", name = "snakeyaml", version = "2.6" }

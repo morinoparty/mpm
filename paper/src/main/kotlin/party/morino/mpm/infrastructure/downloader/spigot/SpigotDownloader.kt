@@ -64,8 +64,8 @@ open class SpigotDownloader : AbstractPluginDownloader() {
      */
     override suspend fun getLatestVersion(urlData: UrlData): VersionData {
         urlData as UrlData.SpigotMcUrlData
-        // example https://api.spiget.org/v2/resources/22023/versions?sort=-name&size=1
-        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-name&size=1"
+        // example https://api.spiget.org/v2/resources/22023/versions?sort=-releaseDate&size=1
+        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-releaseDate&size=1"
         val response = getRequest(url, "application/json")
         val responseJson = json.parseToJsonElement(response).jsonArray
         val version = responseJson[0].jsonObject["name"]?.jsonPrimitive?.content ?: "unknown"
@@ -85,7 +85,7 @@ open class SpigotDownloader : AbstractPluginDownloader() {
     ): VersionData {
         urlData as UrlData.SpigotMcUrlData
         // 全バージョンを取得（size制限なし）
-        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-name"
+        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-releaseDate"
         val response =
             try {
                 getRequest(url, "application/json")
@@ -117,7 +117,7 @@ open class SpigotDownloader : AbstractPluginDownloader() {
     override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
         urlData as UrlData.SpigotMcUrlData
         // 全バージョンを取得（size制限なし、降順ソート）
-        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-name"
+        val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-releaseDate"
         val response = getRequest(url, "application/json")
         val versions = json.parseToJsonElement(response).jsonArray
 

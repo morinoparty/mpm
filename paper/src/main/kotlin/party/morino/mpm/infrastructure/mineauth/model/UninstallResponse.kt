@@ -7,17 +7,17 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.api.domain.webhook
+package party.morino.mpm.infrastructure.mineauth.model
+
+import kotlinx.serialization.Serializable
 
 /**
- * Webhook通知の対象イベント種別
+ * プラグインアンインストール結果レスポンス
  */
-enum class WebhookEventType {
-    INSTALL,
-    UPDATE,
-    REMOVE,
-    UNINSTALL,
-    LOCK,
-    UNLOCK,
-    OUTDATED
-}
+@Serializable
+data class UninstallResponse(
+    // アンインストールされたプラグイン名
+    val name: String,
+    // 処理結果メッセージ
+    val message: String
+)

@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import xyz.jpenilla.resourcefactory.bukkit.bukkitPluginYaml
 
 plugins {
     java
@@ -19,6 +20,9 @@ dependencies {
 
     // Paper API
     compileOnly(libs.paper.api)
+
+    // MineAuth API (soft dependency - optional integration)
+    compileOnly(libs.mineauth.api)
 
     // Arrow for functional programming
     implementation(libs.arrow.core)
@@ -101,7 +105,10 @@ tasks {
         group = "verification"
 
         // testと同じクラスパス・ソースセットを利用
-        testClassesDirs = sourceSets.test.get().output.classesDirs
+        testClassesDirs =
+            sourceSets.test
+                .get()
+                .output.classesDirs
         classpath = sourceSets.test.get().runtimeClasspath
 
         useJUnitPlatform {
@@ -128,6 +135,10 @@ sourceSets.main {
             apiVersion = "1.20"
             bootstrapper = "$group.mpm.MpmBootstrap"
             loader = "$group.mpm.MpmLoader"
+            dependencies {
+                // MineAuth HTTP API 統合のために soft dependency として宣言（required=false）
+                server("MineAuth", xyz.jpenilla.resourcefactory.paper.PaperPluginYaml.Load.BEFORE, false)
+            }
         }
         bukkitPluginYaml {
             name = "mpm"
@@ -136,7 +147,7 @@ sourceSets.main {
             main = "$group.mpm.Mpm"
             apiVersion = "1.20"
             libraries = libs.bundles.coroutines.asString()
-            softDepend = listOf()
+            softDepend = listOf("MineAuth")
         }
     }
 }

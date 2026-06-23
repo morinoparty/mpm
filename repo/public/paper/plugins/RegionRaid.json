@@ -6,7 +6,7 @@
     {
       "type": "github",
       "id": "OffLuffy/RegionRaid",
-      "fileNameRegex": ".*\\.jar$"
+      "fileNameRegex": "regionraid-.*\\.jar$"
     }
   ]
 }

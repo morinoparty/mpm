@@ -7,17 +7,16 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.api.domain.webhook
+package party.morino.mpm.api.model.backup
 
 /**
- * Webhook通知の対象イベント種別
+ * バックアップサイズ計算における個別エントリ（ファイルまたはディレクトリ）
  */
-enum class WebhookEventType {
-    INSTALL,
-    UPDATE,
-    REMOVE,
-    UNINSTALL,
-    LOCK,
-    UNLOCK,
-    OUTDATED
-}
+data class BackupSizeEntry(
+    // エントリ名（plugins/直下のファイルまたはフォルダ名）
+    val name: String,
+    // エントリの合計バイト数
+    val sizeBytes: Long,
+    // エントリ内のファイル数
+    val fileCount: Int
+)

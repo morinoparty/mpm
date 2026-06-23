@@ -37,7 +37,10 @@ data class VersionDetail(
          * @param raw 元のバージョン文字列
          * @param versionPattern バージョン番号の抽出用正規表現（nullの場合はデフォルトsemverパターン）
          */
-        fun normalizeWithPattern(raw: String, versionPattern: String? = null): String {
+        fun normalizeWithPattern(
+            raw: String,
+            versionPattern: String? = null
+        ): String {
             val pattern = if (versionPattern.isNullOrBlank()) DEFAULT_VERSION_PATTERN else versionPattern
             return runCatching {
                 Regex(pattern).find(raw)?.value
@@ -51,7 +54,10 @@ data class VersionDetail(
          * @param raw 元のバージョン文字列
          * @param versionPattern バージョン番号の抽出用正規表現（省略時はデフォルトsemverパターン）
          */
-        fun fromRaw(raw: String, versionPattern: String? = null): VersionDetail {
+        fun fromRaw(
+            raw: String,
+            versionPattern: String? = null
+        ): VersionDetail {
             val normalized = normalizeWithPattern(raw, versionPattern)
             return VersionDetail(raw = raw, normalized = normalized)
         }

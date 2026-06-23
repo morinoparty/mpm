@@ -6,7 +6,7 @@
     {
       "type": "github",
       "id": "RaceAssist/RaceAssist-core",
-      "fileNameRegex": ".*\\.jar$"
+      "fileNameRegex": "RaceAssist_.*\\.jar$"
     }
   ]
 }

@@ -45,5 +45,5 @@ import kotlinx.serialization.Serializable
 data class ChannelConfig(
     val versionMatcher: String? = null,
     val versionModifier: String? = null,
-    val useUpstreamLabel: Boolean = false,
+    val useUpstreamLabel: Boolean = false
 )

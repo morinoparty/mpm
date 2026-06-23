@@ -46,6 +46,7 @@ import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
@@ -60,6 +61,7 @@ import party.morino.mpm.ui.command.manage.InstallCommand
 import party.morino.mpm.ui.command.manage.ListCommand
 import party.morino.mpm.ui.command.manage.LockCommand
 import party.morino.mpm.ui.command.manage.OutdatedCommand
+import party.morino.mpm.ui.command.manage.PinCommand
 import party.morino.mpm.ui.command.manage.RemoveCommand
 import party.morino.mpm.ui.command.manage.UninstallCommand
 import party.morino.mpm.ui.command.manage.UpdateCommand
@@ -109,6 +111,9 @@ open class Mpm :
         // Webhookイベントリスナーの登録
         server.pluginManager.registerEvents(WebhookEventListener(), this)
 
+        // MineAuth HTTP API統合の初期化（MineAuthが存在する場合のみ有効化）
+        MineAuthIntegration(this).setup()
+
         // 自動更新スケジューラーの起動
         GlobalContext.get().get<UpdateScheduler>().start()
 
@@ -152,9 +157,11 @@ open class Mpm :
                 "mpm.command.backup",
                 "mpm.command.lock",
                 "mpm.command.init",
-                "mpm.command.reload"
+                "mpm.command.reload",
+                // MineAuth HTTP API 権限（mpm.command の子として OP に自動付与）
+                "mpm.api"
             )
-        // 子パーミッションを登録
+        // 子パーミッションを登録（OP は親経由で全子権限を持つ）
         val children = childPermissions.associateWith { true }
         val parentPermission =
             org.bukkit.permissions.Permission(
@@ -252,6 +259,7 @@ open class Mpm :
         lamp.register(OutdatedCommand())
         lamp.register(RemoveCommand())
         lamp.register(UninstallCommand())
+        lamp.register(PinCommand())
         lamp.register(UpdateCommand())
         lamp.register(VersionsCommand())
         lamp.register(RepositoryCommands())
