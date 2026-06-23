@@ -1,4 +1,5 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import xyz.jpenilla.resourcefactory.bukkit.bukkitPluginYaml
 
 plugins {
     java
@@ -134,6 +135,10 @@ sourceSets.main {
             apiVersion = "1.20"
             bootstrapper = "$group.mpm.MpmBootstrap"
             loader = "$group.mpm.MpmLoader"
+            dependencies {
+                // MineAuth HTTP API 統合のために soft dependency として宣言（required=false）
+                server("MineAuth", xyz.jpenilla.resourcefactory.paper.PaperPluginYaml.Load.BEFORE, false)
+            }
         }
         bukkitPluginYaml {
             name = "mpm"

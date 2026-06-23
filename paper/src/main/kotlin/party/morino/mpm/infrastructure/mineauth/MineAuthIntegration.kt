@@ -40,7 +40,9 @@ class MineAuthIntegration(
             // 互換性のない MineAuth の場合 ClassCastException / NoClassDefFoundError が発生しうる
             val mineAuthApi = mineAuthPlugin as? MineAuthAPI
             if (mineAuthApi == null) {
-                plugin.logger.warning("MineAuth found but doesn't implement MineAuthAPI - HTTP API integration disabled")
+                plugin.logger.warning(
+                    "MineAuth found but doesn't implement MineAuthAPI - HTTP API integration disabled"
+                )
                 return
             }
 
@@ -52,7 +54,9 @@ class MineAuthIntegration(
             plugin.logger.info("MineAuth integration enabled - endpoints registered at /api/v1/plugins/mpm/")
         } catch (e: Throwable) {
             // NoClassDefFoundError、ClassCastException など を含む全エラーをキャッチ
-            plugin.logger.warning("MineAuth integration failed (${e::class.simpleName}): ${e.message} - HTTP API will be unavailable")
+            plugin.logger.warning(
+                "MineAuth integration failed (${e::class.simpleName}): ${e.message} - HTTP API will be unavailable"
+            )
         }
     }
 }
