@@ -118,7 +118,7 @@ data class RepositoryConfig(
     val fileNameTemplate: String? = null,
     val latest: ChannelConfig? = null,
     val beta: ChannelConfig? = null,
-    val alpha: ChannelConfig? = null,
+    val alpha: ChannelConfig? = null
 ) {
     /**
      * 指定チャンネルに対応する `versionMatcher` を返す

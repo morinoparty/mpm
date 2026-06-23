@@ -20,6 +20,9 @@ dependencies {
     // Paper API
     compileOnly(libs.paper.api)
 
+    // MineAuth API (soft dependency - optional integration)
+    compileOnly(libs.mineauth.api)
+
     // Arrow for functional programming
     implementation(libs.arrow.core)
     implementation(libs.arrow.fx.coroutines)
@@ -101,7 +104,10 @@ tasks {
         group = "verification"
 
         // testと同じクラスパス・ソースセットを利用
-        testClassesDirs = sourceSets.test.get().output.classesDirs
+        testClassesDirs =
+            sourceSets.test
+                .get()
+                .output.classesDirs
         classpath = sourceSets.test.get().runtimeClasspath
 
         useJUnitPlatform {
@@ -136,7 +142,7 @@ sourceSets.main {
             main = "$group.mpm.Mpm"
             apiVersion = "1.20"
             libraries = libs.bundles.coroutines.asString()
-            softDepend = listOf()
+            softDepend = listOf("MineAuth")
         }
     }
 }

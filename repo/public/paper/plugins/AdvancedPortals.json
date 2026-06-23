@@ -9,11 +9,11 @@
       "id": "axTqSWQA",
       "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
       "latest": {
-        "versionMatcher": "-Spigot$",
+        "versionMatcher": "-spigot$",
         "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
       },
       "beta": {
-        "versionMatcher": "-LegacySpigot",
+        "versionMatcher": "-legacy-spigot",
         "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
       }
     }
