@@ -20,6 +20,7 @@ import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
+import revxrsal.commands.annotation.Switch
 import revxrsal.commands.bukkit.annotation.CommandPermission
 
 /**
@@ -120,5 +121,116 @@ class PinCommand : KoinComponent {
                 )
             }
         )
+    }
+
+    /**
+     * 管理中の全 managed プラグインを現在インストール済みバージョンに一括固定する
+     * mpm pin-all [--dry-run]
+     *
+     * @param sender コマンド送信者
+     * @param dryRun trueの場合、mpm.jsonを変更せずに結果だけ表示する
+     */
+    @Subcommand("pin-all")
+    suspend fun pinAll(
+        sender: CommandSender,
+        @Switch("dry-run") dryRun: Boolean = false
+    ) {
+        val project = projectService.getProject()
+        if (project == null) {
+            sender.sendRichMessage("<red>プロジェクトが初期化されていません。'mpm init' を実行してください。</red>")
+            return
+        }
+
+        // managed プラグインのみを対象とする
+        val managedPlugins = project.plugins.values.filterIsInstance<PluginSpec.Managed>()
+
+        if (managedPlugins.isEmpty()) {
+            sender.sendRichMessage("<yellow>ピン留め対象の管理プラグインがありません。</yellow>")
+            return
+        }
+
+        if (dryRun) {
+            sender.sendRichMessage("<gray>[Dry-run] 実際の変更は行いません:</gray>")
+        }
+
+        // null チェック済みなので !! で非null型にキャスト
+        var updatedProject = project!!
+        val pinned = mutableListOf<String>()
+        val skipped = mutableListOf<String>()
+        val failed = mutableListOf<String>()
+
+        for (spec in managedPlugins) {
+            val pluginId = spec.name.value
+
+            // メタデータから現在インストール済みのバージョンを取得
+            val currentVersion =
+                metadataManager.loadMetadata(pluginId).fold(
+                    ifLeft = { _ ->
+                        failed.add(pluginId)
+                        null
+                    },
+                    ifRight = { it.mpmInfo.version.current.raw }
+                ) ?: continue
+
+            // 既に同じ Fixed バージョンならスキップ
+            val currentRequirement = spec.versionRequirement
+            if (currentRequirement is VersionSpecifier.Fixed &&
+                currentRequirement.version == currentVersion
+            ) {
+                skipped.add("$pluginId ($currentVersion)")
+                continue
+            }
+
+            val oldDisplay =
+                when (val vs = spec.versionRequirement) {
+                    is VersionSpecifier.Fixed -> vs.version
+                    is VersionSpecifier.Latest -> "latest"
+                    is VersionSpecifier.Tag -> "tag:${vs.tag}"
+                    is VersionSpecifier.Pattern -> "pattern:${vs.pattern}"
+                    is VersionSpecifier.Sync -> "sync:${vs.targetPlugin}"
+                }
+            pinned.add("$pluginId: $oldDisplay → $currentVersion")
+
+            if (!dryRun) {
+                // Fixed バージョン指定でプロジェクトを更新
+                val newSpec = PluginSpec.Managed(spec.name, VersionSpecifier.Fixed(currentVersion))
+                updatedProject =
+                    updatedProject.updatePlugin(spec.name, newSpec).fold(
+                        ifLeft = { _ ->
+                            failed.add(pluginId)
+                            pinned.removeLast()
+                            updatedProject
+                        },
+                        ifRight = { it }
+                    )
+            }
+        }
+
+        // dry-run でない場合のみ保存
+        if (!dryRun && pinned.isNotEmpty()) {
+            projectService.save(updatedProject.withSortedPlugins()).fold(
+                ifLeft = { error ->
+                    sender.sendRichMessage("<red>保存に失敗しました: ${error.message}</red>")
+                    return
+                },
+                ifRight = { }
+            )
+        }
+
+        // 結果を表示
+        if (pinned.isNotEmpty()) {
+            val header = if (dryRun) "<yellow>[Dry-run] ピン留め対象 (${pinned.size}件):</yellow>" else "<green>ピン留め完了 (${pinned.size}件):</green>"
+            sender.sendRichMessage(header)
+            pinned.forEach { sender.sendRichMessage("  <green>✓</green> $it") }
+        }
+        if (skipped.isNotEmpty()) {
+            sender.sendRichMessage("<gray>スキップ（既に固定済み）: ${skipped.size}件</gray>")
+        }
+        if (failed.isNotEmpty()) {
+            sender.sendRichMessage("<red>メタデータ取得失敗 (${failed.size}件): ${failed.joinToString(", ")}</red>")
+        }
+        if (pinned.isEmpty() && failed.isEmpty()) {
+            sender.sendRichMessage("<yellow>全プラグインが既に固定済みです。</yellow>")
+        }
     }
 }
