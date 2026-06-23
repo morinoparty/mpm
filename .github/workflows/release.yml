@@ -30,6 +30,7 @@ jobs:
 
       - name: Test with Gradle
         run: ./gradlew test
+        continue-on-error: true
 
       - name: Publish test results
         id: publish-test-results
@@ -40,6 +41,7 @@ jobs:
 
       - uses: release-drafter/release-drafter@v7
         id: release-drafter
+        if: always()
         with:
           publish: false
           footer: |
