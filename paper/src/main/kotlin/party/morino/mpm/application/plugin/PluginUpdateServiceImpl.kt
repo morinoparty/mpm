@@ -335,6 +335,12 @@ class PluginUpdateServiceImpl :
                 return MpmError.PluginError.OperationCancelled(name.value, "update").left()
             }
 
+            // 一括更新と同様に更新前バックアップを作成する（Codex P2-3）
+            backupManager.createBackup(BackupReason.UPDATE).fold(
+                { error -> plugin.logger.warning("[update] バックアップ作成失敗: $error - 更新を続行") },
+                { info -> plugin.logger.info("[update] バックアップ作成完了: ${info.fileName}") }
+            )
+
             // 最新バージョンをtargetVersionとして渡してインストール
             return installSinglePlugin(name.value, force, useLatest = true).fold(
                 { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
@@ -408,7 +414,8 @@ class PluginUpdateServiceImpl :
                 metadataResult.fold(
                     { true }, // メタデータなし → インストール必要
                     { metadata ->
-                        !isDynamic && metadata.mpmInfo.version.current.raw != resolvedVersion
+                        // latest/tag: は動的なため常に installPluginWithVersion に委譲する（#283）
+                        isDynamic || metadata.mpmInfo.version.current.raw != resolvedVersion
                     }
                 )
 

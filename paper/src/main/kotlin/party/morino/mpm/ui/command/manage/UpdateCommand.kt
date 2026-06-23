@@ -14,7 +14,9 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -104,6 +106,46 @@ class UpdateCommand : KoinComponent {
                     }
 
                     sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
+                }
+            }
+        )
+    }
+
+    /**
+     * 指定したプラグインのみを更新するコマンド
+     * @param sender コマンド送信者
+     * @param plugin 更新対象のプラグイン
+     * @param force api-version非互換でも強制更新する
+     */
+    @Subcommand("update")
+    suspend fun updateOne(
+        sender: CommandSender,
+        plugin: InstalledPlugin,
+        @Switch("force") force: Boolean = false
+    ) {
+        val pluginId = plugin.pluginId
+        sender.sendRichMessage("<gray>'$pluginId' を更新しています...</gray>")
+
+        updateService.update(PluginName(pluginId), force).fold(
+            { error ->
+                sender.sendRichMessage("<red>${error.message}</red>")
+            },
+            { result ->
+                if (result.success) {
+                    sender.sendRichMessage(
+                        "<green>'$pluginId' を更新しました: ${result.oldVersion} → ${result.newVersion}</green>"
+                    )
+                    sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
+                } else {
+                    val displayMessage =
+                        result.errorMessage
+                            ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
+                    val hasApiVersionError =
+                        result.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
+                    sender.sendRichMessage("<red>'$pluginId' の更新に失敗しました: $displayMessage</red>")
+                    if (hasApiVersionError) {
+                        sender.sendRichMessage("<yellow>--force フラグで強制更新できます。</yellow>")
+                    }
                 }
             }
         )

@@ -323,7 +323,12 @@ class UpdateSchedulerImpl :
         plugin.logger.info("[Scheduled] Starting automatic plugin update...")
         updateService.update(force = false).fold(
             { error ->
-                plugin.logger.warning("[Scheduled] Auto-update failed: ${error.message}")
+                // UpdateInProgress は前回の更新がまだ実行中のため正常動作としてinfoログに留める（#287）
+                if (error is party.morino.mpm.api.shared.error.MpmError.PluginError.UpdateInProgress) {
+                    plugin.logger.info("[Scheduled] Update skipped: previous update still in progress")
+                } else {
+                    plugin.logger.warning("[Scheduled] Auto-update failed: ${error.message}")
+                }
             },
             { results ->
                 val success = results.filter { it.success }

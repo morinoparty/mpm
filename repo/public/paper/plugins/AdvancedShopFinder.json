@@ -6,7 +6,7 @@
     {
       "type": "github",
       "id": "Nlkomaru/AdvancedShopFinder",
-      "fileNameRegex": ".*\\.jar$"
+      "fileNameRegex": "AdvancedShopFinder_.*\\.jar$"
     }
   ]
 }

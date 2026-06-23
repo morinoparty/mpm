@@ -167,6 +167,50 @@ class BackupCommand : KoinComponent {
     }
 
     /**
+     * バックアップ対象のサイズを表示するコマンド
+     * plugins/.mpmignore で除外されるファイルを考慮したサイズを計算する
+     * @param sender コマンド送信者
+     */
+    @Subcommand("backup size")
+    fun size(sender: CommandSender) {
+        backupManager.calculateBackupSize().fold(
+            // 失敗時の処理
+            { errorMessage ->
+                sender.sendRichMessage("<red>$errorMessage")
+            },
+            // 成功時の処理
+            { info ->
+                val totalFormatted = formatFileSize(info.totalSizeBytes)
+                sender.sendRichMessage("<yellow>バックアップ対象サイズ: <white>$totalFormatted <gray>(${info.totalFileCount}ファイル)")
+
+                // 上位エントリをサイズ順に表示（最大10件）
+                if (info.entries.isNotEmpty()) {
+                    sender.sendRichMessage("<gray>内訳 (上位${minOf(info.entries.size, 10)}件):")
+                    info.entries.take(10).forEach { entry ->
+                        val sizeStr = formatFileSize(entry.sizeBytes)
+                        val countStr = if (entry.fileCount > 1) " <gray>(${entry.fileCount}ファイル)" else ""
+                        sender.sendRichMessage("  <white>${entry.name} <gray>- <white>$sizeStr$countStr")
+                    }
+                    if (info.entries.size > 10) {
+                        sender.sendRichMessage("<gray>  ... 他 ${info.entries.size - 10} 件")
+                    }
+                }
+
+                // 除外エントリを表示
+                if (info.excludedEntries.isNotEmpty()) {
+                    sender.sendRichMessage("<gray>除外 (.mpmignore / 自プラグイン): ${info.excludedEntries.joinToString(", ")}")
+                }
+
+                // .mpmignore のパターン一覧を表示
+                val patterns = backupManager.readIgnorePatterns()
+                if (patterns.isNotEmpty()) {
+                    sender.sendRichMessage("<gray>有効な .mpmignore パターン: ${patterns.joinToString(", ")}")
+                }
+            }
+        )
+    }
+
+    /**
      * ファイルサイズを人間が読みやすい形式にフォーマットする
      * @param bytes バイト数
      * @return フォーマットされた文字列

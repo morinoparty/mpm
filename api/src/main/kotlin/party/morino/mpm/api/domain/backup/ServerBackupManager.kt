@@ -13,6 +13,7 @@ package party.morino.mpm.api.domain.backup
 
 import arrow.core.Either
 import party.morino.mpm.api.model.backup.BackupReason
+import party.morino.mpm.api.model.backup.BackupSizeInfo
 import party.morino.mpm.api.model.backup.RestoreResult
 import party.morino.mpm.api.model.backup.ServerBackupInfo
 
@@ -58,4 +59,24 @@ interface ServerBackupManager {
      * @return 成功時は削除されたバックアップの数、失敗時はエラーメッセージ
      */
     suspend fun cleanupOldBackups(): Either<String, Int>
+
+    /**
+     * バックアップ対象のサイズを計算する
+     *
+     * plugins/直下のエントリを列挙し、.mpmignoreパターンと自プラグインフォルダを除いた
+     * 合計サイズとファイル数を返す。実際にバックアップを作成せずにサイズを確認できる。
+     *
+     * @return 成功時はBackupSizeInfo、失敗時はエラーメッセージ
+     */
+    fun calculateBackupSize(): Either<String, BackupSizeInfo>
+
+    /**
+     * .mpmignoreファイルのパターンを読み込む
+     *
+     * plugins/.mpmignore が存在する場合にパターン一覧を返す。
+     * ファイルが存在しない場合は空リストを返す。
+     *
+     * @return ignoreパターンのリスト
+     */
+    fun readIgnorePatterns(): List<String>
 }

@@ -7,10 +7,10 @@
     {
       "type": "modrinth",
       "id": "5QNgOj66",
-      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*))?",
       "latest": {
-        "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
-        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+(\\.\\d+|\\+\\d+)?$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*))?"
       },
       "beta": {
         "versionMatcher": "-SNAPSHOT",

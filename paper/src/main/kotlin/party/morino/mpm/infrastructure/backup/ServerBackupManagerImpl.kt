@@ -21,6 +21,8 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.model.backup.BackupReason
+import party.morino.mpm.api.model.backup.BackupSizeEntry
+import party.morino.mpm.api.model.backup.BackupSizeInfo
 import party.morino.mpm.api.model.backup.RestoreResult
 import party.morino.mpm.api.model.backup.ServerBackupInfo
 import party.morino.mpm.utils.PluginDataUtils
@@ -84,14 +86,17 @@ class ServerBackupManagerImpl :
                 // plugins/ディレクトリ内のプラグインを収集
                 val pluginsIncluded = collectPluginNames(pluginsDir)
 
+                // .mpmignore パターンを読み込む
+                val ignorePatterns = readIgnorePatterns()
+
                 // ZIPファイルを作成
                 ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
                     // plugins/ディレクトリ内のファイルとフォルダを走査
                     pluginsDir.listFiles()?.forEach { file ->
-                        // 自プラグインのディレクトリはスキップ（自分自身のバックアップを含めない）
-                        if (file.name == selfDirName) {
-                            return@forEach
-                        }
+                        // 自プラグインのディレクトリはスキップ
+                        if (file.name == selfDirName) return@forEach
+                        // .mpmignore にマッチするエントリはスキップ
+                        if (isIgnored(file.name, ignorePatterns)) return@forEach
                         addToZip(zipOut, file, file.name)
                     }
                 }
@@ -426,4 +431,127 @@ class ServerBackupManagerImpl :
         val updatedBackups = index.backups + backupInfo
         saveIndex(BackupIndex(updatedBackups))
     }
+
+    /**
+     * バックアップ対象のサイズを計算する
+     *
+     * @return 成功時はBackupSizeInfo、失敗時はエラーメッセージ
+     */
+    override fun calculateBackupSize(): Either<String, BackupSizeInfo> =
+        try {
+            val pluginsDir = pluginDirectory.getPluginsDirectory()
+            val ignorePatterns = readIgnorePatterns()
+
+            val entries = mutableListOf<BackupSizeEntry>()
+            val excludedEntries = mutableListOf<String>()
+
+            pluginsDir.listFiles()?.forEach { file ->
+                when {
+                    // 自プラグインのディレクトリは除外
+                    file.name == selfDirName -> excludedEntries.add(file.name)
+                    // .mpmignore ファイル自体は除外
+                    file.name == ".mpmignore" -> excludedEntries.add(file.name)
+                    // ignoreパターンにマッチするエントリは除外
+                    isIgnored(file.name, ignorePatterns) -> excludedEntries.add(file.name)
+                    else -> {
+                        val size = file.totalSizeBytes()
+                        val count = file.fileCount()
+                        entries.add(BackupSizeEntry(name = file.name, sizeBytes = size, fileCount = count))
+                    }
+                }
+            }
+
+            val totalSize = entries.sumOf { it.sizeBytes }
+            val totalCount = entries.sumOf { it.fileCount }
+
+            BackupSizeInfo(
+                totalSizeBytes = totalSize,
+                totalFileCount = totalCount,
+                entries = entries.sortedByDescending { it.sizeBytes },
+                excludedEntries = excludedEntries
+            ).right()
+        } catch (e: Exception) {
+            "サイズ計算に失敗しました: ${e.message}".left()
+        }
+
+    /**
+     * plugins/.mpmignore からignoreパターンを読み込む
+     *
+     * @return パターンのリスト（コメント・空行を除く）
+     */
+    override fun readIgnorePatterns(): List<String> {
+        val ignoreFile = File(pluginDirectory.getPluginsDirectory(), ".mpmignore")
+        if (!ignoreFile.exists()) return emptyList()
+        return ignoreFile
+            .readLines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+    }
+
+    /**
+     * ファイル名がignoreパターンのいずれかにマッチするか判定する
+     *
+     * パターン記法:
+     * - `*`  : 任意の文字列（/ を除く）にマッチ
+     * - `?`  : 任意の1文字にマッチ
+     * - その他: 完全一致
+     *
+     * @param name 判定するファイル・ディレクトリ名
+     * @param patterns ignoreパターンのリスト
+     * @return いずれかのパターンにマッチする場合はtrue
+     */
+    private fun isIgnored(
+        name: String,
+        patterns: List<String>
+    ): Boolean = patterns.any { pattern -> globMatches(pattern, name) }
+
+    /**
+     * 単純なglobパターンマッチングを行う
+     * `*` は任意の文字列、`?` は任意の1文字に対応する
+     *
+     * @param pattern globパターン
+     * @param name マッチ対象の文字列
+     * @return マッチする場合はtrue
+     */
+    private fun globMatches(
+        pattern: String,
+        name: String
+    ): Boolean {
+        // パターンをRegexに変換（* → .*, ? → .）
+        val regex =
+            buildString {
+                for (ch in pattern) {
+                    when (ch) {
+                        '*' -> append(".*")
+                        '?' -> append(".")
+                        '.', '(', ')', '[', ']', '{', '}', '^', '$', '+', '|', '\\' -> {
+                            append('\\')
+                            append(ch)
+                        }
+                        else -> append(ch)
+                    }
+                }
+            }
+        return Regex("^$regex$").matches(name)
+    }
+
+    /**
+     * ファイルまたはディレクトリの合計バイト数を返す
+     */
+    private fun File.totalSizeBytes(): Long =
+        if (isFile) {
+            length()
+        } else {
+            walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        }
+
+    /**
+     * ファイルまたはディレクトリ内のファイル数を返す
+     */
+    private fun File.fileCount(): Int =
+        if (isFile) {
+            1
+        } else {
+            walkTopDown().count { it.isFile }
+        }
 }
