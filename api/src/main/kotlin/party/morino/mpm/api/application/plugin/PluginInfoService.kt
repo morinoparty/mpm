@@ -12,9 +12,9 @@
 package party.morino.mpm.api.application.plugin
 
 import arrow.core.Either
-import party.morino.mpm.api.application.model.OutdatedCheckResult
-import party.morino.mpm.api.application.model.OutdatedInfo
 import party.morino.mpm.api.application.model.PluginFilter
+import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
+import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionDetail

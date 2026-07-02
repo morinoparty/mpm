@@ -10,6 +10,7 @@
 package party.morino.mpm.api.domain.config.model
 
 import kotlinx.serialization.Serializable
+import party.morino.mpm.api.domain.config.model.webhook.WebhookConfig
 
 /**
  * グローバル設定

@@ -10,7 +10,7 @@
 package party.morino.mpm.infrastructure.mineauth.model
 
 import kotlinx.serialization.Serializable
-import party.morino.mpm.api.application.model.InstallResult
+import party.morino.mpm.api.application.model.install.InstallResult
 
 /**
  * プラグインインストール結果レスポンス

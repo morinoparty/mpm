@@ -15,6 +15,7 @@ kaml = "0.77.1"
 ktlint = "14.2.0"
 arrow = "2.2.3"
 cronUtils = "9.2.1"
+allure = "2.35.3"
 
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
@@ -52,6 +53,9 @@ mock-bukkit = { group = "com.github.seeseemelk", name = "MockBukkit-v1.20", vers
 
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit" }
+
+# Allureレポート用（JUnit5の実行結果をallure-resultsとして出力する）
+allure-junit5 = { group = "io.qameta.allure", name = "allure-junit5", version.ref = "allure" }
 
 koin-test = { group = "io.insert-koin", name = "koin-test", version.ref = "koin" }
 koin-test-junit5 = { group = "io.insert-koin", name = "koin-test-junit5", version.ref = "koin" }

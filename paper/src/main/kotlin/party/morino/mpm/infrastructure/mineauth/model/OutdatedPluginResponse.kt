@@ -10,7 +10,7 @@
 package party.morino.mpm.infrastructure.mineauth.model
 
 import kotlinx.serialization.Serializable
-import party.morino.mpm.api.application.model.OutdatedInfo
+import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 
 /**
  * 更新可能プラグインの情報レスポンス
