@@ -277,41 +277,24 @@ jobs:
         run: |
           cat  << EOF > comment.md
           ## 🚀 Preview of ${{ github.event.repository.name }}
-          This preview file are availalble for 7 days. (until $LIMIT_TIME)
-          <table>
-            <tr>
-              <th scope="row">📖 Documentation Preview</th>
-              <td><a href="$DOCS_PREVIEW_URL">$DOCS_PREVIEW_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">📦 Preview Jars Bukkit</th>
-              <td><a href="$ARTIFACT_URL">$ARTIFACT_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🔌 Preview Jars API</th>
-              <td><a href="$ARTIFACT_URL_API">$ARTIFACT_URL_API</a></td>
-            </tr>
-            <tr>
-              <th scope="row">📖 Dokka API Documentation</th>
-              <td><a href="$DOKKA_URL">$DOKKA_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🧪 JUnit Report</th>
-              <td><a href="$JUNIT_REPORT_URL">$JUNIT_REPORT_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🧪 Allure Report</th>
-              <td><a href="$ALLURE_REPORT_URL">$ALLURE_REPORT_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🔍 Detekt Report</th>
-              <td><a href="$DETEKT_REPORT_URL">$DETEKT_REPORT_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">📜 Attestation</th>
-              <td><a href="$ATTESTATION_URL">Verify on GitHub</a> or run <code>gh attestation verify &lt;jar-file&gt; --owner morinoparty</code></td>
-            </tr>
-          </table>
+
+          ### 📦 Preview JARs
+          | Artifact | Download |
+          |----------|----------|
+          | Bukkit (Paper) | [$ARTIFACT_URL]($ARTIFACT_URL) |
+          | API | [$ARTIFACT_URL_API]($ARTIFACT_URL_API) |
+
+          > 📜 **Attestation** (SLSA provenance): [Verify on GitHub]($ATTESTATION_URL) or run \`gh attestation verify <jar-file> --owner morinoparty\`
+
+          ### 📖 Documentation & Reports
+          Available for 7 days (until $LIMIT_TIME)
+          | Resource | Link |
+          |----------|------|
+          | 📖 Documentation | [Preview]($DOCS_PREVIEW_URL) |
+          | 📖 Dokka API | [Preview]($DOKKA_URL) |
+          | 🧪 Allure Report | [Report]($ALLURE_REPORT_URL) |
+          | 🧪 JUnit Report | [Report]($JUNIT_REPORT_URL) |
+          | 🔍 Detekt Report | [Report]($DETEKT_REPORT_URL) |
 
           ### 🧪 Test Summary
           | Tests | Passed | Skipped | Failed |
