@@ -1,5 +1,5 @@
 {
     "title": "コマンド",
     "description": "mpmのコマンドを実行する方法を紹介します",
-    "pages": ["index", "...plugin-management", "repo", "backup", "dependency"]
+    "pages": ["index", "plugin-management", "repo", "backup", "dependency"]
 }
