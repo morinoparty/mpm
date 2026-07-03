@@ -45,7 +45,8 @@ jobs:
         with:
           publish: false
           footer: |
-            
+
+
             ## Check summary
             
             <table>
