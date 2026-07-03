@@ -56,6 +56,14 @@ jobs:
         continue-on-error: true
         run: ./gradlew build
 
+      # Attestationは実際に配布されるファイル名を署名対象にする必要があるため、
+      # attest/upload工程より前にビルド成果物を最終的なファイル名へリネームしておく
+      - name: Rename JAR artifacts
+        if: steps.build.outcome == 'success'
+        run: |
+          mv paper/build/libs/paper-*-all.jar paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+          mv api/build/libs/api-*.jar api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
+
       - name: Install Allure CLI
         if: success() || failure()
         run: |
@@ -93,8 +101,8 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            paper/build/libs/paper-*-all.jar
-            api/build/libs/api-*.jar
+            paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+            api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
 
       - name: Upload JAR artifacts
         uses: actions/upload-artifact@v7
@@ -102,8 +110,8 @@ jobs:
           name: jar-artifacts
           retention-days: 1
           path: |
-            paper/build/libs/paper-*-all.jar
-            api/build/libs/api-*.jar
+            paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+            api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
             paper/build/reports/tests/test/
             build/reports/detekt/
             build/allure-report/
@@ -220,9 +228,9 @@ jobs:
           mkdir -p ./upload/dokka
           mkdir -p ./upload/allure
 
-          # JAR artifacts
-          mv artifacts/jar-artifacts/paper/build/libs/paper-*-all.jar ./upload/jars/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar || true
-          mv artifacts/jar-artifacts/api/build/libs/api-*.jar ./upload/jars/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar || true
+          # JAR artifacts（build-jarジョブで既にAttestation対象のファイル名へリネーム済みのため、そのまま配置する）
+          mv artifacts/jar-artifacts/paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
+          mv artifacts/jar-artifacts/api/build/libs/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
           cp -r artifacts/jar-artifacts/paper/build/reports/tests/test/* ./upload/junit/ || true
           cp -r artifacts/jar-artifacts/build/reports/detekt/* ./upload/detekt/ || true
           cp -r artifacts/jar-artifacts/build/allure-report/* ./upload/allure/ || true
@@ -261,6 +269,8 @@ jobs:
 
       - name: Create comment file
         env:
+          ARTIFACT_NAME: "${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar"
+          ARTIFACT_NAME_API: "${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_URL_API: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar"
           JUNIT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/junit/index.html"
@@ -281,8 +291,8 @@ jobs:
           ### 📦 Preview JARs
           | Artifact | Download |
           |----------|----------|
-          | Bukkit (Paper) | [$ARTIFACT_URL]($ARTIFACT_URL) |
-          | API | [$ARTIFACT_URL_API]($ARTIFACT_URL_API) |
+          | Bukkit (Paper) | [$ARTIFACT_NAME]($ARTIFACT_URL) |
+          | API | [$ARTIFACT_NAME_API]($ARTIFACT_URL_API) |
 
           > 📜 **Attestation** (SLSA provenance): [Verify on GitHub]($ATTESTATION_URL) or run \`gh attestation verify <jar-file> --owner morinoparty\`
 
