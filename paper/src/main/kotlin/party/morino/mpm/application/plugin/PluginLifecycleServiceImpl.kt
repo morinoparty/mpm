@@ -27,8 +27,6 @@ import party.morino.mpm.api.application.model.install.PluginInstallInfo
 import party.morino.mpm.api.application.model.install.PluginRemovalInfo
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
-import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -75,7 +73,10 @@ class PluginLifecycleServiceImpl :
     private val metadataManager: PluginMetadataManager by inject()
     private val plugin: JavaPlugin by inject()
     private val infoService: PluginInfoService by inject()
-    private val apiVersionChecker: ApiVersionChecker by inject()
+
+    // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
+    // PluginUpdateServiceImpl と共有し、検証ロジックの重複・乖離を防ぐ
+    private val pluginInstallValidator: PluginInstallValidator by inject()
 
     /**
      * プラグインを管理対象に追加する
@@ -442,90 +443,24 @@ class PluginLifecycleServiceImpl :
         }
 
         // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
-        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
-        when (compatibilityResult) {
-            is CompatibilityResult.Incompatible -> {
-                if (!force) {
-                    downloadedFile.delete()
-                    return MpmError.PluginError
-                        .ApiVersionIncompatible(
-                            pluginName,
-                            compatibilityResult.pluginApiVersion,
-                            compatibilityResult.serverApiVersion
-                        ).left()
-                }
-                plugin.logger.warning(
-                    "api-version incompatible ($pluginName): " +
-                        "plugin=${compatibilityResult.pluginApiVersion}, " +
-                        "server=${compatibilityResult.serverApiVersion}. Forced install."
-                )
+        // 検証ロジックはPluginUpdateServiceImplと共通のPluginInstallValidatorに集約されている
+        when (val validationResult = pluginInstallValidator.validate(downloadedFile, pluginName, force)) {
+            is PluginInstallValidationResult.ApiVersionIncompatible -> {
+                downloadedFile.delete()
+                return MpmError.PluginError
+                    .ApiVersionIncompatible(
+                        pluginName,
+                        validationResult.pluginApiVersion,
+                        validationResult.serverApiVersion
+                    ).left()
             }
-            is CompatibilityResult.Unknown -> {
-                plugin.logger.warning(
-                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
-                )
+            is PluginInstallValidationResult.MissingDependencies -> {
+                downloadedFile.delete()
+                val message = "必須依存プラグインが不足しています: ${validationResult.missingDependencies.joinToString(", ")}"
+                return MpmError.PluginError.InstallFailed(pluginName, message).left()
             }
-            is CompatibilityResult.Compatible -> {
-                // 互換性あり
-            }
-        }
-
-        // 必須依存関係のチェック（破損JARでも例外を握りつぶしてスキップする）
-        val pluginData =
-            try {
-                PluginDataUtils.getPluginData(downloadedFile)
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
-                null
-            }
-        if (pluginData != null) {
-            val requiredDeps =
-                when (pluginData) {
-                    is PluginData.BukkitPluginData -> pluginData.depend
-                    is PluginData.PaperPluginData -> pluginData.depend
-                }
-            if (requiredDeps.isNotEmpty()) {
-                val project = projectRepository.find()
-                val managedPlugins =
-                    project
-                        ?.plugins
-                        ?.keys
-                        ?.map { it.value }
-                        ?.toSet()
-                        .orEmpty()
-                val pluginsDir = pluginDirectory.getPluginsDirectory()
-                val installedPluginNames =
-                    pluginsDir
-                        .listFiles { f ->
-                            f.isFile && f.extension == "jar"
-                        }?.mapNotNull { jar ->
-                            try {
-                                val data = PluginDataUtils.getPluginData(jar)
-                                when (data) {
-                                    is PluginData.BukkitPluginData -> data.name
-                                    is PluginData.PaperPluginData -> data.name
-                                    null -> null
-                                }
-                            } catch (_: Exception) {
-                                null
-                            }
-                        }?.toSet()
-                        .orEmpty()
-
-                val missingDeps =
-                    requiredDeps.filter { dep ->
-                        !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
-                    }
-                if (missingDeps.isNotEmpty()) {
-                    val message = "必須依存プラグインが不足しています: ${missingDeps.joinToString(", ")}"
-                    if (!force) {
-                        downloadedFile.delete()
-                        return MpmError.PluginError.InstallFailed(pluginName, message).left()
-                    }
-                    plugin.logger.warning("$pluginName: $message (forced install)")
-                }
+            is PluginInstallValidationResult.Valid -> {
+                // 検証成功。後続のファイル配置処理へ進む
             }
         }
 

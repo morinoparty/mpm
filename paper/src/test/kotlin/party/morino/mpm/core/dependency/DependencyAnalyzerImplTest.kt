@@ -105,7 +105,10 @@ class DependencyAnalyzerImplTest : KoinComponent {
     fun testCheckMissingDependenciesReturnsEmptyWhenAllSatisfied() {
         val result = dependencyAnalyzer.checkMissingDependencies("MinecraftPluginManager")
 
-        assertTrue(result.isEmpty() || !result.containsKey("MinecraftPluginManager"))
+        assertTrue(result.isRight(), "Should return Right for existing plugin")
+        result.onRight { missingDeps ->
+            assertTrue(missingDeps.isEmpty() || !missingDeps.containsKey("MinecraftPluginManager"))
+        }
     }
 
     @Test
@@ -122,6 +125,9 @@ class DependencyAnalyzerImplTest : KoinComponent {
     fun testGetReverseDependencies() {
         val result = dependencyAnalyzer.getReverseDependencies("MinecraftPluginManager")
 
-        assertTrue(result.isEmpty(), "MinecraftPluginManager should have no reverse dependencies")
+        assertTrue(result.isRight(), "Should return Right for existing plugin")
+        result.onRight { dependents ->
+            assertTrue(dependents.isEmpty(), "MinecraftPluginManager should have no reverse dependencies")
+        }
     }
 }

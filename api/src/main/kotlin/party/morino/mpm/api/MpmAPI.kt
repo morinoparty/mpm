@@ -9,10 +9,12 @@
 
 package party.morino.mpm.api
 
+import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -96,4 +98,22 @@ interface MpmAPI {
      * @return RepositoryManagerのインスタンス
      */
     fun getRepositoryManager(): RepositoryManager
+
+    /**
+     * 依存関係サービスを取得
+     *
+     * プラグインの依存関係解析やツリー構築を担当するサービス
+     *
+     * @return DependencyServiceのインスタンス
+     */
+    fun getDependencyService(): DependencyService
+
+    /**
+     * サーバーバックアップマネージャーを取得
+     *
+     * プラグインディレクトリのバックアップ作成・復元・管理を担当するマネージャー
+     *
+     * @return ServerBackupManagerのインスタンス
+     */
+    fun getServerBackupManager(): ServerBackupManager
 }

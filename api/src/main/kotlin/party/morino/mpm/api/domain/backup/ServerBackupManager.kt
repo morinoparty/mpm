@@ -16,6 +16,7 @@ import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.backup.BackupSizeInfo
 import party.morino.mpm.api.model.backup.RestoreResult
 import party.morino.mpm.api.model.backup.ServerBackupInfo
+import party.morino.mpm.api.shared.error.MpmError
 
 /**
  * サーバー全体のバックアップを管理するインターフェース
@@ -26,39 +27,39 @@ interface ServerBackupManager {
      * plugins/ディレクトリ全体のバックアップを作成する
      *
      * @param reason バックアップを作成する理由
-     * @return 成功時はServerBackupInfo、失敗時はエラーメッセージ
+     * @return 成功時はServerBackupInfo、失敗時はMpmError.BackupError
      */
-    suspend fun createBackup(reason: BackupReason): Either<String, ServerBackupInfo>
+    suspend fun createBackup(reason: BackupReason): Either<MpmError, ServerBackupInfo>
 
     /**
      * 指定されたバックアップからplugins/ディレクトリをリストアする
      *
      * @param backupId リストアするバックアップのID
-     * @return 成功時はRestoreResult、失敗時はエラーメッセージ
+     * @return 成功時はRestoreResult、失敗時はMpmError.BackupError
      */
-    suspend fun restore(backupId: String): Either<String, RestoreResult>
+    suspend fun restore(backupId: String): Either<MpmError, RestoreResult>
 
     /**
      * 存在するすべてのバックアップの一覧を取得する
      *
-     * @return 成功時はServerBackupInfoのリスト、失敗時はエラーメッセージ
+     * @return 成功時はServerBackupInfoのリスト、失敗時はMpmError.BackupError
      */
-    fun listBackups(): Either<String, List<ServerBackupInfo>>
+    fun listBackups(): Either<MpmError, List<ServerBackupInfo>>
 
     /**
      * 指定されたバックアップを削除する
      *
      * @param backupId 削除するバックアップのID
-     * @return 成功時はUnit、失敗時はエラーメッセージ
+     * @return 成功時はUnit、失敗時はMpmError.BackupError
      */
-    suspend fun deleteBackup(backupId: String): Either<String, Unit>
+    suspend fun deleteBackup(backupId: String): Either<MpmError, Unit>
 
     /**
      * 設定に基づいて古いバックアップを削除する
      *
-     * @return 成功時は削除されたバックアップの数、失敗時はエラーメッセージ
+     * @return 成功時は削除されたバックアップの数、失敗時はMpmError.BackupError
      */
-    suspend fun cleanupOldBackups(): Either<String, Int>
+    suspend fun cleanupOldBackups(): Either<MpmError, Int>
 
     /**
      * バックアップ対象のサイズを計算する
@@ -66,9 +67,9 @@ interface ServerBackupManager {
      * plugins/直下のエントリを列挙し、.mpmignoreパターンと自プラグインフォルダを除いた
      * 合計サイズとファイル数を返す。実際にバックアップを作成せずにサイズを確認できる。
      *
-     * @return 成功時はBackupSizeInfo、失敗時はエラーメッセージ
+     * @return 成功時はBackupSizeInfo、失敗時はMpmError.BackupError
      */
-    fun calculateBackupSize(): Either<String, BackupSizeInfo>
+    fun calculateBackupSize(): Either<MpmError, BackupSizeInfo>
 
     /**
      * .mpmignoreファイルのパターンを読み込む

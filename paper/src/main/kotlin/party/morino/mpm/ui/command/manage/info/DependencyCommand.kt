@@ -87,24 +87,31 @@ class DependencyCommand : KoinComponent {
     ) {
         val pluginName = plugin?.pluginId
 
-        val missingDeps = dependencyAnalyzer.checkMissingDependencies(pluginName)
+        dependencyAnalyzer.checkMissingDependencies(pluginName).fold(
+            // 失敗時の処理
+            { error ->
+                sender.sendRichMessage("<red>$error")
+            },
+            // 成功時の処理
+            { missingDeps ->
+                if (missingDeps.isEmpty()) {
+                    if (pluginName != null) {
+                        sender.sendRichMessage("<green>$pluginName の依存関係は全て満たされています。")
+                    } else {
+                        sender.sendRichMessage("<green>全プラグインの依存関係が満たされています。")
+                    }
+                    return@fold
+                }
 
-        if (missingDeps.isEmpty()) {
-            if (pluginName != null) {
-                sender.sendRichMessage("<green>$pluginName の依存関係は全て満たされています。")
-            } else {
-                sender.sendRichMessage("<green>全プラグインの依存関係が満たされています。")
+                sender.sendRichMessage("<yellow>不足している依存関係:")
+                for ((plugin, deps) in missingDeps) {
+                    sender.sendRichMessage("<red>$plugin:")
+                    for (dep in deps) {
+                        sender.sendRichMessage("<red>  - $dep")
+                    }
+                }
             }
-            return
-        }
-
-        sender.sendRichMessage("<yellow>不足している依存関係:")
-        for ((plugin, deps) in missingDeps) {
-            sender.sendRichMessage("<red>$plugin:")
-            for (dep in deps) {
-                sender.sendRichMessage("<red>  - $dep")
-            }
-        }
+        )
     }
 
     /**
@@ -118,17 +125,25 @@ class DependencyCommand : KoinComponent {
         plugin: InstalledPlugin
     ) {
         val pluginName = plugin.pluginId
-        val dependents = dependencyAnalyzer.getReverseDependencies(pluginName)
 
-        if (dependents.isEmpty()) {
-            sender.sendRichMessage("<gray>$pluginName に依存しているプラグインはありません。")
-            return
-        }
+        dependencyAnalyzer.getReverseDependencies(pluginName).fold(
+            // 失敗時の処理
+            { error ->
+                sender.sendRichMessage("<red>$error")
+            },
+            // 成功時の処理
+            { dependents ->
+                if (dependents.isEmpty()) {
+                    sender.sendRichMessage("<gray>$pluginName に依存しているプラグインはありません。")
+                    return@fold
+                }
 
-        sender.sendRichMessage("<yellow>$pluginName に依存しているプラグイン:")
-        for (dependent in dependents) {
-            sender.sendRichMessage("<white>  - $dependent")
-        }
+                sender.sendRichMessage("<yellow>$pluginName に依存しているプラグイン:")
+                for (dependent in dependents) {
+                    sender.sendRichMessage("<white>  - $dependent")
+                }
+            }
+        )
     }
 
     /**

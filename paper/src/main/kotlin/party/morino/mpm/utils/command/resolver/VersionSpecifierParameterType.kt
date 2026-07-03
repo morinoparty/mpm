@@ -11,6 +11,7 @@ package party.morino.mpm.utils.command.resolver
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -37,6 +38,11 @@ class VersionSpecifierParameterType :
     // PluginInfoServiceをKoinから注入
     private val infoService: PluginInfoService by inject()
     private val plugin: JavaPlugin by inject()
+
+    companion object {
+        // TAB補完が上流リポジトリの応答待ちで長時間ブロックしないためのタイムアウト
+        private const val SUGGESTION_TIMEOUT_MILLIS = 2000L
+    }
 
     /**
      * コマンド引数からVersionSpecifierを解析する
@@ -67,14 +73,17 @@ class VersionSpecifierParameterType :
                 return@SuggestionProvider repoPlugin?.let {
                     // プラグインの利用可能なバージョンを取得
                     // getVersions()はsuspend関数のため、Dispatchers.IOで実行
+                    // 上流リポジトリの応答が遅い場合にTAB補完がブロックし続けないよう、タイムアウトを設ける
                     val versions =
                         runBlocking(Dispatchers.IO) {
-                            infoService.getVersions(PluginName(repoPlugin.pluginId)).fold(
-                                // エラーの場合は空リストを返す
-                                { emptyList() },
-                                // 成功した場合はバージョン文字列のリストを返す
-                                { versionDetails -> versionDetails.map { it.raw } }
-                            )
+                            withTimeoutOrNull(SUGGESTION_TIMEOUT_MILLIS) {
+                                infoService.getVersions(PluginName(repoPlugin.pluginId)).fold(
+                                    // エラーの場合は空リストを返す
+                                    { emptyList() },
+                                    // 成功した場合はバージョン文字列のリストを返す
+                                    { versionDetails -> versionDetails.map { it.raw } }
+                                )
+                            } ?: emptyList()
                         }
 
                     // バージョン文字列のリスト（新しい順）と"latest"を返す

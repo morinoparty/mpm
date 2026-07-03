@@ -11,6 +11,11 @@ This software is distributed without any warranty.
 
 package party.morino.mpm.api.domain.downloader.model
 
+/**
+ * ダウンロード対象バージョンの情報
+ * @property downloadId ダウンロードURL構築に使うリポジトリ固有の識別子（例: GitHubのrelease id、SpigotMCのバージョンid）
+ * @property version 表示・比較用の人間可読なバージョン文字列（例: タグ名、バージョン名）
+ */
 data class VersionData(
     val downloadId: String,
     val version: String

@@ -35,6 +35,7 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
+import party.morino.mpm.application.plugin.PluginInstallValidator
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
@@ -90,6 +91,8 @@ open class Mpm :
     private val _pluginLifecycleService: PluginLifecycleService by lazy { GlobalContext.get().get() }
     private val _pluginUpdateService: PluginUpdateService by lazy { GlobalContext.get().get() }
     private val _projectService: ProjectService by lazy { GlobalContext.get().get() }
+    private val _dependencyService: DependencyService by lazy { GlobalContext.get().get() }
+    private val _serverBackupManager: ServerBackupManager by lazy { GlobalContext.get().get() }
 
     /**
      * プラグイン有効化時の処理
@@ -216,6 +219,9 @@ open class Mpm :
 
                 // Application Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }
+                // インストール前検証（APIバージョン互換性・依存関係）の共通ロジック
+                // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
+                single { PluginInstallValidator() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
@@ -282,4 +288,8 @@ open class Mpm :
     override fun getProjectService(): ProjectService = _projectService
 
     override fun getRepositoryManager(): RepositoryManager = _repositoryManager
+
+    override fun getDependencyService(): DependencyService = _dependencyService
+
+    override fun getServerBackupManager(): ServerBackupManager = _serverBackupManager
 }

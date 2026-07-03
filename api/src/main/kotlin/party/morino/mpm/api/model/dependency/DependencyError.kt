@@ -58,16 +58,4 @@ sealed class DependencyError {
     ) : DependencyError() {
         override fun toString(): String = "$pluginName の読み込みに失敗しました: $reason"
     }
-
-    /**
-     * 逆依存が存在するエラー（アンインストール時）
-     * @property pluginName 削除しようとしているプラグイン名
-     * @property dependents このプラグインに依存しているプラグインのリスト
-     */
-    data class HasDependents(
-        val pluginName: String,
-        val dependents: List<String>
-    ) : DependencyError() {
-        override fun toString(): String = "$pluginName は以下のプラグインから依存されています: ${dependents.joinToString(", ")}"
-    }
 }

@@ -54,7 +54,8 @@ class DependencyServiceImpl :
      * DependencyAnalyzerに委譲
      */
     override fun checkMissingDependencies(pluginName: String?): Map<String, List<String>> =
-        dependencyAnalyzer.checkMissingDependencies(pluginName)
+        // DependencyServiceのシグネチャは変更しないため、未インストール等のエラーは空マップとして扱う
+        dependencyAnalyzer.checkMissingDependencies(pluginName).getOrElse { emptyMap() }
 
     /**
      * 逆依存関係を取得する
@@ -62,7 +63,8 @@ class DependencyServiceImpl :
      * DependencyAnalyzerに委譲
      */
     override fun getReverseDependencies(pluginName: String): List<String> =
-        dependencyAnalyzer.getReverseDependencies(pluginName)
+        // DependencyServiceのシグネチャは変更しないため、未インストール等のエラーは空リストとして扱う
+        dependencyAnalyzer.getReverseDependencies(pluginName).getOrElse { emptyList() }
 
     /**
      * プラグインの依存関係情報を取得する

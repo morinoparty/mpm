@@ -9,6 +9,7 @@
 
 package party.morino.mpm.infrastructure.config
 
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.PluginDirectory
@@ -26,6 +27,7 @@ import java.io.File
 class ConfigManagerImpl : ConfigManager, KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
+    private val plugin: JavaPlugin by inject()
 
     // Volatileでスレッド間の可視性を保証（reload時の変更が即座に他スレッドから見える）
     @Volatile
@@ -70,8 +72,14 @@ class ConfigManagerImpl : ConfigManager, KoinComponent {
         }
 
         val jsonString = configFile.readText()
-        val config = Utils.json.decodeFromString<ConfigData>(jsonString)
-        return config
+        return try {
+            Utils.json.decodeFromString<ConfigData>(jsonString)
+        } catch (e: Exception) {
+            // config.jsonが壊れている/形式が古い場合はプラグイン有効化を中断させず、
+            // デフォルト値にフォールバックして警告を出す
+            plugin.logger.warning("config.jsonの読み込みに失敗しました。デフォルト設定で起動します: ${e.message}")
+            ConfigData()
+        }
     }
 
     /**
@@ -84,6 +92,14 @@ class ConfigManagerImpl : ConfigManager, KoinComponent {
         val configFile = File(rootDir, "config.json")
 
         val jsonString = Utils.json.encodeToString(config)
-        configFile.writeText(jsonString)
+
+        // 書き込み中のクラッシュでconfig.jsonが壊れないよう、一時ファイルに書き込んでから
+        // rename（アトミック）で本体に反映する。renameが失敗した場合はcopy+deleteで代替する
+        val tempFile = File(configFile.parentFile, "${configFile.name}.tmp")
+        tempFile.writeText(jsonString)
+        if (!tempFile.renameTo(configFile)) {
+            tempFile.copyTo(configFile, overwrite = true)
+            tempFile.delete()
+        }
     }
 }

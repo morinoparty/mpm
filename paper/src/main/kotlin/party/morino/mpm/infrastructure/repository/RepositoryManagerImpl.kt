@@ -19,11 +19,17 @@ import java.io.Closeable
  * 複数のリポジトリソースを優先順位順に管理する
  */
 class RepositoryManagerImpl(
+    // Volatileでスレッド間の可視性を保証（reload時の変更がgetAvailablePlugins等の
+    // 並行実行中のcoroutineから即座に見えるようにする、ConfigManagerImplと同じ理由）
+    @Volatile
     private var sources: List<PluginRepositorySource>,
     private val sourceFactory: (() -> List<PluginRepositorySource>)? = null
 ) : RepositoryManager {
-    // キャッシュ用のプロパティ
+    // キャッシュ用のプロパティ（同じ理由でVolatile化）
+    @Volatile
     private var cachedPlugins: List<String>? = null
+
+    @Volatile
     private var cacheExpirationTime: Long = 0
     private val cacheTtlMillis = 180_000L // 3分 = 180秒 = 180,000ミリ秒
 
