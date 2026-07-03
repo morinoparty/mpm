@@ -15,8 +15,18 @@ jobs:
   # Gradle ビルド (JAR + テスト + detekt)
   build-jar:
     runs-on: ubuntu-latest
+    # actions/attest-build-provenance専用の権限をこのjobに限定する（最小権限の原則）
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     outputs:
       commit_sha: ${{ steps.vars.outputs.sha }}
+      test_total: ${{ steps.publish-test-results.outputs.total }}
+      test_passed: ${{ steps.publish-test-results.outputs.passed }}
+      test_skipped: ${{ steps.publish-test-results.outputs.skipped }}
+      test_failed: ${{ steps.publish-test-results.outputs.failed }}
+      attestation_url: ${{ steps.attest.outputs.attestation-url }}
     steps:
       - uses: actions/checkout@v7.0.0
 
@@ -42,8 +52,38 @@ jobs:
           sed -i 's/VersionPlaceholder/$after/' ./gradle.properties
 
       - name: Build with Gradle
+        id: build
         continue-on-error: true
         run: ./gradlew build
+
+      # Attestationは実際に配布されるファイル名を署名対象にする必要があるため、
+      # attest/upload工程より前にビルド成果物を最終的なファイル名へリネームしておく
+      - name: Rename JAR artifacts
+        if: steps.build.outcome == 'success'
+        run: |
+          mv paper/build/libs/paper-*-all.jar paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+          mv api/build/libs/api-*.jar api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
+
+      - name: Install Allure CLI
+        if: success() || failure()
+        run: |
+          curl -sL https://github.com/allure-framework/allure2/releases/download/2.32.2/allure-2.32.2.tgz | tar -xz
+          echo "$PWD/allure-2.32.2/bin" >> $GITHUB_PATH
+
+      - name: Aggregate Allure results
+        if: success() || failure()
+        run: |
+          mkdir -p ./build/allure-results-aggregated
+          # 各モジュールの allure-results を1箇所へ集約する。
+          # 新しいモジュールにテストを追加してもここを編集せずレポートへ自動的に含まれる。
+          find . -type d -path '*/build/allure-results' -not -path '*/allure-results-aggregated/*' | while read -r dir; do
+            cp -a "$dir/." ./build/allure-results-aggregated/ 2>/dev/null || true
+          done
+
+      - name: Generate Allure report
+        if: success() || failure()
+        continue-on-error: true
+        run: allure generate ./build/allure-results-aggregated -o ./build/allure-report --clean
 
       - name: Publish test results
         id: publish-test-results
@@ -52,16 +92,29 @@ jobs:
         with:
           report_paths: './**/build/test-results/test/TEST-*.xml'
 
+      # GitHub Attestations で署名（SLSA build provenance）
+      # Build with GradleがJAR生成前に失敗した場合はsubject-pathが空になりこのstep自体が失敗するため、
+      # continue-on-errorで握りつぶされた実際のビルド結果(steps.build.outcome)で明示的にガードする
+      - name: Attest JAR artifacts
+        id: attest
+        if: steps.build.outcome == 'success'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+            api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
+
       - name: Upload JAR artifacts
         uses: actions/upload-artifact@v7
         with:
           name: jar-artifacts
           retention-days: 1
           path: |
-            paper/build/libs/paper-*-all.jar
-            api/build/libs/api-*.jar
+            paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+            api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
             paper/build/reports/tests/test/
             build/reports/detekt/
+            build/allure-report/
 
   # Dokka ドキュメント生成
   build-dokka:
@@ -173,12 +226,14 @@ jobs:
           mkdir -p ./upload/detekt
           mkdir -p ./upload/docs
           mkdir -p ./upload/dokka
+          mkdir -p ./upload/allure
 
-          # JAR artifacts
-          mv artifacts/jar-artifacts/paper/build/libs/paper-*-all.jar ./upload/jars/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar || true
-          mv artifacts/jar-artifacts/api/build/libs/api-*.jar ./upload/jars/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar || true
+          # JAR artifacts（build-jarジョブで既にAttestation対象のファイル名へリネーム済みのため、そのまま配置する）
+          mv artifacts/jar-artifacts/paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
+          mv artifacts/jar-artifacts/api/build/libs/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
           cp -r artifacts/jar-artifacts/paper/build/reports/tests/test/* ./upload/junit/ || true
           cp -r artifacts/jar-artifacts/build/reports/detekt/* ./upload/detekt/ || true
+          cp -r artifacts/jar-artifacts/build/allure-report/* ./upload/allure/ || true
 
           # Dokka artifacts
           cp -r artifacts/dokka-artifacts/* ./upload/dokka/ || true
@@ -200,6 +255,7 @@ jobs:
           aws s3 cp ./upload/detekt $S3_BASE/detekt $S3_OPTS --recursive &
           aws s3 cp ./upload/dokka $S3_BASE/dokka $S3_OPTS --recursive &
           aws s3 cp ./upload/docs $S3_BASE/docs $S3_OPTS --recursive &
+          aws s3 cp ./upload/allure $S3_BASE/allure $S3_OPTS --recursive &
 
           # 全ての並列アップロードを待機
           wait
@@ -213,43 +269,47 @@ jobs:
 
       - name: Create comment file
         env:
+          ARTIFACT_NAME: "${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar"
+          ARTIFACT_NAME_API: "${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_URL_API: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar"
           JUNIT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/junit/index.html"
+          ALLURE_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/allure/index.html"
           DETEKT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/detekt/detekt.html"
           DOCS_PREVIEW_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/docs/index.html"
           DOKKA_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/dokka/index.html"
+          ATTESTATION_URL: "${{ needs.build-jar.outputs.attestation_url }}"
+          TEST_TOTAL: "${{ needs.build-jar.outputs.test_total }}"
+          TEST_PASSED: "${{ needs.build-jar.outputs.test_passed }}"
+          TEST_SKIPPED: "${{ needs.build-jar.outputs.test_skipped }}"
+          TEST_FAILED: "${{ needs.build-jar.outputs.test_failed }}"
           LIMIT_TIME: ${{ env.LIMIT_TIME }}
         run: |
           cat  << EOF > comment.md
           ## 🚀 Preview of ${{ github.event.repository.name }}
-          This preview file are availalble for 7 days. (until $LIMIT_TIME)
-          <table>
-            <tr>
-              <th scope="row">📖 Documentation Preview</th>
-              <td><a href="$DOCS_PREVIEW_URL">$DOCS_PREVIEW_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">📦 Preview Jars Bukkit</th>
-              <td><a href="$ARTIFACT_URL">$ARTIFACT_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🔌 Preview Jars API</th>
-              <td><a href="$ARTIFACT_URL_API">$ARTIFACT_URL_API</a></td>
-            </tr>
-            <tr>
-              <th scope="row">📖 Dokka API Documentation</th>
-              <td><a href="$DOKKA_URL">$DOKKA_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🧪 JUnit Report</th>
-              <td><a href="$JUNIT_REPORT_URL">$JUNIT_REPORT_URL</a></td>
-            </tr>
-            <tr>
-              <th scope="row">🔍 Detekt Report</th>
-              <td><a href="$DETEKT_REPORT_URL">$DETEKT_REPORT_URL</a></td>
-            </tr>
-          </table>
+
+          ### 📦 Preview JARs
+          | Artifact | Download |
+          |----------|----------|
+          | Bukkit (Paper) | [$ARTIFACT_NAME]($ARTIFACT_URL) |
+          | API | [$ARTIFACT_NAME_API]($ARTIFACT_URL_API) |
+
+          > 📜 **Attestation** (SLSA provenance): [Verify on GitHub]($ATTESTATION_URL) or run \`gh attestation verify <jar-file> --owner morinoparty\`
+
+          ### 📖 Documentation & Reports
+          Available for 7 days (until $LIMIT_TIME)
+          | Resource | Link |
+          |----------|------|
+          | 📖 Documentation | [Preview]($DOCS_PREVIEW_URL) |
+          | 📖 Dokka API | [Preview]($DOKKA_URL) |
+          | 🧪 Allure Report | [Report]($ALLURE_REPORT_URL) |
+          | 🧪 JUnit Report | [Report]($JUNIT_REPORT_URL) |
+          | 🔍 Detekt Report | [Report]($DETEKT_REPORT_URL) |
+
+          ### 🧪 Test Summary
+          | Tests | Passed | Skipped | Failed |
+          |-------|--------|---------|--------|
+          | $TEST_TOTAL | $TEST_PASSED ✅ | $TEST_SKIPPED ⏭️ | $TEST_FAILED ❌ |
           EOF
 
       - name: Create PR comment

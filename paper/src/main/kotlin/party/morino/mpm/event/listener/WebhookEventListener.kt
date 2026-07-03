@@ -16,13 +16,13 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
-import party.morino.mpm.event.PluginInstallEvent
-import party.morino.mpm.event.PluginLockEvent
-import party.morino.mpm.event.PluginOutdatedEvent
-import party.morino.mpm.event.PluginRemoveEvent
-import party.morino.mpm.event.PluginUninstallEvent
-import party.morino.mpm.event.PluginUnlockEvent
-import party.morino.mpm.event.PluginUpdateEvent
+import party.morino.mpm.event.lifecycle.PluginInstallEvent
+import party.morino.mpm.event.lifecycle.PluginRemoveEvent
+import party.morino.mpm.event.lifecycle.PluginUninstallEvent
+import party.morino.mpm.event.state.PluginLockEvent
+import party.morino.mpm.event.state.PluginOutdatedEvent
+import party.morino.mpm.event.state.PluginUnlockEvent
+import party.morino.mpm.event.state.PluginUpdateEvent
 
 /**
  * プラグイン管理イベントをDiscord Webhookに転送するリスナー

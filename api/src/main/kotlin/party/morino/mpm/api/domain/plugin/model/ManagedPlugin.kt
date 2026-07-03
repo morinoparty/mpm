@@ -15,15 +15,15 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
-import party.morino.mpm.api.domain.plugin.dto.HistoryEntryDto
 import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.dto.MetadataDownloadInfoDto
 import party.morino.mpm.api.domain.plugin.dto.MpmInfoDto
 import party.morino.mpm.api.domain.plugin.dto.PluginInfoDto
-import party.morino.mpm.api.domain.plugin.dto.PluginSettings
 import party.morino.mpm.api.domain.plugin.dto.RepositoryInfo
-import party.morino.mpm.api.domain.plugin.dto.VersionDetailDto
-import party.morino.mpm.api.domain.plugin.dto.VersionManagementDto
+import party.morino.mpm.api.domain.plugin.dto.settings.PluginSettings
+import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
+import party.morino.mpm.api.domain.plugin.dto.version.VersionDetailDto
+import party.morino.mpm.api.domain.plugin.dto.version.VersionManagementDto
 import party.morino.mpm.api.shared.error.MpmError
 
 /**

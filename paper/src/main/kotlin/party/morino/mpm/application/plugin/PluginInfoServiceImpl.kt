@@ -18,10 +18,10 @@ import arrow.core.right
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.model.OutdatedCheckResult
-import party.morino.mpm.api.application.model.OutdatedInfo
-import party.morino.mpm.api.application.model.PluginCheckError
 import party.morino.mpm.api.application.model.PluginFilter
+import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
+import party.morino.mpm.api.application.model.outdated.OutdatedInfo
+import party.morino.mpm.api.application.model.outdated.PluginCheckError
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -35,7 +35,7 @@ import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
-import party.morino.mpm.event.PluginOutdatedEvent
+import party.morino.mpm.event.state.PluginOutdatedEvent
 import party.morino.mpm.utils.BukkitDispatcher
 
 /**
