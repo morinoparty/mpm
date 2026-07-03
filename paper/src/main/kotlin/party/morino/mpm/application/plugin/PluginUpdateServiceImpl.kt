@@ -20,11 +20,11 @@ import kotlinx.coroutines.sync.Mutex
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.model.BulkInstallResult
-import party.morino.mpm.api.application.model.InstallResult
-import party.morino.mpm.api.application.model.PluginInstallInfo
-import party.morino.mpm.api.application.model.PluginRemovalInfo
 import party.morino.mpm.api.application.model.UpdateResult
+import party.morino.mpm.api.application.model.install.BulkInstallResult
+import party.morino.mpm.api.application.model.install.InstallResult
+import party.morino.mpm.api.application.model.install.PluginInstallInfo
+import party.morino.mpm.api.application.model.install.PluginRemovalInfo
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
@@ -50,10 +50,10 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
-import party.morino.mpm.event.PluginInstallEvent
-import party.morino.mpm.event.PluginLockEvent
-import party.morino.mpm.event.PluginUnlockEvent
-import party.morino.mpm.event.PluginUpdateEvent
+import party.morino.mpm.event.lifecycle.PluginInstallEvent
+import party.morino.mpm.event.state.PluginLockEvent
+import party.morino.mpm.event.state.PluginUnlockEvent
+import party.morino.mpm.event.state.PluginUpdateEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.PluginDataUtils
@@ -67,6 +67,11 @@ import java.io.File
 class PluginUpdateServiceImpl :
     PluginUpdateService,
     KoinComponent {
+    companion object {
+        // ロック中プラグインをスキップした際の共通エラーメッセージ
+        private const val LOCKED_ERROR_MESSAGE = "プラグインがロックされています"
+    }
+
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
     private val projectRepository: ProjectRepository by inject()
@@ -195,7 +200,7 @@ class PluginUpdateServiceImpl :
                         oldVersion = outdatedInfo.currentVersion,
                         newVersion = outdatedInfo.latestVersion,
                         success = false,
-                        errorMessage = "プラグインがロックされています"
+                        errorMessage = LOCKED_ERROR_MESSAGE
                     )
                 )
                 continue
@@ -400,6 +405,8 @@ class PluginUpdateServiceImpl :
 
         // インストールが必要なプラグインを検出
         val pluginsToInstall = mutableListOf<String>()
+        // ロック中のため更新をスキップしたプラグイン（executeUpdateと同様にlockを尊重する）
+        val lockedSkipped = mutableListOf<String>()
         for (pluginName in sortedPlugins) {
             val expectedVersion = mpmConfig.plugins[pluginName] ?: continue
             if (expectedVersion == "unmanaged") continue
@@ -410,7 +417,8 @@ class PluginUpdateServiceImpl :
             // インストールが必要かを判定
             // latestとtag:は動的にバージョンが決まるため、installPluginWithVersionに委譲する
             val isDynamic = expectedVersion == "latest" || VersionSpecifierParser.isTagFormat(expectedVersion)
-            val shouldInstall =
+            val isLocked = metadataResult.fold({ false }, { it.mpmInfo.settings.lock == true })
+            val needsUpdate =
                 metadataResult.fold(
                     { true }, // メタデータなし → インストール必要
                     { metadata ->
@@ -418,6 +426,12 @@ class PluginUpdateServiceImpl :
                         isDynamic || metadata.mpmInfo.version.current.raw != resolvedVersion
                     }
                 )
+
+            // ロック中のプラグインは上書きせずスキップする（mpm.jsonのバージョン変更を無視）
+            if (isLocked && needsUpdate) {
+                lockedSkipped.add(pluginName)
+            }
+            val shouldInstall = needsUpdate && !isLocked
 
             // 解決済みバージョンを記録（Sync以外のプラグイン）
             if (!VersionSpecifierParser.isSyncFormat(expectedVersion)) {
@@ -435,12 +449,19 @@ class PluginUpdateServiceImpl :
         val installed = mutableListOf<PluginInstallInfo>()
         val removed = mutableListOf<PluginRemovalInfo>()
         val failed = mutableMapOf<String, String>()
+        // ロックによりスキップしたプラグインもfailedとして報告する（executeUpdateのUpdateResultと同様の扱い）
+        lockedSkipped.forEach { failed[it] = LOCKED_ERROR_MESSAGE }
 
         // 各プラグインをトポロジカルソート順にインストール
         for (pluginName in sortedPlugins) {
             val versionString = mpmConfig.plugins[pluginName] ?: continue
 
             if (pluginName !in pluginsToInstall) {
+                // ロックによりスキップした場合は検出ループで実インストール済みバージョンを記録済みのため、
+                // mpm.json上の未インストールターゲットバージョンで上書きしない（Sync解決の破損を防ぐ）
+                if (pluginName in lockedSkipped) {
+                    continue
+                }
                 // インストール不要でもバージョンを記録（後続のSyncプラグインのため）
                 if (versionString != "unmanaged" && !VersionSpecifierParser.isSyncFormat(versionString)) {
                     resolvedVersions[pluginName] = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
@@ -629,7 +650,7 @@ class PluginUpdateServiceImpl :
                         oldVersion = currentVersion,
                         newVersion = "sync",
                         success = false,
-                        errorMessage = "プラグインがロックされています"
+                        errorMessage = LOCKED_ERROR_MESSAGE
                     )
                 )
                 continue

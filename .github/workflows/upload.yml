@@ -4,6 +4,11 @@ on:
   release:
     types: [ published ]
 
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,6 +34,13 @@ jobs:
       - name: Rename jar
         run: mv ./paper/build/libs/paper-*-all.jar ./mpm_${{ github.event.release.tag_name }}.jar
 
+      # GitHub Attestations で署名（SLSA build provenance）
+      - name: Attest JAR artifacts
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ./mpm_${{ github.event.release.tag_name }}.jar
+
       - uses: Kir-Antipov/mc-publish@v3.3
         with:
           modrinth-id: txv68jS0
@@ -47,3 +59,16 @@ jobs:
           game-version-filter: releases
           java: |
             21
+
+      # リリースノートにAttestationの検証リンクを追記する（利用者がリリースページから直接検証できるように）
+      - name: Append attestation link to release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATTESTATION_URL: ${{ steps.attest.outputs.attestation-url }}
+        run: |
+          current_notes=$(gh release view "${{ github.event.release.tag_name }}" --json body -q .body)
+          if [[ "$current_notes" != *"$ATTESTATION_URL"* ]]; then
+            printf '%s\n\n---\n📜 **Attestation** (SLSA provenance): [Verify on GitHub](%s) or run `gh attestation verify <jar-file> --owner morinoparty`\n' \
+              "$current_notes" "$ATTESTATION_URL" > notes.md
+            gh release edit "${{ github.event.release.tag_name }}" --notes-file notes.md
+          fi

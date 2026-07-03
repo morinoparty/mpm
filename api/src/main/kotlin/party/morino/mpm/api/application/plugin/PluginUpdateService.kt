@@ -12,8 +12,8 @@
 package party.morino.mpm.api.application.plugin
 
 import arrow.core.Either
-import party.morino.mpm.api.application.model.BulkInstallResult
 import party.morino.mpm.api.application.model.UpdateResult
+import party.morino.mpm.api.application.model.install.BulkInstallResult
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.shared.error.MpmError
 

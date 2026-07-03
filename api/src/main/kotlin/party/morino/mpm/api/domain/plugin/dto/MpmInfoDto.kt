@@ -12,6 +12,9 @@
 package party.morino.mpm.api.domain.plugin.dto
 
 import kotlinx.serialization.Serializable
+import party.morino.mpm.api.domain.plugin.dto.settings.PluginSettings
+import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
+import party.morino.mpm.api.domain.plugin.dto.version.VersionManagementDto
 
 @Serializable
 data class MpmInfoDto(
