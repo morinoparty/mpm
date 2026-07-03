@@ -46,7 +46,7 @@ allprojects {
         debug.set(true)
         ignoreFailures.set(true)
         filter {
-            include("app/**")
+            include("paper/**")
             include("api/**")
             exclude("**/config/**")
         }
@@ -92,7 +92,7 @@ dokka {
 detekt {
     // The directories where detekt looks for source files.
     // Defaults to `files("src/main/java", "src/test/java", "src/main/kotlin", "src/test/kotlin")`.
-    source.setFrom("api/src/main/java", "api/src/main/kotlin", "app/src/main/java", "app/src/main/kotlin")
+    source.setFrom("api/src/main/java", "api/src/main/kotlin", "paper/src/main/java", "paper/src/main/kotlin")
 
     // Builds the AST in parallel. Rules are always executed in parallel.
     // Can lead to speedups in larger projects. `false` by default.

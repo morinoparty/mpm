@@ -25,7 +25,7 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.ConfigManager
-import party.morino.mpm.api.domain.config.model.WebhookEvents
+import party.morino.mpm.api.domain.config.model.webhook.WebhookEvents
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.infrastructure.webhook.model.DiscordEmbed

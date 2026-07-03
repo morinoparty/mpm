@@ -152,6 +152,32 @@
             "description": "新しいバージョンがあるプラグインを更新します"
         },
         {
+            "command": "mpm pin <plugin>",
+            "status": "newly",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "プラグインのバージョン指定（latest/tag等）を、現在インストール済みの実バージョンに固定します。sync指定のプラグインは固定できません",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "command": "mpm pin-all [[--dry-run]]",
+            "status": "newly",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "すべての管理下プラグインを現在インストール済みのバージョンに一括固定します。sync指定のプラグインは対象から除外されます",
+            "arguments": [
+                {
+                    "name": "--dry-run",
+                    "required": false
+                }
+            ]
+        },
+        {
             "command": "mpm lock <plugin>",
             "status": "newly",
             "category": "manage",

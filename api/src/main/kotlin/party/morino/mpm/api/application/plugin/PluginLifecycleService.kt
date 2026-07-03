@@ -12,9 +12,9 @@
 package party.morino.mpm.api.application.plugin
 
 import arrow.core.Either
-import party.morino.mpm.api.application.model.AddWithDependenciesResult
-import party.morino.mpm.api.application.model.AdoptResult
-import party.morino.mpm.api.application.model.InstallResult
+import party.morino.mpm.api.application.model.add.AddWithDependenciesResult
+import party.morino.mpm.api.application.model.add.AdoptResult
+import party.morino.mpm.api.application.model.install.InstallResult
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
