@@ -161,7 +161,7 @@ GitHubは `prerelease` の2値（true/false）しか持たないため、`tag:be
 - 同期対象プラグインは `mpm.json` に存在する必要があります
 - 同期の連鎖（sync:A → sync:B）はサポートされていません
 - 循環依存（A → B → A）は検出されエラーになります
-- `sync:` 指定のプラグインは [`mpm pin` / `mpm pin-all`](/docs/commands/manage) で固定できません（固定すると同期関係が壊れるため、対象から除外されます）
+- `sync:` 指定のプラグインは [`mpm pin` / `mpm pin-all`](/docs/commands/plugin-management/lifecycle) で固定できません（固定すると同期関係が壊れるため、対象から除外されます）
 
 <Callout type="info" title="ユースケース">
 QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで特に便利です。
