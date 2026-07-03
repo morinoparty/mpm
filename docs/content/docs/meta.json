@@ -1,16 +1,16 @@
 {
-    "title": "MPM Documentation",
+    "title": "mpm ドキュメント",
     "pages": [
         "index",
-        "---Usage---",
+        "---使い方---",
         "...usage",
-        "---Commands---",
+        "---コマンド---",
         "...commands",
-        "---File Format---",
+        "---ファイル形式---",
         "...format",
         "---API---",
         "...api",
-        "---Utilities---",
+        "---ユーティリティ---",
         "...utils"
     ]
 }

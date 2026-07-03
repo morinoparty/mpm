@@ -1,0 +1,5 @@
+{
+    "title": "プラグイン",
+    "description": "プラグインのライフサイクル管理と情報操作に関するコマンドです",
+    "pages": ["lifecycle", "operations"]
+}
