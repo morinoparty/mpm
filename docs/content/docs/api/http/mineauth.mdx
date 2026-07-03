@@ -1,0 +1,140 @@
+---
+title: MineAuth Integration
+description: MineAuthが導入されている場合に有効化されるmpmのHTTP APIについて
+---
+
+mpmは、認証基盤プラグイン[MineAuth](https://github.com/morinoparty/MineAuth)が同じサーバーに導入されている場合、
+プラグイン管理機能をHTTP API経由で操作できるように自動的にエンドポイントを登録します。
+
+:::info
+MineAuthはsoft dependencyとして扱われます。MineAuthが導入されていないサーバーでは連携機能が無効化されるだけで、
+mpm自体の動作には一切影響しません。
+:::
+
+## 有効化の仕組み
+
+サーバー起動時、mpmは以下の順序でMineAuthとの連携を試みます。
+
+1. `MineAuth` プラグインがサーバーに存在するか確認する
+2. 存在する場合、`MineAuthAPI` を実装しているか確認する
+3. 両方を満たす場合のみ、mpmのハンドラーをMineAuthに登録する
+
+いずれかの条件を満たさない場合や、バージョン不整合などで例外が発生した場合は、警告ログを出力したうえで連携を無効化し、
+mpm本体の起動は継続します。
+
+| 状態 | ログ | 結果 |
+| --- | --- | --- |
+| MineAuth未導入 | `MineAuth not found - HTTP API integration disabled` | 連携なしで起動 |
+| 互換性のないMineAuth | `MineAuth found but doesn't implement MineAuthAPI - HTTP API integration disabled` | 連携なしで起動 |
+| 連携成功 | `MineAuth integration enabled - endpoints registered at /api/v1/plugins/mpm/` | エンドポイント有効化 |
+
+## 認証・権限
+
+登録されるすべてのエンドポイントは、MineAuthの権限 `mpm.api` によって保護されます。
+この権限を持つユーザー、またはMineAuthのservice accountからのみアクセスできます。
+
+## エンドポイント一覧
+
+すべてのエンドポイントは `/api/v1/plugins/mpm/` を起点にマウントされます。
+
+| メソッド | パス | 説明 |
+| --- | --- | --- |
+| GET | `/plugins` | 管理中のプラグイン一覧を取得する |
+| GET | `/plugins/outdated` | 更新可能なプラグインの一覧を取得する |
+| POST | `/plugins/update` | 管理中の全プラグインを一括更新する |
+| POST | `/plugins/{name}/update` | 指定したプラグインを更新する |
+| POST | `/plugins/{name}/install` | 指定したプラグインをインストールする |
+| POST | `/plugins/{name}/uninstall` | 指定したプラグインをアンインストールする |
+
+### GET /plugins
+
+管理中のプラグインを一覧取得します。
+
+```json title="レスポンス例"
+[
+  {
+    "name": "QuickShop-Hikari",
+    "currentVersion": "6.1.0.0",
+    "latestVersion": "6.1.0.0",
+    "isLocked": false,
+    "isOutdated": false,
+    "description": "A powerful and easy-to-use shop plugin"
+  }
+]
+```
+
+### GET /plugins/outdated
+
+更新が可能なプラグインのみを一覧取得します。
+
+```json title="レスポンス例"
+[
+  {
+    "name": "GriefPrevention",
+    "currentVersion": "17.0.1",
+    "latestVersion": "17.0.2"
+  }
+]
+```
+
+### POST /plugins/update
+
+管理中のプラグインをすべて更新します。クエリパラメータ `force=true` を指定すると、
+api-versionが非互換な場合でも強制的に更新します。
+
+```bash title="リクエスト例"
+curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
+  -H "Authorization: Bearer <token>"
+```
+
+```json title="レスポンス例"
+[
+  {
+    "pluginName": "GriefPrevention",
+    "oldVersion": "17.0.1",
+    "newVersion": "17.0.2",
+    "success": true,
+    "errorMessage": null
+  }
+]
+```
+
+### POST `/plugins/{name}/update`
+
+指定したプラグイン1件のみを更新します。パスパラメータ `name` にはプラグイン名を指定します。
+プラグインが管理対象に存在しない場合は `404 Not Found` を返します。
+
+### POST `/plugins/{name}/install`
+
+指定したプラグインをダウンロードして `plugins/` ディレクトリに配置します。
+
+```json title="レスポンス例"
+{
+  "name": "QuickShop-Hikari",
+  "currentVersion": "6.1.0.0",
+  "latestVersion": "6.1.0.0",
+  "removedVersion": "6.0.9.0"
+}
+```
+
+`removedVersion` は、更新に伴って古いjarファイルが削除された場合のみ値が入ります。
+
+### POST `/plugins/{name}/uninstall`
+
+指定したプラグインのjarファイルを削除します。反映にはサーバーの再起動が必要です。
+
+```json title="レスポンス例"
+{
+  "name": "QuickShop-Hikari",
+  "message": "Plugin 'QuickShop-Hikari' uninstalled successfully. Restart the server to apply changes."
+}
+```
+
+:::warning
+`force` クエリパラメータは `true` / `1` / `yes` / `on`（大文字小文字を区別しない）を真として扱います。
+それ以外の値はすべて偽として扱われます。
+:::
+
+## エラーレスポンス
+
+プラグインが見つからない場合は `404 Not Found`、それ以外の失敗は `500 Internal Server Error` を返します。
