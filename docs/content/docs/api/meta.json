@@ -1,5 +1,5 @@
 {
     "title": "API",
     "description": "mpmのAPIについて",
-    "pages": ["overview"]
+    "pages": ["overview", "http"]
 }
