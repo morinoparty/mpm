@@ -35,4 +35,6 @@ data class GlobalSettings(
     val webhook: WebhookConfig = WebhookConfig(),
     // スケジュール自動更新設定
     val schedule: ScheduleConfig = ScheduleConfig(),
+    // バックアップ設定
+    val backup: BackupSettings = BackupSettings(),
 )

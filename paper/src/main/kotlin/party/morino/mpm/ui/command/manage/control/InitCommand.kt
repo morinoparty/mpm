@@ -41,19 +41,19 @@ class InitCommand : KoinComponent {
         sender: CommandSender,
         @Switch("overwrite")overwrite: Boolean = false
     ) {
-        sender.sendMessage("プロジェクトを初期化しています...")
+        sender.sendRichMessage("<gray>プロジェクトを初期化しています...</gray>")
 
         // ProjectServiceを実行（overwriteフラグを渡す）
         projectService.init("server", overwrite).fold(
             // エラーの場合
             { error ->
-                sender.sendMessage("❌ エラー: ${error.message}")
+                sender.sendRichMessage("<red>エラー: ${error.message}</red>")
             },
             // 成功の場合
             {
-                sender.sendMessage("✅ mpm.jsonを作成しました")
-                sender.sendMessage("すべてのプラグインをunmanagedとして追加しました")
-                sender.sendMessage("次のコマンドでプラグインを確認できます: /mpm list")
+                sender.sendRichMessage("<green>mpm.jsonを作成しました</green>")
+                sender.sendRichMessage("<white>すべてのプラグインをunmanagedとして追加しました</white>")
+                sender.sendRichMessage("<gray>次のコマンドでプラグインを確認できます: /mpm list</gray>")
             }
         )
     }

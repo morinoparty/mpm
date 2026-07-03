@@ -78,6 +78,8 @@ class DownloaderRepositoryImpl :
         return when (type) {
             RepositoryType.GITHUB -> {
                 val split = formattedUrl.split("/")
+                // パス segment 数が不足している場合はパース不能としてnullを返す
+                if (split.size < 5) return null
                 val owner = split[3]
                 val repository = split[4]
                 UrlData.GithubUrlData(owner, repository)
@@ -90,6 +92,8 @@ class DownloaderRepositoryImpl :
 
             RepositoryType.HANGER -> {
                 val split = formattedUrl.split("/")
+                // パス segment 数が不足している場合はパース不能としてnullを返す
+                if (split.size < 5) return null
                 val owner = split[3]
                 val projectName = split[4]
                 UrlData.HangarUrlData(owner, projectName)
@@ -97,6 +101,8 @@ class DownloaderRepositoryImpl :
 
             RepositoryType.MODRINTH -> {
                 val split = formattedUrl.split("/")
+                // パス segment 数が不足している場合はパース不能としてnullを返す
+                if (split.size < 5) return null
                 val id = split[4]
                 UrlData.ModrinthUrlData(id)
             }
@@ -127,7 +133,7 @@ class DownloaderRepositoryImpl :
 
             else -> {
                 // 他のリポジトリタイプの実装
-                VersionData("unknown", "unknown")
+                throw Exception("未対応のリポジトリタイプです")
             }
         }
 

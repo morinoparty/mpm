@@ -92,7 +92,15 @@ class ProjectRepositoryImpl :
         val sortedProject = project.withSortedPlugins()
         val config = sortedProject.toDto()
         val jsonString = Utils.json.encodeToString(MpmConfig.serializer(), config)
-        configFile.writeText(jsonString)
+
+        // 書き込み中のクラッシュでmpm.jsonが壊れないよう、一時ファイルに書き込んでから
+        // rename（アトミック）で本体に反映する。renameが失敗した場合はcopy+deleteで代替する
+        val tempFile = File(configFile.parentFile, "${configFile.name}.tmp")
+        tempFile.writeText(jsonString)
+        if (!tempFile.renameTo(configFile)) {
+            tempFile.copyTo(configFile, overwrite = true)
+            tempFile.delete()
+        }
     }
 
     /**

@@ -37,6 +37,9 @@ open class GithubDownloader(
     init {
         // トークンが設定されている場合、認証ヘッダー付きのHTTPクライアントを使用
         if (githubToken != null) {
+            // 親クラスの初期化子で生成された未認証クライアントは以後使わないため、
+            // 差し替え前に明示的にクローズしてコネクション/セレクタリソースのリークを防ぐ
+            httpClient.close()
             httpClient =
                 HttpClient(CIO) {
                     install(HttpTimeout) {

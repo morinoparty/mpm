@@ -98,21 +98,25 @@ class DependencyAnalyzerImpl :
      * 不足している依存関係をチェックする
      *
      * @param pluginName プラグイン名（nullの場合は全プラグインをチェック）
-     * @return プラグイン名と不足している依存関係のマップ
+     * @return 成功時はプラグイン名と不足している依存関係のマップ、pluginNameが未インストールの場合はDependencyError
      */
-    override fun checkMissingDependencies(pluginName: String?): Map<String, List<String>> {
+    override fun checkMissingDependencies(pluginName: String?): Either<DependencyError, Map<String, List<String>>> {
         refreshCacheIfNeeded()
 
-        val result = mutableMapOf<String, List<String>>()
         val installedPlugins = pluginDataCache.keys
 
+        // pluginNameが指定されているのにキャッシュに存在しない場合は、他のAPIと同様にエラーを返す
         val pluginsToCheck =
             if (pluginName != null) {
+                if (!pluginDataCache.containsKey(pluginName)) {
+                    return DependencyError.PluginNotFound(pluginName).left()
+                }
                 listOf(pluginName)
             } else {
                 installedPlugins.toList()
             }
 
+        val result = mutableMapOf<String, List<String>>()
         for (plugin in pluginsToCheck) {
             val pluginData = pluginDataCache[plugin] ?: continue
             val dependencyInfo = extractDependencyInfo(plugin, pluginData)
@@ -128,17 +132,22 @@ class DependencyAnalyzerImpl :
             }
         }
 
-        return result
+        return result.right()
     }
 
     /**
      * 指定されたプラグインに依存しているプラグイン（逆依存）を取得する
      *
      * @param pluginName プラグイン名
-     * @return このプラグインに依存しているプラグインのリスト
+     * @return 成功時はこのプラグインに依存しているプラグインのリスト、失敗時はDependencyError
      */
-    override fun getReverseDependencies(pluginName: String): List<String> {
+    override fun getReverseDependencies(pluginName: String): Either<DependencyError, List<String>> {
         refreshCacheIfNeeded()
+
+        // 存在しないプラグイン名の場合は、他のAPIと同様にエラーを返す
+        if (!pluginDataCache.containsKey(pluginName)) {
+            return DependencyError.PluginNotFound(pluginName).left()
+        }
 
         val dependents = mutableListOf<String>()
 
@@ -152,7 +161,7 @@ class DependencyAnalyzerImpl :
             }
         }
 
-        return dependents
+        return dependents.right()
     }
 
     /**

@@ -13,11 +13,13 @@ import kotlinx.serialization.Serializable
 
 /**
  * SpigotMCバージョン情報
+ * id/nameが欠落したレスポンスでも全体のデコードが失敗しないよう、
+ * どちらもnull許容+デフォルト値としている（欠落時は呼び出し側で"unknown"にフォールバックする）
  * @param id ダウンロードID ex) 55234
  * @param name バージョン名 ex) 1.0.0
  */
 @Serializable
 data class SpigotVersionInfo(
-    val id: Int,
-    val name: String
+    val id: Int? = null,
+    val name: String? = null
 )

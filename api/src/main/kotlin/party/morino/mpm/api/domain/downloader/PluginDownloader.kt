@@ -113,4 +113,11 @@ interface PluginDownloader {
         url: String,
         fileNamePattern: String? = null
     ): File?
+
+    /**
+     * 保持しているダウンローダーのリソース（HTTPクライアント等）を解放する
+     * プラグイン無効化時に呼び出すことでコネクションリークを防ぐ
+     * デフォルト実装は何もしない（後方互換性のため）
+     */
+    fun shutdown() {}
 }

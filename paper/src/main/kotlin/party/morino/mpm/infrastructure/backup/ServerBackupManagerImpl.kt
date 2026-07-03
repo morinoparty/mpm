@@ -19,12 +19,14 @@ import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.backup.ServerBackupManager
+import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.backup.BackupSizeEntry
 import party.morino.mpm.api.model.backup.BackupSizeInfo
 import party.morino.mpm.api.model.backup.RestoreResult
 import party.morino.mpm.api.model.backup.ServerBackupInfo
+import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.utils.PluginDataUtils
 import java.io.File
 import java.io.FileInputStream
@@ -55,6 +57,7 @@ class ServerBackupManagerImpl :
     KoinComponent {
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
+    private val configManager: ConfigManager by inject()
     private val logger: Logger = Logger.getLogger(ServerBackupManagerImpl::class.java.name)
 
     // 自プラグインのデータフォルダ名（バックアップ対象から除外するため）
@@ -63,17 +66,36 @@ class ServerBackupManagerImpl :
     // インデックスファイル名
     private val indexFileName = "index.yaml"
 
-    // 保持するバックアップの最大数（デフォルト値）
-    private val maxBackups = 5
-
     /**
      * plugins/ディレクトリ全体のバックアップを作成する
      * @param reason バックアップを作成する理由
-     * @return 成功時はServerBackupInfo、失敗時はエラーメッセージ
+     * @return 成功時はServerBackupInfo、失敗時はMpmError.BackupError
      */
-    override suspend fun createBackup(reason: BackupReason): Either<String, ServerBackupInfo> =
+    override suspend fun createBackup(reason: BackupReason): Either<MpmError, ServerBackupInfo> =
         withContext(Dispatchers.IO) {
             try {
+                // バックアップ設定を取得
+                val backupSettings = configManager.getConfig().settings.backup
+
+                // マスタースイッチが無効な場合はバックアップを作成しない
+                if (!backupSettings.enabled) {
+                    return@withContext MpmError.BackupError.Failed("バックアップ機能が無効化されています").left()
+                }
+
+                // update/install起因の自動バックアップは、それぞれの設定が無効な場合はスキップする
+                // （手動バックアップはマスタースイッチのみに従う）
+                when (reason) {
+                    BackupReason.UPDATE ->
+                        if (!backupSettings.autoBackupOnUpdate) {
+                            return@withContext MpmError.BackupError.Failed("update時の自動バックアップは無効化されています").left()
+                        }
+                    BackupReason.INSTALL ->
+                        if (!backupSettings.autoBackupOnInstall) {
+                            return@withContext MpmError.BackupError.Failed("install時の自動バックアップは無効化されています").left()
+                        }
+                    BackupReason.MANUAL -> Unit
+                }
+
                 val pluginsDir = pluginDirectory.getPluginsDirectory()
                 val backupsDir = pluginDirectory.getBackupsDirectory()
 
@@ -117,16 +139,16 @@ class ServerBackupManagerImpl :
 
                 backupInfo.right()
             } catch (e: Exception) {
-                "バックアップの作成に失敗しました: ${e.message}".left()
+                MpmError.BackupError.Failed("バックアップの作成に失敗しました: ${e.message}").left()
             }
         }
 
     /**
      * 指定されたバックアップからplugins/ディレクトリをリストアする
      * @param backupId リストアするバックアップのID
-     * @return 成功時はRestoreResult、失敗時はエラーメッセージ
+     * @return 成功時はRestoreResult、失敗時はMpmError.BackupError
      */
-    override suspend fun restore(backupId: String): Either<String, RestoreResult> =
+    override suspend fun restore(backupId: String): Either<MpmError, RestoreResult> =
         withContext(Dispatchers.IO) {
             try {
                 val backupsDir = pluginDirectory.getBackupsDirectory()
@@ -138,11 +160,14 @@ class ServerBackupManagerImpl :
                 val index = loadIndex()
                 val backupInfo =
                     index.backups.find { it.id == backupId }
-                        ?: return@withContext "バックアップが見つかりません: $backupId".left()
+                        ?: return@withContext MpmError.BackupError.NotFound(backupId).left()
 
                 val backupFile = File(backupsDir, backupInfo.fileName)
                 if (!backupFile.exists()) {
-                    return@withContext "バックアップファイルが見つかりません: ${backupInfo.fileName}".left()
+                    return@withContext MpmError.BackupError
+                        .RestoreFailed(
+                            "バックアップファイルが見つかりません: ${backupInfo.fileName}"
+                        ).left()
                 }
 
                 // Phase 1: ZIPエントリを事前検証（破壊的操作の前にすべてのパスを確認）
@@ -153,7 +178,10 @@ class ServerBackupManagerImpl :
                         if (!targetFile.canonicalPath.startsWith(pluginsDirPrefix) &&
                             targetFile.canonicalPath != pluginsDir.canonicalPath
                         ) {
-                            return@withContext "不正なZIPエントリが検出されました: ${entry.name}".left()
+                            return@withContext MpmError.BackupError
+                                .RestoreFailed(
+                                    "不正なZIPエントリが検出されました: ${entry.name}"
+                                ).left()
                         }
                         entry = zipIn.nextEntry
                     }
@@ -178,7 +206,10 @@ class ServerBackupManagerImpl :
                             if (!targetFile.canonicalPath.startsWith(tempDirPrefix) &&
                                 targetFile.canonicalPath != tempDir.canonicalPath
                             ) {
-                                return@withContext "不正なZIPエントリが検出されました: ${entry.name}".left()
+                                return@withContext MpmError.BackupError
+                                    .RestoreFailed(
+                                        "不正なZIPエントリが検出されました: ${entry.name}"
+                                    ).left()
                             }
 
                             if (entry.isDirectory) {
@@ -211,22 +242,25 @@ class ServerBackupManagerImpl :
 
                     // pluginsディレクトリをバックアップ名にリネーム
                     if (!pluginsDir.renameTo(backupDir)) {
-                        return@withContext "pluginsディレクトリのリネームに失敗しました".left()
+                        return@withContext MpmError.BackupError.RestoreFailed("pluginsディレクトリのリネームに失敗しました").left()
                     }
 
                     // 一時ディレクトリをpluginsディレクトリにリネーム
                     if (!tempDir.renameTo(pluginsDir)) {
                         // 失敗時はバックアップを復元
                         backupDir.renameTo(pluginsDir)
-                        return@withContext "復元ディレクトリのリネームに失敗しました".left()
+                        return@withContext MpmError.BackupError.RestoreFailed("復元ディレクトリのリネームに失敗しました").left()
                     }
 
                     // スワップ成功後に旧pluginsディレクトリを削除
                     backupDir.deleteRecursively()
-                } catch (e: Exception) {
-                    // 展開中のエラー時は一時ディレクトリをクリーンアップ
+                } finally {
+                    // tempDirのクリーンアップ。
+                    // 展開・スワップが正常に完了した場合、tempDirは既にpluginsDirへリネーム済みで
+                    // 実体が存在しないため、この呼び出しは何もしない安全なno-opとなる。
+                    // ZIPエントリ不正・リネーム失敗などで早期returnした場合は、
+                    // 残存する一時ディレクトリ（プラグインjarや設定フォルダのコピーを含む）を確実に削除する。
                     tempDir.deleteRecursively()
-                    throw e
                 }
 
                 RestoreResult(
@@ -235,48 +269,28 @@ class ServerBackupManagerImpl :
                     restoredConfigs = restoredConfigs
                 ).right()
             } catch (e: Exception) {
-                "リストアに失敗しました: ${e.message}".left()
+                MpmError.BackupError.RestoreFailed("リストアに失敗しました: ${e.message}").left()
             }
         }
-
-    /**
-     * plugins/ディレクトリ内のファイルをクリーンアップする
-     * mpmディレクトリは除外
-     * @param pluginsDir plugins/ディレクトリ
-     */
-    private fun cleanupPluginsDir(pluginsDir: File) {
-        pluginsDir.listFiles()?.forEach { file ->
-            // 自プラグインのディレクトリはスキップ
-            if (file.name == selfDirName) {
-                return@forEach
-            }
-            // ファイルまたはディレクトリを削除
-            if (file.isDirectory) {
-                file.deleteRecursively()
-            } else {
-                file.delete()
-            }
-        }
-    }
 
     /**
      * 存在するすべてのバックアップの一覧を取得する
-     * @return 成功時はServerBackupInfoのリスト、失敗時はエラーメッセージ
+     * @return 成功時はServerBackupInfoのリスト、失敗時はMpmError.BackupError
      */
-    override fun listBackups(): Either<String, List<ServerBackupInfo>> =
+    override fun listBackups(): Either<MpmError, List<ServerBackupInfo>> =
         try {
             val index = loadIndex()
             index.backups.sortedByDescending { it.createdAt }.right()
         } catch (e: Exception) {
-            "バックアップ一覧の取得に失敗しました: ${e.message}".left()
+            MpmError.BackupError.Failed("バックアップ一覧の取得に失敗しました: ${e.message}").left()
         }
 
     /**
      * 指定されたバックアップを削除する
      * @param backupId 削除するバックアップのID
-     * @return 成功時はUnit、失敗時はエラーメッセージ
+     * @return 成功時はUnit、失敗時はMpmError.BackupError
      */
-    override suspend fun deleteBackup(backupId: String): Either<String, Unit> =
+    override suspend fun deleteBackup(backupId: String): Either<MpmError, Unit> =
         withContext(Dispatchers.IO) {
             try {
                 val backupsDir = pluginDirectory.getBackupsDirectory()
@@ -284,14 +298,17 @@ class ServerBackupManagerImpl :
 
                 val backupInfo =
                     index.backups.find { it.id == backupId }
-                        ?: return@withContext "バックアップが見つかりません: $backupId".left()
+                        ?: return@withContext MpmError.BackupError.NotFound(backupId).left()
 
                 // バックアップファイルを削除
                 val backupFile = File(backupsDir, backupInfo.fileName)
                 if (backupFile.exists()) {
                     // 削除の成否を検証
                     if (!backupFile.delete()) {
-                        return@withContext "バックアップファイルの削除に失敗しました: ${backupInfo.fileName}".left()
+                        return@withContext MpmError.BackupError
+                            .Failed(
+                                "バックアップファイルの削除に失敗しました: ${backupInfo.fileName}"
+                            ).left()
                     }
                 }
 
@@ -301,17 +318,22 @@ class ServerBackupManagerImpl :
 
                 Unit.right()
             } catch (e: Exception) {
-                "バックアップの削除に失敗しました: ${e.message}".left()
+                MpmError.BackupError.Failed("バックアップの削除に失敗しました: ${e.message}").left()
             }
         }
 
     /**
      * 設定に基づいて古いバックアップを削除する
-     * @return 成功時は削除されたバックアップの数、失敗時はエラーメッセージ
+     * @return 成功時は削除されたバックアップの数、失敗時はMpmError.BackupError
      */
-    override suspend fun cleanupOldBackups(): Either<String, Int> =
+    override suspend fun cleanupOldBackups(): Either<MpmError, Int> =
         withContext(Dispatchers.IO) {
             try {
+                // 設定から保持するバックアップの最大数を取得
+                val maxBackups =
+                    configManager
+                        .getConfig()
+                        .settings.backup.maxBackups
                 val index = loadIndex()
                 val sortedBackups = index.backups.sortedByDescending { it.createdAt }
 
@@ -325,14 +347,14 @@ class ServerBackupManagerImpl :
 
                 for (backup in backupsToDelete) {
                     deleteBackup(backup.id).fold(
-                        { error -> logger.warning("バックアップ ${backup.id} の削除に失敗: $error") },
+                        { error -> logger.warning("バックアップ ${backup.id} の削除に失敗: ${error.message}") },
                         { deletedCount++ }
                     )
                 }
 
                 deletedCount.right()
             } catch (e: Exception) {
-                "古いバックアップの削除に失敗しました: ${e.message}".left()
+                MpmError.BackupError.Failed("古いバックアップの削除に失敗しました: ${e.message}").left()
             }
         }
 
@@ -373,6 +395,10 @@ class ServerBackupManagerImpl :
         entryName: String
     ) {
         if (file.isDirectory) {
+            // ディレクトリ自体のエントリを書き込む（名前の末尾に"/"を付与するとZipEntry.isDirectory()がtrueになる）
+            zipOut.putNextEntry(ZipEntry("$entryName/"))
+            zipOut.closeEntry()
+
             // ディレクトリの場合は子要素を再帰的に追加
             val children = file.listFiles() ?: return
             for (child in children) {
@@ -435,9 +461,9 @@ class ServerBackupManagerImpl :
     /**
      * バックアップ対象のサイズを計算する
      *
-     * @return 成功時はBackupSizeInfo、失敗時はエラーメッセージ
+     * @return 成功時はBackupSizeInfo、失敗時はMpmError.BackupError
      */
-    override fun calculateBackupSize(): Either<String, BackupSizeInfo> =
+    override fun calculateBackupSize(): Either<MpmError, BackupSizeInfo> =
         try {
             val pluginsDir = pluginDirectory.getPluginsDirectory()
             val ignorePatterns = readIgnorePatterns()
@@ -471,7 +497,7 @@ class ServerBackupManagerImpl :
                 excludedEntries = excludedEntries
             ).right()
         } catch (e: Exception) {
-            "サイズ計算に失敗しました: ${e.message}".left()
+            MpmError.BackupError.Failed("サイズ計算に失敗しました: ${e.message}").left()
         }
 
     /**

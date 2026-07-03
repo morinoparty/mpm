@@ -39,8 +39,8 @@ class BackupCommand : KoinComponent {
 
         backupManager.createBackup(BackupReason.MANUAL).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             { backupInfo ->
@@ -62,8 +62,8 @@ class BackupCommand : KoinComponent {
     fun list(sender: CommandSender) {
         backupManager.listBackups().fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             { backups ->
@@ -107,8 +107,8 @@ class BackupCommand : KoinComponent {
 
         backupManager.restore(backupId).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             { result ->
@@ -132,8 +132,8 @@ class BackupCommand : KoinComponent {
     ) {
         backupManager.deleteBackup(backupId).fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             {
@@ -152,8 +152,8 @@ class BackupCommand : KoinComponent {
 
         backupManager.cleanupOldBackups().fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             { deletedCount ->
@@ -175,8 +175,8 @@ class BackupCommand : KoinComponent {
     fun size(sender: CommandSender) {
         backupManager.calculateBackupSize().fold(
             // 失敗時の処理
-            { errorMessage ->
-                sender.sendRichMessage("<red>$errorMessage")
+            { error ->
+                sender.sendRichMessage("<red>${error.message}")
             },
             // 成功時の処理
             { info ->

@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
 import party.morino.mpm.api.domain.downloader.PluginDownloader
 import java.io.Closeable
 import java.io.File
+import java.util.logging.Logger
 
 /**
  * プラグインダウンローダーの抽象クラス
@@ -42,6 +43,9 @@ abstract class AbstractPluginDownloader :
 
     // JSONパーサー
     protected val json = Json { ignoreUnknownKeys = true }
+
+    // エラーログ出力用（サーバーのログ設定/レベルに従わせるためprintlnではなくLoggerを使用）
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     /**
      * ファイルをダウンロードして一時ファイルとして保存
@@ -69,16 +73,21 @@ abstract class AbstractPluginDownloader :
 
                 // ストリーミングでファイルに書き込み（メモリに全体をロードしない）
                 val tempFile = File.createTempFile("plugin-", "-$fileName")
-                val channel = fileResponse.bodyAsChannel()
-                tempFile.outputStream().use { output ->
-                    channel.toInputStream().use { input ->
-                        input.copyTo(output)
+                try {
+                    val channel = fileResponse.bodyAsChannel()
+                    tempFile.outputStream().use { output ->
+                        channel.toInputStream().use { input ->
+                            input.copyTo(output)
+                        }
                     }
+                    tempFile
+                } catch (e: Exception) {
+                    // ストリーミング中に失敗した場合、不完全な一時ファイルを残さないよう削除する
+                    tempFile.delete()
+                    throw e
                 }
-
-                tempFile
             } catch (e: Exception) {
-                println("プラグインのダウンロードに失敗しました: ${e.message}")
+                logger.warning("プラグインのダウンロードに失敗しました: ${e.message}")
                 null
             }
         }

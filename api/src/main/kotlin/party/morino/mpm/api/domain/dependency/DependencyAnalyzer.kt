@@ -44,17 +44,17 @@ interface DependencyAnalyzer {
      * 不足している依存関係をチェックする
      *
      * @param pluginName プラグイン名（nullの場合は全プラグインをチェック）
-     * @return プラグイン名と不足している依存関係のマップ
+     * @return 成功時はプラグイン名と不足している依存関係のマップ、pluginNameが未インストールの場合はDependencyError
      */
-    fun checkMissingDependencies(pluginName: String? = null): Map<String, List<String>>
+    fun checkMissingDependencies(pluginName: String? = null): Either<DependencyError, Map<String, List<String>>>
 
     /**
      * 指定されたプラグインに依存しているプラグイン（逆依存）を取得する
      *
      * @param pluginName プラグイン名
-     * @return このプラグインに依存しているプラグインのリスト
+     * @return 成功時はこのプラグインに依存しているプラグインのリスト、失敗時はDependencyError
      */
-    fun getReverseDependencies(pluginName: String): List<String>
+    fun getReverseDependencies(pluginName: String): Either<DependencyError, List<String>>
 
     /**
      * すべてのインストール済みプラグインの依存関係情報を取得する

@@ -13,6 +13,6 @@ package party.morino.mpm.api.model.plugin
  * インストール済みのプラグイン
  * @param pluginId プラグインID
  */
-class InstalledPlugin(
+data class InstalledPlugin(
     override val pluginId: String
 ) : Plugin()

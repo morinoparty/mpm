@@ -10,6 +10,7 @@
 package party.morino.mpm.ui.command.repo
 
 import org.bukkit.command.CommandSender
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.repository.RepositoryManager
@@ -25,6 +26,7 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 @CommandPermission("mpm.command")
 class RepositoryCommands : KoinComponent {
     private val repositorySourceManager: RepositoryManager by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * 利用可能なリポジトリファイルの一覧を表示するコマンド
@@ -45,7 +47,8 @@ class RepositoryCommands : KoinComponent {
                     )
                 }
             } catch (e: Exception) {
-                // エラーが発生した場合はスキップ
+                // エラーが発生した場合はスキップ（管理者が原因を追えるようログに残す）
+                plugin.logger.warning("リポジトリ '${source.getIdentifier()}' の取得に失敗: ${e.message}")
                 continue
             }
         }

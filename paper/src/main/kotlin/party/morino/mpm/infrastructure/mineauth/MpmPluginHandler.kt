@@ -24,6 +24,7 @@ import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.infrastructure.mineauth.model.InstallResultResponse
 import party.morino.mpm.infrastructure.mineauth.model.OutdatedPluginResponse
 import party.morino.mpm.infrastructure.mineauth.model.PluginSummaryResponse
@@ -37,6 +38,24 @@ private fun String.parseBooleanParam(): Boolean =
     when (this.lowercase()) {
         "true", "1", "yes", "on" -> true
         else -> false
+    }
+
+/**
+ * MpmErrorを対応するHTTPステータスに変換する
+ * メッセージの文字列マッチではなく、sealed classの型で判定することで
+ * 意図しないメッセージ内容による誤判定を防ぐ
+ */
+private fun MpmError.toHttpStatus(): HttpStatus =
+    when (this) {
+        // 「見つからない」系のエラーはすべて404として扱う
+        // （mpm.json未初期化やダウンロード元リポジトリ不明も含む）
+        is MpmError.PluginError.NotFound,
+        is MpmError.PluginError.MetadataNotFound,
+        is MpmError.PluginError.RepositoryNotFound,
+        is MpmError.ProjectError.ConfigNotFound,
+        is MpmError.DownloadError.RepositoryNotFound,
+        is MpmError.BackupError.NotFound -> HttpStatus.NOT_FOUND
+        else -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 
 /**
@@ -121,13 +140,7 @@ class MpmPluginHandler : KoinComponent {
         return pluginUpdateService.update(PluginName(name), force = force).fold(
             ifLeft = { error ->
                 // プラグインが見つからない場合は 404 を返す
-                val status =
-                    if (error.message.contains("not found", ignoreCase = true)) {
-                        HttpStatus.NOT_FOUND
-                    } else {
-                        HttpStatus.INTERNAL_SERVER_ERROR
-                    }
-                throw HttpError(status, error.message)
+                throw HttpError(error.toHttpStatus(), error.message)
             },
             ifRight = { it }
         )
@@ -150,13 +163,7 @@ class MpmPluginHandler : KoinComponent {
         val result =
             pluginLifecycleService.install(PluginName(name), force = force).fold(
                 ifLeft = { error ->
-                    val status =
-                        if (error.message.contains("not found", ignoreCase = true)) {
-                            HttpStatus.NOT_FOUND
-                        } else {
-                            HttpStatus.INTERNAL_SERVER_ERROR
-                        }
-                    throw HttpError(status, error.message)
+                    throw HttpError(error.toHttpStatus(), error.message)
                 },
                 ifRight = { it }
             )
@@ -176,13 +183,7 @@ class MpmPluginHandler : KoinComponent {
     ): UninstallResponse {
         pluginLifecycleService.uninstall(PluginName(name)).fold(
             ifLeft = { error ->
-                val status =
-                    if (error.message.contains("not found", ignoreCase = true)) {
-                        HttpStatus.NOT_FOUND
-                    } else {
-                        HttpStatus.INTERNAL_SERVER_ERROR
-                    }
-                throw HttpError(status, error.message)
+                throw HttpError(error.toHttpStatus(), error.message)
             },
             ifRight = { }
         )

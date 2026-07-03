@@ -35,6 +35,11 @@ class RepositoryPluginParameterType :
     private val repositoryManager: RepositoryManager by inject()
     private val plugin: JavaPlugin by inject()
 
+    companion object {
+        // 上流リポジトリの応答待ちでコマンド解析/TAB補完が長時間ブロックしないためのタイムアウト
+        private const val REPOSITORY_TIMEOUT_MILLIS = 2000L
+    }
+
     /**
      * コマンド引数からRepositoryPluginを解析する
      * @param input 入力ストリーム
@@ -51,9 +56,12 @@ class RepositoryPluginParameterType :
 
         // リポジトリから取得可能なプラグイン一覧を取得
         // ParameterType.parse()はsuspend関数ではないため、Dispatchers.IOで実行
+        // 上流リポジトリの応答が遅い場合にコマンド実行がブロックし続けないよう、タイムアウトを設ける
         val availablePlugins =
             kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-                repositoryManager.getAvailablePlugins()
+                kotlinx.coroutines.withTimeoutOrNull(REPOSITORY_TIMEOUT_MILLIS) {
+                    repositoryManager.getAvailablePlugins()
+                } ?: emptyList()
             }
 
         // バリデーション: プラグインIDが利用可能なプラグイン一覧に含まれているかチェック
@@ -75,7 +83,9 @@ class RepositoryPluginParameterType :
         return SuggestionProvider { _ ->
             try {
                 kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-                    repositoryManager.getAvailablePlugins().toList()
+                    kotlinx.coroutines.withTimeoutOrNull(REPOSITORY_TIMEOUT_MILLIS) {
+                        repositoryManager.getAvailablePlugins().toList()
+                    } ?: emptyList()
                 }
             } catch (e: Exception) {
                 plugin.logger.warning("Tab補完でリポジトリプラグイン一覧の取得に失敗: ${e.message}")

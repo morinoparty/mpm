@@ -9,14 +9,12 @@
 
 package party.morino.mpm.infrastructure.downloader.spigot
 
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.infrastructure.downloader.AbstractPluginDownloader
 import party.morino.mpm.infrastructure.downloader.spigot.data.SpigotResourceDetails
+import party.morino.mpm.infrastructure.downloader.spigot.data.SpigotVersionInfo
 import java.io.File
 
 /**
@@ -67,10 +65,10 @@ open class SpigotDownloader : AbstractPluginDownloader() {
         // example https://api.spiget.org/v2/resources/22023/versions?sort=-releaseDate&size=1
         val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-releaseDate&size=1"
         val response = getRequest(url, "application/json")
-        val responseJson = json.parseToJsonElement(response).jsonArray
-        val version = responseJson[0].jsonObject["name"]?.jsonPrimitive?.content ?: "unknown"
-        val id = responseJson[0].jsonObject["id"]?.jsonPrimitive?.content ?: "unknown"
-        return VersionData(downloadId = id, version = version)
+        val versions = json.decodeFromString<List<SpigotVersionInfo>>(response)
+        if (versions.isEmpty()) throw Exception("このリソースにはバージョンがありません")
+        val latest = versions[0]
+        return VersionData(downloadId = latest.id?.toString() ?: "unknown", version = latest.name ?: "unknown")
     }
 
     /**
@@ -92,21 +90,14 @@ open class SpigotDownloader : AbstractPluginDownloader() {
             } catch (e: Exception) {
                 throw Exception("バージョン情報の取得に失敗しました: ${e.message}")
             }
-        val versions = json.parseToJsonElement(response).jsonArray
+        val versions = json.decodeFromString<List<SpigotVersionInfo>>(response)
 
         // 指定されたバージョン名に一致するバージョンを探す
-        val matchingVersion =
-            versions.firstOrNull { versionElement ->
-                val name = versionElement.jsonObject["name"]?.jsonPrimitive?.content ?: ""
-                name == versionName
-            }
         val matchedVersion =
-            matchingVersion?.jsonObject
+            versions.firstOrNull { it.name == versionName }
                 ?: throw Exception("バージョン '$versionName' が見つかりませんでした")
 
-        val version = matchedVersion["name"]?.jsonPrimitive?.content ?: "unknown"
-        val id = matchedVersion["id"]?.jsonPrimitive?.content ?: "unknown"
-        return VersionData(downloadId = id, version = version)
+        return VersionData(downloadId = matchedVersion.id?.toString() ?: "unknown", version = matchedVersion.name ?: "unknown")
     }
 
     /**
@@ -119,15 +110,10 @@ open class SpigotDownloader : AbstractPluginDownloader() {
         // 全バージョンを取得（size制限なし、降順ソート）
         val url = "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions?sort=-releaseDate"
         val response = getRequest(url, "application/json")
-        val versions = json.parseToJsonElement(response).jsonArray
+        val versions = json.decodeFromString<List<SpigotVersionInfo>>(response)
 
         // バージョン情報のリストに変換
-        return versions.map { versionElement ->
-            val versionJson = versionElement.jsonObject
-            val version = versionJson["name"]?.jsonPrimitive?.content ?: "unknown"
-            val id = versionJson["id"]?.jsonPrimitive?.content ?: "unknown"
-            VersionData(downloadId = id, version = version)
-        }
+        return versions.map { VersionData(downloadId = it.id?.toString() ?: "unknown", version = it.name ?: "unknown") }
     }
 
     /**

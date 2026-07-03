@@ -28,8 +28,6 @@ import party.morino.mpm.api.application.model.install.PluginRemovalInfo
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
-import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -47,7 +45,6 @@ import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
-import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
@@ -56,7 +53,6 @@ import party.morino.mpm.event.state.PluginUnlockEvent
 import party.morino.mpm.event.state.PluginUpdateEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
-import party.morino.mpm.utils.PluginDataUtils
 import java.io.File
 
 /**
@@ -81,7 +77,10 @@ class PluginUpdateServiceImpl :
     private val backupManager: ServerBackupManager by inject()
     private val infoService: PluginInfoService by inject()
     private val plugin: JavaPlugin by inject()
-    private val apiVersionChecker: ApiVersionChecker by inject()
+
+    // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
+    // PluginLifecycleServiceImpl.install() と共有し、検証ロジックの重複・乖離を防ぐ
+    private val pluginInstallValidator: PluginInstallValidator by inject()
 
     // 並行更新を防止するためのMutex（スケジューラーとコマンドの競合回避）
     private val updateMutex = Mutex()
@@ -147,7 +146,7 @@ class PluginUpdateServiceImpl :
             progressCallback?.invoke("<gray>バックアップを作成しています...")
             backupManager.createBackup(BackupReason.UPDATE).fold(
                 {
-                    plugin.logger.warning("バックアップの作成に失敗しました: $it")
+                    plugin.logger.warning("バックアップの作成に失敗しました: ${it.message}")
                     progressCallback?.invoke("<yellow>バックアップの作成に失敗しましたが、更新を続行します")
                 },
                 {
@@ -342,7 +341,7 @@ class PluginUpdateServiceImpl :
 
             // 一括更新と同様に更新前バックアップを作成する（Codex P2-3）
             backupManager.createBackup(BackupReason.UPDATE).fold(
-                { error -> plugin.logger.warning("[update] バックアップ作成失敗: $error - 更新を続行") },
+                { error -> plugin.logger.warning("[update] バックアップ作成失敗: ${error.message} - 更新を続行") },
                 { info -> plugin.logger.info("[update] バックアップ作成完了: ${info.fileName}") }
             )
 
@@ -1082,6 +1081,10 @@ class PluginUpdateServiceImpl :
     /**
      * ダウンロード済みのtempファイルに対してAPIバージョンと依存関係の事前検証を行う
      *
+     * 実際の検証ロジックは [PluginInstallValidator] に集約されており、
+     * PluginLifecycleServiceImpl.install() と共通のロジックを利用する。
+     * ここでは検証結果をこのサービス独自のエラーメッセージ表現に変換するのみを行う。
+     *
      * @param downloadedFile ダウンロード済みのtempファイル
      * @param pluginName プラグイン名（ログ出力用）
      * @param force trueの場合、非互換でも警告のみで続行する
@@ -1091,94 +1094,18 @@ class PluginUpdateServiceImpl :
         downloadedFile: File,
         pluginName: String,
         force: Boolean
-    ): Either<String, Unit> {
-        // tempファイルからプラグインデータを抽出（破損JARでも例外を握りつぶしてスキップする）
-        val pluginData =
-            try {
-                PluginDataUtils.getPluginData(downloadedFile)
-            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
-                null
-            }
-
-        // APIバージョンの互換性チェック
-        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
-        when (compatibilityResult) {
-            is CompatibilityResult.Incompatible -> {
-                if (!force) {
-                    return (
-                        "[API_VERSION_INCOMPATIBLE] api-version非互換: " +
-                            "プラグインは${compatibilityResult.pluginApiVersion}を要求していますが、" +
-                            "サーバーは${compatibilityResult.serverApiVersion}です"
-                    ).left()
-                }
-                plugin.logger.warning(
-                    "api-version incompatible ($pluginName): " +
-                        "plugin=${compatibilityResult.pluginApiVersion}, " +
-                        "server=${compatibilityResult.serverApiVersion}. Forced install."
-                )
-            }
-            is CompatibilityResult.Unknown -> {
-                plugin.logger.warning(
-                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
-                )
-            }
-            is CompatibilityResult.Compatible -> {
-                // 互換性あり
-            }
+    ): Either<String, Unit> =
+        when (val result = pluginInstallValidator.validate(downloadedFile, pluginName, force)) {
+            is PluginInstallValidationResult.Valid -> Unit.right()
+            is PluginInstallValidationResult.ApiVersionIncompatible ->
+                (
+                    "[API_VERSION_INCOMPATIBLE] api-version非互換: " +
+                        "プラグインは${result.pluginApiVersion}を要求していますが、" +
+                        "サーバーは${result.serverApiVersion}です"
+                ).left()
+            is PluginInstallValidationResult.MissingDependencies ->
+                "必須依存プラグインが不足しています: ${result.missingDependencies.joinToString(", ")}".left()
         }
-
-        // 必須依存関係のチェック
-        if (pluginData != null) {
-            val requiredDeps =
-                when (pluginData) {
-                    is PluginData.BukkitPluginData -> pluginData.depend
-                    is PluginData.PaperPluginData -> pluginData.depend
-                }
-
-            if (requiredDeps.isNotEmpty()) {
-                // mpm.jsonに登録済みのプラグイン名を取得
-                val managedPlugins = loadMpmConfig()?.plugins?.keys.orEmpty()
-                // pluginsディレクトリに存在するプラグイン名を取得
-                val pluginsDir = pluginDirectory.getPluginsDirectory()
-                val installedPluginNames =
-                    pluginsDir
-                        .listFiles { f ->
-                            f.isFile && f.extension == "jar"
-                        }?.mapNotNull { jar ->
-                            try {
-                                val data = PluginDataUtils.getPluginData(jar)
-                                when (data) {
-                                    is PluginData.BukkitPluginData -> data.name
-                                    is PluginData.PaperPluginData -> data.name
-                                    null -> null
-                                }
-                            } catch (_: Exception) {
-                                null
-                            }
-                        }?.toSet()
-                        .orEmpty()
-
-                // 管理対象とインストール済みのどちらにもない依存関係を検出
-                val missingDeps =
-                    requiredDeps.filter { dep ->
-                        !managedPlugins.contains(dep) && !installedPluginNames.contains(dep)
-                    }
-
-                if (missingDeps.isNotEmpty()) {
-                    val message = "必須依存プラグインが不足しています: ${missingDeps.joinToString(", ")}"
-                    if (!force) {
-                        return message.left()
-                    }
-                    plugin.logger.warning("$pluginName: $message (forced install)")
-                }
-            }
-        }
-
-        return Unit.right()
-    }
 
     /**
      * リポジトリタイプとIDからUrlDataを作成するヘルパーメソッド

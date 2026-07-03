@@ -43,6 +43,12 @@ class VersionsCommand : KoinComponent {
         plugin: RepositoryPlugin,
         @Flag("limit") limit: Int = 20
     ) {
+        // --limitに0以下の値を渡すとList.take()が例外を投げるため、事前に検証する
+        if (limit <= 0) {
+            sender.sendRichMessage("<red>--limitには1以上の値を指定してください。</red>")
+            return
+        }
+
         val pluginId = plugin.pluginId
         sender.sendRichMessage("<gray>プラグイン '$pluginId' のバージョン一覧を取得しています...</gray>")
 
