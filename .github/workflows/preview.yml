@@ -98,7 +98,7 @@ jobs:
       - name: Attest JAR artifacts
         id: attest
         if: steps.build.outcome == 'success'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
