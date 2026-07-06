@@ -1,0 +1,54 @@
+{
+  "pagination": {
+    "limit": 25,
+    "offset": 0,
+    "count": 3
+  },
+  "result": [
+    {
+      "name": "5.1.0",
+      "channel": { "name": "Release" },
+      "downloads": {
+        "PAPER": {
+          "fileInfo": {
+            "name": "Maintenance-Paper-5.1.0.jar",
+            "sizeBytes": 233744,
+            "sha256Hash": "ab08939d28b3ef1a68aa9194092652282cc3405f7fcf7cbb059a74c58f1dcba7"
+          },
+          "externalUrl": null,
+          "downloadUrl": "https://hangarcdn.papermc.io/plugins/kennytv/Maintenance/versions/5.1.0/PAPER/Maintenance-Paper-5.1.0.jar"
+        }
+      }
+    },
+    {
+      "name": "5.0.0-beta.2",
+      "channel": { "name": "Beta" },
+      "downloads": {
+        "PAPER": {
+          "fileInfo": {
+            "name": "Maintenance-Paper-5.0.0-beta.2.jar",
+            "sizeBytes": 233000,
+            "sha256Hash": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "externalUrl": null,
+          "downloadUrl": "https://hangarcdn.papermc.io/plugins/kennytv/Maintenance/versions/5.0.0-beta.2/PAPER/Maintenance-Paper-5.0.0-beta.2.jar"
+        }
+      }
+    },
+    {
+      "name": "4.3.0",
+      "channel": { "name": "Release" },
+      "downloads": {
+        "PAPER": {
+          "fileInfo": {
+            "name": "Maintenance-Paper-4.3.0.jar",
+            "sizeBytes": 230000,
+            "sha256Hash": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          "externalUrl": null,
+          "downloadUrl": "https://hangarcdn.papermc.io/plugins/kennytv/Maintenance/versions/4.3.0/PAPER/Maintenance-Paper-4.3.0.jar"
+        }
+      }
+    }
+  ]
+}

@@ -18,6 +18,7 @@ import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.infrastructure.downloader.github.GithubDownloader
+import party.morino.mpm.infrastructure.downloader.hangar.HangarDownloader
 import party.morino.mpm.infrastructure.downloader.modrinth.ModrinthDownloader
 import party.morino.mpm.infrastructure.downloader.spigot.SpigotDownloader
 import java.io.File
@@ -39,9 +40,11 @@ class DownloaderRepositoryImpl :
     private val spigotDownloaderLazy = lazy { SpigotDownloader() }
     private val modrinthDownloaderLazy = lazy { ModrinthDownloader() }
     private val githubDownloaderLazy = lazy { createGithubDownloader() }
+    private val hangarDownloaderLazy = lazy { HangarDownloader() }
     private val spigotDownloader: SpigotDownloader by spigotDownloaderLazy
     private val modrinthDownloader: ModrinthDownloader by modrinthDownloaderLazy
     private val githubDownloader: GithubDownloader by githubDownloaderLazy
+    private val hangarDownloader: HangarDownloader by hangarDownloaderLazy
 
     /**
      * GitHubダウンローダーを生成する
@@ -61,7 +64,7 @@ class DownloaderRepositoryImpl :
         when {
             url.startsWith(RepositoryType.GITHUB.url) -> RepositoryType.GITHUB
             url.startsWith(RepositoryType.SPIGOTMC.url) -> RepositoryType.SPIGOTMC
-            url.startsWith(RepositoryType.HANGER.url) -> RepositoryType.HANGER
+            url.startsWith(RepositoryType.HANGAR.url) -> RepositoryType.HANGAR
             url.startsWith(RepositoryType.MODRINTH.url) -> RepositoryType.MODRINTH
             else -> null
         }
@@ -90,7 +93,7 @@ class DownloaderRepositoryImpl :
                 UrlData.SpigotMcUrlData(resId)
             }
 
-            RepositoryType.HANGER -> {
+            RepositoryType.HANGAR -> {
                 val split = formattedUrl.split("/")
                 // パス segment 数が不足している場合はパース不能としてnullを返す
                 if (split.size < 5) return null
@@ -131,6 +134,10 @@ class DownloaderRepositoryImpl :
                 modrinthDownloader.getLatestVersion(urlData)
             }
 
+            is UrlData.HangarUrlData -> {
+                hangarDownloader.getLatestVersion(urlData)
+            }
+
             else -> {
                 // 他のリポジトリタイプの実装
                 throw Exception("未対応のリポジトリタイプです")
@@ -160,6 +167,10 @@ class DownloaderRepositoryImpl :
                 modrinthDownloader.getVersionByName(urlData, versionName)
             }
 
+            is UrlData.HangarUrlData -> {
+                hangarDownloader.getVersionByName(urlData, versionName)
+            }
+
             else -> {
                 // 他のリポジトリタイプの実装
                 throw Exception("未対応のリポジトリタイプです")
@@ -179,6 +190,9 @@ class DownloaderRepositoryImpl :
             }
             is UrlData.GithubUrlData -> {
                 githubDownloader.getLatestVersionByTag(urlData, tag)
+            }
+            is UrlData.HangarUrlData -> {
+                hangarDownloader.getLatestVersionByTag(urlData, tag)
             }
             else -> null
         }
@@ -217,6 +231,10 @@ class DownloaderRepositoryImpl :
                 modrinthDownloader.getAllVersions(urlData)
             }
 
+            is UrlData.HangarUrlData -> {
+                hangarDownloader.getAllVersions(urlData)
+            }
+
             else -> {
                 // 他のリポジトリタイプの実装
                 emptyList()
@@ -246,6 +264,10 @@ class DownloaderRepositoryImpl :
 
             is UrlData.ModrinthUrlData -> {
                 modrinthDownloader.downloadByVersion(urlData, version, fileNamePattern)
+            }
+
+            is UrlData.HangarUrlData -> {
+                hangarDownloader.downloadByVersion(urlData, version, fileNamePattern)
             }
 
             else -> {
@@ -278,9 +300,9 @@ class DownloaderRepositoryImpl :
                 spigotDownloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
-            RepositoryType.HANGER -> {
-                // Hangarのダウンロード実装
-                null
+            RepositoryType.HANGAR -> {
+                val latest = hangarDownloader.getLatestVersion(urlData as UrlData.HangarUrlData)
+                hangarDownloader.downloadByVersion(urlData, latest, fileNamePattern)
             }
 
             RepositoryType.MODRINTH -> {
@@ -299,7 +321,7 @@ class DownloaderRepositoryImpl :
      * 1つのクローズ失敗が他のクローズを妨げないようにする
      */
     override fun shutdown() {
-        listOf(spigotDownloaderLazy, modrinthDownloaderLazy, githubDownloaderLazy)
+        listOf(spigotDownloaderLazy, modrinthDownloaderLazy, githubDownloaderLazy, hangarDownloaderLazy)
             .filter { it.isInitialized() }
             .forEach { lazy ->
                 runCatching { lazy.value.close() }
