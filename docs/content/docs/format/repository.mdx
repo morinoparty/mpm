@@ -110,15 +110,32 @@ SpigotMCリソースからプラグインをダウンロードします。
 - **URL形式**: `https://www.spigotmc.org/resources/{resource-name}.{id}`
 - **API**: Spiget API v2を使用
 
+### Hangar
+
+Hangar（PaperMC公式プラグインリポジトリ）からプラグインをダウンロードします。
+
+```jsonc
+{
+    "type": "hangar",
+    "id": "kennytv/Maintenance" // owner/project 形式（project単体も可）
+}
+```
+
+- **URL形式**: `https://hangar.papermc.io/{owner}/{project}`
+- **API**: Hangar API v1を使用
+- **プラットフォーム選択**: 既定でPAPER向けファイルを優先的にダウンロード（無い場合は他プラットフォームにフォールバック）
+- **チャンネル**: `tag:` 指定でHangarのチャンネル名（`Release`, `Snapshot`, `Beta`, `Alpha`など）を大文字小文字を区別せずフィルタリング
+
 ## フィールド説明
 
 ### 必須フィールド
 
-- **type**: リポジトリタイプ（`modrinth`, `github`, `spigotmc`, `hangar` ⚠️ hangarは未実装）
+- **type**: リポジトリタイプ（`modrinth`, `github`, `spigotmc`, `hangar`）
 - **id**: リポジトリ固有のID
   - GitHub: `owner/repository`
   - SpigotMC: リソースID
   - Modrinth: プロジェクトIDまたはslug
+  - Hangar: `owner/project`（project単体も可）
 
 ### オプショナルフィールド
 

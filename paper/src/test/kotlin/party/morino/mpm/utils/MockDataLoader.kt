@@ -79,6 +79,21 @@ object MockDataLoader {
     }
 
     /**
+     * Hangar APIのmockデータを読み込む
+     */
+    object Hangar {
+        /**
+         * https://hangar.papermc.io/api/v1/projects/{slug}/versions のレスポンスを取得
+         */
+        fun getProjectVersions(): String = loadMockData("mock/http/hangar/versions.json")
+
+        /**
+         * https://hangar.papermc.io/api/v1/projects/{slug}/versions/{name} のレスポンスを取得
+         */
+        fun getVersionDetail(): String = loadMockData("mock/http/hangar/version-detail.json")
+    }
+
+    /**
      * Repository関連のmockデータを読み込む
      */
     object Repository {

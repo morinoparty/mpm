@@ -335,6 +335,20 @@ class PluginLifecycleServiceImpl :
                 }
                 "modrinth" -> UrlData.ModrinthUrlData(id = repositoryInfo.id)
                 "spigotmc" -> UrlData.SpigotMcUrlData(resourceId = repositoryInfo.id)
+                "hangar" -> {
+                    // Hangar形式: "owner/project"（ownerを省略したslug単体も許容する）
+                    val parts = repositoryInfo.id.split("/")
+                    when (parts.size) {
+                        2 -> UrlData.HangarUrlData(owner = parts[0], projectName = parts[1])
+                        1 -> UrlData.HangarUrlData(owner = "", projectName = parts[0])
+                        else ->
+                            return MpmError.PluginError
+                                .InstallFailed(
+                                    pluginName,
+                                    "Invalid Hangar repository ID format: ${repositoryInfo.id}"
+                                ).left()
+                    }
+                }
                 else -> return MpmError.PluginError.UnsupportedRepository(repositoryInfo.type.name).left()
             }
 
@@ -1099,6 +1113,16 @@ class PluginLifecycleServiceImpl :
                     ?.let { (owner, repository) -> UrlData.GithubUrlData(owner, repository) }
             "modrinth" -> UrlData.ModrinthUrlData(repo.repositoryId)
             "spigotmc" -> UrlData.SpigotMcUrlData(repo.repositoryId)
+            "hangar" ->
+                repo.repositoryId
+                    .split("/")
+                    .let { parts ->
+                        when (parts.size) {
+                            2 -> UrlData.HangarUrlData(owner = parts[0], projectName = parts[1])
+                            1 -> UrlData.HangarUrlData(owner = "", projectName = parts[0])
+                            else -> null
+                        }
+                    }
             else -> null
         }
 

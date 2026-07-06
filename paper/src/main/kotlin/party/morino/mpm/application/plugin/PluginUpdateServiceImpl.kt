@@ -1122,6 +1122,15 @@ class PluginUpdateServiceImpl :
             }
             "modrinth" -> UrlData.ModrinthUrlData(id = repositoryId)
             "spigotmc" -> UrlData.SpigotMcUrlData(resourceId = repositoryId)
+            "hangar" -> {
+                // Hangar形式: "owner/project"（ownerを省略したslug単体も許容する）
+                val parts = repositoryId.split("/")
+                when (parts.size) {
+                    2 -> UrlData.HangarUrlData(owner = parts[0], projectName = parts[1])
+                    1 -> UrlData.HangarUrlData(owner = "", projectName = parts[0])
+                    else -> null
+                }
+            }
             else -> null
         }
     }

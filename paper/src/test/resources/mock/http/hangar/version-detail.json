@@ -1,0 +1,24 @@
+{
+  "name": "5.1.0",
+  "channel": { "name": "Release" },
+  "downloads": {
+    "PAPER": {
+      "fileInfo": {
+        "name": "Maintenance-Paper-5.1.0.jar",
+        "sizeBytes": 233744,
+        "sha256Hash": "ab08939d28b3ef1a68aa9194092652282cc3405f7fcf7cbb059a74c58f1dcba7"
+      },
+      "externalUrl": null,
+      "downloadUrl": "https://hangarcdn.papermc.io/plugins/kennytv/Maintenance/versions/5.1.0/PAPER/Maintenance-Paper-5.1.0.jar"
+    },
+    "WATERFALL": {
+      "fileInfo": {
+        "name": "Maintenance-Bungee-5.1.0.jar",
+        "sizeBytes": 2899775,
+        "sha256Hash": "fc4e95f6293de16938fefa92076478d2f98c2412727f00f8520673b0bd0a9bef"
+      },
+      "externalUrl": null,
+      "downloadUrl": "https://hangarcdn.papermc.io/plugins/kennytv/Maintenance/versions/5.1.0/WATERFALL/Maintenance-Bungee-5.1.0.jar"
+    }
+  }
+}

@@ -97,7 +97,11 @@ open class SpigotDownloader : AbstractPluginDownloader() {
             versions.firstOrNull { it.name == versionName }
                 ?: throw Exception("バージョン '$versionName' が見つかりませんでした")
 
-        return VersionData(downloadId = matchedVersion.id?.toString() ?: "unknown", version = matchedVersion.name ?: "unknown")
+        return VersionData(
+            downloadId = matchedVersion.id?.toString() ?: "unknown",
+            version =
+                matchedVersion.name ?: "unknown"
+        )
     }
 
     /**
