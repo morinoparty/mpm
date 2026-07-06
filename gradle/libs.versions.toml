@@ -41,7 +41,7 @@ ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
-mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.2.29" }
+mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.2.30" }
 
 commons-io = { group = "commons-io", name = "commons-io", version.ref = "commonsIo" }
 snakeyaml = { group = "org.yaml", name = "snakeyaml", version = "2.6" }
@@ -68,7 +68,7 @@ cron-utils = { group = "com.cronutils", name = "cron-utils", version.ref = "cron
 [plugins]
 run-paper = { id = "xyz.jpenilla.run-paper", version = "3.0.2" }
 resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.2.1" }
-shadow = { id = "com.gradleup.shadow", version = "9.4.3" }
+shadow = { id = "com.gradleup.shadow", version = "9.5.0" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.0" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.4.0" }
 dokka = { id = "org.jetbrains.dokka", version = "2.2.0" }
