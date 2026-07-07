@@ -15,6 +15,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
+import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
@@ -34,6 +35,7 @@ import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
+import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginInstallValidator
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
@@ -60,6 +62,7 @@ import party.morino.mpm.ui.command.manage.control.PinCommand
 import party.morino.mpm.ui.command.manage.info.DependencyCommand
 import party.morino.mpm.ui.command.manage.info.ListCommand
 import party.morino.mpm.ui.command.manage.info.OutdatedCommand
+import party.morino.mpm.ui.command.manage.info.VerifyCommand
 import party.morino.mpm.ui.command.manage.info.VersionsCommand
 import party.morino.mpm.ui.command.manage.lifecycle.AddCommand
 import party.morino.mpm.ui.command.manage.lifecycle.AdoptCommand
@@ -222,6 +225,8 @@ open class Mpm :
                 // インストール前検証（APIバージョン互換性・依存関係）の共通ロジック
                 // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
                 single { PluginInstallValidator() }
+                // ダウンロードしたJARのハッシュ整合性検証
+                single<IntegrityVerifier> { IntegrityVerifierImpl() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
@@ -267,6 +272,7 @@ open class Mpm :
         lamp.register(UninstallCommand())
         lamp.register(PinCommand())
         lamp.register(UpdateCommand())
+        lamp.register(VerifyCommand())
         lamp.register(VersionsCommand())
         lamp.register(RepositoryCommands())
         lamp.register(ReloadCommand())

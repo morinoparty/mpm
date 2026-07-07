@@ -31,11 +31,13 @@ interface PluginUpdateService {
      *
      * @param force trueの場合、api-version非互換でも強制更新する
      * @param progressCallback 進捗メッセージを受け取るコールバック（MiniMessage形式）
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
      * @return 更新結果一覧
      */
     suspend fun update(
         force: Boolean = false,
-        progressCallback: ((String) -> Unit)? = null
+        progressCallback: ((String) -> Unit)? = null,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, List<UpdateResult>>
 
     /**
@@ -43,20 +45,26 @@ interface PluginUpdateService {
      *
      * @param name プラグイン名
      * @param force trueの場合、api-version非互換でも強制更新する
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
      * @return 更新結果
      */
     suspend fun update(
         name: PluginName,
-        force: Boolean = false
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, UpdateResult>
 
     /**
      * mpm.jsonに記載されたすべてのプラグインを一括インストールする
      *
      * @param force trueの場合、api-version非互換でも強制インストールする
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
      * @return 一括インストール結果
      */
-    suspend fun installAll(force: Boolean = false): Either<MpmError, BulkInstallResult>
+    suspend fun installAll(
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
+    ): Either<MpmError, BulkInstallResult>
 
     /**
      * プラグインをロックする

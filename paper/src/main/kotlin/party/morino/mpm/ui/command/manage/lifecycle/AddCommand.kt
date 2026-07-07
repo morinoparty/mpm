@@ -46,9 +46,10 @@ class AddCommand : KoinComponent {
         plugin: RepositoryPlugin,
         @Switch("no-deps") noDeps: Boolean = false,
         @Switch("soft") soft: Boolean = false,
-        @Switch("force") force: Boolean = false
+        @Switch("force") force: Boolean = false,
+        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false
     ) {
-        addWithVersion(sender, plugin, VersionSpecifier.Latest, noDeps, soft, force)
+        addWithVersion(sender, plugin, VersionSpecifier.Latest, noDeps, soft, force, skipIntegrity)
     }
 
     /**
@@ -66,16 +67,17 @@ class AddCommand : KoinComponent {
         version: VersionSpecifier,
         @Switch("no-deps") noDeps: Boolean = false,
         @Switch("soft") soft: Boolean = false,
-        @Switch("force") force: Boolean = false
+        @Switch("force") force: Boolean = false,
+        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false
     ) {
         val pluginId = plugin.pluginId
 
         if (noDeps) {
             // 依存関係なしで追加（従来の動作）
-            addSinglePlugin(sender, pluginId, version, force)
+            addSinglePlugin(sender, pluginId, version, force, skipIntegrity)
         } else {
             // 依存関係を含めて追加
-            addWithDependencies(sender, pluginId, version, soft, force)
+            addWithDependencies(sender, pluginId, version, soft, force, skipIntegrity)
         }
     }
 
@@ -86,7 +88,8 @@ class AddCommand : KoinComponent {
         sender: CommandSender,
         pluginId: String,
         version: VersionSpecifier,
-        force: Boolean = false
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ) {
         sender.sendRichMessage("<gray>プラグイン '$pluginId' の情報を取得しています...")
 
@@ -98,7 +101,7 @@ class AddCommand : KoinComponent {
                 sender.sendRichMessage("<green>プラグイン '$pluginId' の情報を追加しました。")
                 sender.sendRichMessage("<gray>プラグイン '$pluginId' をインストールしています...")
 
-                lifecycleService.install(PluginName(pluginId), force).fold(
+                lifecycleService.install(PluginName(pluginId), force, skipIntegrity).fold(
                     { error ->
                         sender.sendRichMessage("<red>${error.message}")
                         // api-version非互換の場合は--forceフラグの案内を表示
@@ -123,7 +126,8 @@ class AddCommand : KoinComponent {
         pluginId: String,
         version: VersionSpecifier,
         includeSoftDependencies: Boolean,
-        force: Boolean = false
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ) {
         sender.sendRichMessage("<gray>プラグイン '$pluginId' と依存関係を解決しています...")
 
@@ -132,7 +136,8 @@ class AddCommand : KoinComponent {
                 PluginName(pluginId),
                 version,
                 includeSoftDependencies,
-                force
+                force,
+                skipIntegrity
             ).fold(
                 { error ->
                     sender.sendRichMessage("<red>${error.message}")

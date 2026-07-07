@@ -22,7 +22,11 @@ import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.model.outdated.PluginCheckError
+import party.morino.mpm.api.application.model.verify.VerifyEntry
+import party.morino.mpm.api.application.model.verify.VerifyStatus
+import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
@@ -37,6 +41,7 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.event.state.PluginOutdatedEvent
 import party.morino.mpm.utils.BukkitDispatcher
+import java.io.File
 
 /**
  * プラグイン情報の取得を行うApplication Service実装
@@ -51,6 +56,8 @@ class PluginInfoServiceImpl :
     private val repositoryManager: RepositoryManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val pluginDirectory: PluginDirectory by inject()
+    private val integrityVerifier: IntegrityVerifier by inject()
     private val plugin: JavaPlugin by inject()
 
     /**
@@ -284,6 +291,75 @@ class PluginInfoServiceImpl :
         }
 
         return OutdatedCheckResult(outdatedInfoList, checkErrors).right()
+    }
+
+    /**
+     * インストール済み管理下プラグインの整合性を再検証する
+     *
+     * 各プラグインのJARからsha256を計算し、メタデータに保存されたsha256と照合する。
+     * ネットワークアクセスは行わず、ローカルの検証のみを行う。
+     */
+    override suspend fun verifyInstalled(): Either<MpmError, List<VerifyEntry>> {
+        // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
+        val project = projectRepository.findOrError().getOrElse { return it.left() }
+
+        val pluginsDir = pluginDirectory.getPluginsDirectory()
+        val entries = mutableListOf<VerifyEntry>()
+
+        // unmanagedはメタデータを持たないため対象外とする
+        val managedPlugins = project.plugins.filterValues { it !is PluginSpec.Unmanaged }.keys
+
+        for (pluginName in managedPlugins) {
+            // 各プラグインの検証結果を1件生成する
+            entries.add(verifySinglePlugin(pluginName.value, pluginsDir))
+        }
+
+        return entries.right()
+    }
+
+    /**
+     * 1プラグインの整合性を検証して結果を返す
+     *
+     * @param pluginName プラグイン名
+     * @param pluginsDir プラグインディレクトリ
+     */
+    private fun verifySinglePlugin(
+        pluginName: String,
+        pluginsDir: File
+    ): VerifyEntry {
+        // メタデータが読めない場合はハッシュ未保存として扱う
+        val metadata =
+            pluginMetadataManager.loadMetadata(pluginName).getOrNull()
+                ?: return VerifyEntry(pluginName, VerifyStatus.NO_HASH)
+
+        val download = metadata.mpmInfo.download
+        val expectedSha256 = download.sha256
+
+        // 保存済みハッシュがなければ検証不能
+        if (expectedSha256.isNullOrBlank()) {
+            return VerifyEntry(pluginName, VerifyStatus.NO_HASH)
+        }
+
+        // JARファイルを特定（メタデータのfileNameを使用）
+        val jarFile = download.fileName?.let { File(pluginsDir, it) }
+        if (jarFile == null || !jarFile.exists()) {
+            return VerifyEntry(pluginName, VerifyStatus.FILE_MISSING, expectedSha256 = expectedSha256)
+        }
+
+        // 実ファイルのsha256を計算して照合
+        val actualSha256 = integrityVerifier.computeSha256(jarFile)
+        val status =
+            if (actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                VerifyStatus.OK
+            } else {
+                VerifyStatus.MISMATCH
+            }
+        return VerifyEntry(
+            pluginName = pluginName,
+            status = status,
+            expectedSha256 = expectedSha256,
+            actualSha256 = actualSha256
+        )
     }
 
     /**

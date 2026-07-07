@@ -25,8 +25,10 @@ import party.morino.mpm.api.application.model.install.BulkInstallResult
 import party.morino.mpm.api.application.model.install.InstallResult
 import party.morino.mpm.api.application.model.install.PluginInstallInfo
 import party.morino.mpm.api.application.model.install.PluginRemovalInfo
+import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.application.plugin.model.integrity.IntegrityResult
 import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
@@ -82,6 +84,9 @@ class PluginUpdateServiceImpl :
     // PluginLifecycleServiceImpl.install() と共有し、検証ロジックの重複・乖離を防ぐ
     private val pluginInstallValidator: PluginInstallValidator by inject()
 
+    // ダウンロードしたJARのハッシュ整合性検証を行う
+    private val integrityVerifier: IntegrityVerifier by inject()
+
     // 並行更新を防止するためのMutex（スケジューラーとコマンドの競合回避）
     private val updateMutex = Mutex()
 
@@ -92,14 +97,15 @@ class PluginUpdateServiceImpl :
      */
     override suspend fun update(
         force: Boolean,
-        progressCallback: ((String) -> Unit)?
+        progressCallback: ((String) -> Unit)?,
+        skipIntegrity: Boolean
     ): Either<MpmError, List<UpdateResult>> {
         // 既に更新処理が実行中の場合はエラーを返す
         if (!updateMutex.tryLock()) {
             return MpmError.PluginError.UpdateInProgress.left()
         }
         try {
-            return executeUpdate(force, progressCallback)
+            return executeUpdate(force, progressCallback, skipIntegrity)
         } finally {
             updateMutex.unlock()
         }
@@ -110,7 +116,8 @@ class PluginUpdateServiceImpl :
      */
     private suspend fun executeUpdate(
         force: Boolean,
-        progressCallback: ((String) -> Unit)? = null
+        progressCallback: ((String) -> Unit)? = null,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, List<UpdateResult>> {
         // すべてのプラグインの更新情報を取得
         progressCallback?.invoke("<gray>更新可能なプラグインを確認しています...")
@@ -240,7 +247,8 @@ class PluginUpdateServiceImpl :
             )
 
             // 最新バージョンでインストール（既存のファイルは上書きされる、forceフラグを伝播）
-            val installResult = installSinglePlugin(outdatedInfo.pluginName, force, useLatest = true)
+            val installResult =
+                installSinglePlugin(outdatedInfo.pluginName, force, useLatest = true, skipIntegrity = skipIntegrity)
 
             installResult.fold(
                 // インストール失敗時
@@ -279,7 +287,7 @@ class PluginUpdateServiceImpl :
 
         // Syncプラグインの連動更新（forceフラグを伝播）
         mpmConfig?.let { config ->
-            updateSyncPlugins(config, updatedPlugins, updateResults, force, progressCallback)
+            updateSyncPlugins(config, updatedPlugins, updateResults, force, progressCallback, skipIntegrity)
         }
 
         return (checkFailResults + updateResults).right()
@@ -292,7 +300,8 @@ class PluginUpdateServiceImpl :
      */
     override suspend fun update(
         name: PluginName,
-        force: Boolean
+        force: Boolean,
+        skipIntegrity: Boolean
     ): Either<MpmError, UpdateResult> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
@@ -346,7 +355,7 @@ class PluginUpdateServiceImpl :
             )
 
             // 最新バージョンをtargetVersionとして渡してインストール
-            return installSinglePlugin(name.value, force, useLatest = true).fold(
+            return installSinglePlugin(name.value, force, useLatest = true, skipIntegrity = skipIntegrity).fold(
                 { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
                 {
                     UpdateResult(
@@ -368,13 +377,16 @@ class PluginUpdateServiceImpl :
      *
      * BulkInstallUseCaseImplから移行したロジック
      */
-    override suspend fun installAll(force: Boolean): Either<MpmError, BulkInstallResult> {
+    override suspend fun installAll(
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, BulkInstallResult> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
             return MpmError.PluginError.UpdateInProgress.left()
         }
         try {
-            return executeInstallAll(force)
+            return executeInstallAll(force, skipIntegrity)
         } finally {
             updateMutex.unlock()
         }
@@ -383,7 +395,10 @@ class PluginUpdateServiceImpl :
     /**
      * 一括インストール処理の本体（Mutex保護下で呼び出される）
      */
-    private suspend fun executeInstallAll(force: Boolean): Either<MpmError, BulkInstallResult> {
+    private suspend fun executeInstallAll(
+        force: Boolean,
+        skipIntegrity: Boolean = false
+    ): Either<MpmError, BulkInstallResult> {
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
         val mpmConfig =
             projectRepository
@@ -469,7 +484,7 @@ class PluginUpdateServiceImpl :
             }
 
             val versionToInstall = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
-            installPluginWithVersion(pluginName, versionToInstall, force).fold(
+            installPluginWithVersion(pluginName, versionToInstall, force, skipIntegrity).fold(
                 { failed[pluginName] = it },
                 { result ->
                     installed.add(
@@ -605,7 +620,8 @@ class PluginUpdateServiceImpl :
         updatedPlugins: Set<String>,
         updateResults: MutableList<UpdateResult>,
         force: Boolean = false,
-        progressCallback: ((String) -> Unit)? = null
+        progressCallback: ((String) -> Unit)? = null,
+        skipIntegrity: Boolean = false
     ) {
         // 更新されたプラグインに同期しているプラグインを取得
         val syncPluginsToUpdate = mutableSetOf<String>()
@@ -657,7 +673,7 @@ class PluginUpdateServiceImpl :
 
             // プラグインをインストール（forceフラグを伝播）
             progressCallback?.invoke("<gray>[$syncPluginName] 連動更新をダウンロード中...")
-            val installResult = installSinglePlugin(syncPluginName, force)
+            val installResult = installSinglePlugin(syncPluginName, force, skipIntegrity = skipIntegrity)
 
             installResult.fold(
                 // インストール失敗時
@@ -703,7 +719,8 @@ class PluginUpdateServiceImpl :
     private suspend fun installSinglePlugin(
         pluginName: String,
         force: Boolean = false,
-        useLatest: Boolean = false
+        useLatest: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<String, InstallResult> {
         val metadataDir = pluginDirectory.getMetadataDirectory()
         val metadataFile = File(metadataDir, "$pluginName.yaml")
@@ -814,6 +831,22 @@ class PluginUpdateServiceImpl :
             return "プラグインファイルのダウンロードに失敗しました。".left()
         }
 
+        // ダウンロードしたtempファイルの整合性を検証する（ステージング前に実施）
+        // mpmInfoDtoは更新前のメタデータなので、同一バージョンのインストール（再取得）時のみ
+        // 保存済みsha256を照合に使用する。バージョンアップ時は旧ハッシュで誤検知しないようnullを渡す。
+        val scopedStoredSha256 =
+            if (versionData.version == mpmInfoDto.version.current.raw) mpmInfoDto.download.sha256 else null
+        val verifiedSha256 =
+            verifyIntegrityOrAbort(
+                downloadedFile = downloadedFile,
+                urlData = urlData,
+                versionName = versionData.version,
+                storedSha256 = scopedStoredSha256,
+                fileNamePattern = mpmInfoDto.fileNamePattern,
+                skipIntegrity = skipIntegrity,
+                pluginName = pluginName
+            ).getOrElse { return it.left() }
+
         // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
         // チェックに失敗した場合はtempファイルを削除して早期リターン
         validateDownloadedPlugin(downloadedFile, pluginName, force).onLeft { error ->
@@ -860,14 +893,15 @@ class PluginUpdateServiceImpl :
             }
         }
 
-        // ファイル名をmetadataに記録して保存
+        // ファイル名と検証済みsha256をmetadataに記録して保存
         val updatedMetadata =
             updatedMetadataWithLatest.copy(
                 mpmInfo =
                     updatedMetadataWithLatest.mpmInfo.copy(
                         download =
                             updatedMetadataWithLatest.mpmInfo.download.copy(
-                                fileName = newFileName
+                                fileName = newFileName,
+                                sha256 = verifiedSha256
                             )
                     )
             )
@@ -893,7 +927,8 @@ class PluginUpdateServiceImpl :
     private suspend fun installPluginWithVersion(
         pluginName: String,
         expectedVersion: String,
-        force: Boolean = false
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<String, InstallResult> {
         // リポジトリファイルを取得
         val repositoryFile =
@@ -945,6 +980,17 @@ class PluginUpdateServiceImpl :
                 }
             }
 
+        // 更新前の保存済みバージョン/ハッシュを退避する
+        // （後続のupdateMetadataでmetadataのcurrentが新バージョンに書き換わるため、事前に捕捉する）
+        val previousMetadata = pluginMetadataManager.loadMetadata(pluginName).getOrNull()
+        val previousStoredVersion =
+            previousMetadata
+                ?.mpmInfo
+                ?.version
+                ?.current
+                ?.raw
+        val previousStoredSha256 = previousMetadata?.mpmInfo?.download?.sha256
+
         // メタデータが存在するか確認し、更新または作成
         // 新規作成時はチャンネル固有のversionModifierを尊重するため、解決チャンネルを渡す
         val resolvedChannel = tagChannel ?: "latest"
@@ -979,6 +1025,22 @@ class PluginUpdateServiceImpl :
         if (downloadedFile == null) {
             return "プラグインファイルのダウンロードに失敗しました。".left()
         }
+
+        // ダウンロードしたtempファイルの整合性を検証する（ステージング前に実施）
+        // 保存済みsha256は、ダウンロードするバージョンが更新前のバージョンと一致する（再取得）場合のみ
+        // 照合に使用する。バージョンアップ時は旧ハッシュで誤検知しないようnullを渡す。
+        val scopedStoredSha256 =
+            if (versionData.version == previousStoredVersion) previousStoredSha256 else null
+        val verifiedSha256 =
+            verifyIntegrityOrAbort(
+                downloadedFile = downloadedFile,
+                urlData = urlData,
+                versionName = versionData.version,
+                storedSha256 = scopedStoredSha256,
+                fileNamePattern = firstRepository.fileNamePattern,
+                skipIntegrity = skipIntegrity,
+                pluginName = pluginName
+            ).getOrElse { return it.left() }
 
         // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
         // チェックに失敗した場合はtempファイルを削除して早期リターン
@@ -1022,14 +1084,15 @@ class PluginUpdateServiceImpl :
             }
         }
 
-        // ファイル名をmetadataに記録して保存
+        // ファイル名と検証済みsha256をmetadataに記録して保存
         val updatedMetadata =
             metadata.copy(
                 mpmInfo =
                     metadata.mpmInfo.copy(
                         download =
                             metadata.mpmInfo.download.copy(
-                                fileName = newFileName
+                                fileName = newFileName,
+                                sha256 = verifiedSha256
                             )
                     )
             )
@@ -1047,6 +1110,51 @@ class PluginUpdateServiceImpl :
             installed = installInfo,
             removed = removedInfo
         ).right()
+    }
+
+    /**
+     * ダウンロードしたファイルの整合性を検証し、不一致であれば更新を中断する
+     *
+     * 検証にはリポジトリ提供ハッシュ、または（同一バージョンの場合のみ）保存済みsha256を用いる。
+     * 不一致かつ [skipIntegrity] が false の場合はtempファイルを削除してエラーメッセージを返す。
+     * [skipIntegrity] が true の場合は警告ログを出力して続行するが、検証をパスしていないため
+     * sha256は保存しない（nullを返す）。これにより後続の `mpm verify` が誤ってOKと報告するのを防ぐ。
+     *
+     * @param storedSha256 照合対象の保存済みsha256（ダウンロードするバージョンと一致する場合のみ渡す）
+     * @param fileNamePattern ダウンロード時と同じファイル選択に使用するパターン
+     * @return 成功時はメタデータに保存すべきsha256（skip時はnull）、不一致で中断する場合はエラーメッセージ
+     */
+    private suspend fun verifyIntegrityOrAbort(
+        downloadedFile: File,
+        urlData: UrlData,
+        versionName: String,
+        storedSha256: String?,
+        fileNamePattern: String?,
+        skipIntegrity: Boolean,
+        pluginName: String
+    ): Either<String, String?> {
+        val result = integrityVerifier.verify(downloadedFile, urlData, versionName, storedSha256, fileNamePattern)
+        return when (result) {
+            is IntegrityResult.Mismatch -> {
+                if (skipIntegrity) {
+                    plugin.logger.warning(
+                        "Integrity check mismatch for '$pluginName' (${result.algorithm}): " +
+                            "expected=${result.expected}, actual=${result.actual}. Skipped by --skip-integrity."
+                    )
+                    // 検証をパスしていないため、信頼済みハッシュとしては保存しない
+                    null.right()
+                } else {
+                    downloadedFile.delete()
+                    (
+                        "整合性検証に失敗しました (${result.algorithm}): " +
+                            "expected=${result.expected}, actual=${result.actual}。" +
+                            "ダウンロードが破損または改竄されている可能性があります。--skip-integrityで上書きできます。"
+                    ).left()
+                }
+            }
+            is IntegrityResult.Verified -> result.sha256.right()
+            is IntegrityResult.NoReference -> result.sha256.right()
+        }
     }
 
     /**

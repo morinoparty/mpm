@@ -76,11 +76,13 @@ interface PluginLifecycleService {
      *
      * @param name プラグイン名
      * @param force trueの場合、api-version非互換でも強制インストールする
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
      * @return インストール結果
      */
     suspend fun install(
         name: PluginName,
-        force: Boolean = false
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, InstallResult>
 
     /**
@@ -111,13 +113,15 @@ interface PluginLifecycleService {
      * @param name プラグイン名
      * @param version バージョン指定
      * @param includeSoftDependencies softDependenciesも含めるかどうか
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
      * @return 追加結果（追加されたプラグイン、スキップされたプラグイン、失敗したプラグイン）
      */
     suspend fun addWithDependencies(
         name: PluginName,
         version: VersionSpecifier,
         includeSoftDependencies: Boolean = false,
-        force: Boolean = false
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, AddWithDependenciesResult>
 
     /**

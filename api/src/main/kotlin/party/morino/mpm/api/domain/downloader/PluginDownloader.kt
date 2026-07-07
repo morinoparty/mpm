@@ -61,11 +61,14 @@ interface PluginDownloader {
      *
      * @param urlData URLデータ
      * @param versionName バージョン名
+     * @param fileNamePattern ダウンロード時と同じファイル/プラットフォーム選択に使用するパターン（オプション）。
+     *   複数artifactを持つリポジトリで、実際にダウンロードするファイルのハッシュのみを対象にするために使用する。
      * @return ハッシュ情報のMap（例: {"sha1": "...", "sha512": "..."}）、非対応の場合はnull
      */
     suspend fun getVersionHashesByName(
         urlData: UrlData,
-        versionName: String
+        versionName: String,
+        fileNamePattern: String? = null
     ): Map<String, String>? = null
 
     /**

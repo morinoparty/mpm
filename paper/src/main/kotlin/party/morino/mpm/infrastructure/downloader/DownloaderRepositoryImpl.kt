@@ -199,15 +199,19 @@ class DownloaderRepositoryImpl :
 
     /**
      * 指定されたバージョンのファイルハッシュを取得する
-     * Modrinthのみ対応。その他のリポジトリではnullを返す。
+     * Modrinth（sha1/sha512）とHangar（sha256）に対応。その他のリポジトリではnullを返す。
      */
     override suspend fun getVersionHashesByName(
         urlData: UrlData,
-        versionName: String
+        versionName: String,
+        fileNamePattern: String?
     ): Map<String, String>? =
         when (urlData) {
             is UrlData.ModrinthUrlData -> {
-                modrinthDownloader.getVersionHashesByName(urlData, versionName)
+                modrinthDownloader.getVersionHashesByName(urlData, versionName, fileNamePattern)
+            }
+            is UrlData.HangarUrlData -> {
+                hangarDownloader.getVersionHashesByName(urlData, versionName, fileNamePattern)
             }
             else -> null
         }

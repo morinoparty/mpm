@@ -36,12 +36,13 @@ class InstallCommand : KoinComponent {
     @Subcommand("install")
     suspend fun install(
         sender: CommandSender,
-        @Switch("force") force: Boolean = false
+        @Switch("force") force: Boolean = false,
+        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false
     ) {
         sender.sendRichMessage("<gray>mpm.jsonを読み込んでいます...")
 
-        // PluginUpdateServiceを実行（forceフラグを伝播）
-        updateService.installAll(force).fold(
+        // PluginUpdateServiceを実行（force・skip-integrityフラグを伝播）
+        updateService.installAll(force, skipIntegrity).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}")
