@@ -1,0 +1,38 @@
+---
+title: 🩺 サーバーの健全性診断
+description: mpm doctor でプラグイン管理状態を一括診断する方法を説明します
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+`mpm doctor` は、サーバーのプラグイン管理状態を一括で診断するコマンドです。個別のコマンド（`mpm deps check`・`mpm verify`・`mpm outdated`・`mpm list`）を1つずつ実行しなくても、一度でサーバーの健全性を俯瞰できます。
+
+```bash
+mpm doctor
+```
+
+## 🔍 診断項目
+
+`mpm doctor` は次の項目をまとめて確認し、色分けして表示します。
+
+### 🔴 対処が必要な項目（異常）
+
+- **整合性エラー（ハッシュ不一致）** — インストール済み JAR が記録された sha256 と一致しません。破損・改竄の可能性があります（→ `mpm update <plugin>`）
+- **JARファイルが見つからない** — メタデータはあるが JAR が存在しません（→ `mpm install`）
+- **不足している必須依存** — 導入済みプラグインが必要とする依存が足りません（→ `mpm add <dep>`）
+- **ロックファイルのドリフト** — `mpm.json` と `mpm-lock.yaml` の内容がずれています（→ `mpm install`）
+
+### 🟡 情報（異常ではない）
+
+- **更新があります** — 新しいバージョンが利用可能です（→ `mpm update`）
+- **管理外のプラグイン** — mpm 管理下にない JAR があります（→ `mpm adopt`）
+
+<Callout type="info" title="読み取り専用">
+`mpm doctor` は診断のみを行い、プラグインのインストールや変更は一切行いません。表示されるヒントに従って、必要なコマンドを実行してください。
+</Callout>
+
+## 📚 関連ドキュメント
+
+- [🔒 整合性の検証](/docs/usage/integrity) - `mpm verify` の詳細
+- [依存関係コマンド](/docs/commands/dependency) - `mpm deps check` の詳細
+- [📌 ロックファイル](/docs/format/mpm-lock) - `mpm-lock.yaml` の仕様

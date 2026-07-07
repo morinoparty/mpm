@@ -15,6 +15,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
+import party.morino.mpm.api.application.health.DoctorService
 import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
@@ -38,6 +39,7 @@ import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
+import party.morino.mpm.application.health.DoctorServiceImpl
 import party.morino.mpm.application.lock.LockServiceImpl
 import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
@@ -66,6 +68,7 @@ import party.morino.mpm.ui.command.manage.control.InitCommand
 import party.morino.mpm.ui.command.manage.control.LockCommand
 import party.morino.mpm.ui.command.manage.control.PinCommand
 import party.morino.mpm.ui.command.manage.info.DependencyCommand
+import party.morino.mpm.ui.command.manage.info.DoctorCommand
 import party.morino.mpm.ui.command.manage.info.InfoCommand
 import party.morino.mpm.ui.command.manage.info.ListCommand
 import party.morino.mpm.ui.command.manage.info.OutdatedCommand
@@ -235,6 +238,8 @@ open class Mpm :
                 single<PluginSearchService> { PluginSearchServiceImpl() }
                 // ロックファイル（mpm-lock.yaml）管理
                 single<LockService> { LockServiceImpl() }
+                // サーバー健全性診断（mpm doctor）
+                single<DoctorService> { DoctorServiceImpl() }
                 // インストール前検証（APIバージョン互換性・依存関係）の共通ロジック
                 // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
                 single { PluginInstallValidator() }
@@ -287,6 +292,7 @@ open class Mpm :
         lamp.register(UpdateCommand())
         lamp.register(InfoCommand())
         lamp.register(SearchCommand())
+        lamp.register(DoctorCommand())
         lamp.register(VerifyCommand())
         lamp.register(VersionsCommand())
         lamp.register(RepositoryCommands())

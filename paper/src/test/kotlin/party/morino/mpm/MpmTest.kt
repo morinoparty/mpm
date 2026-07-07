@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtensionContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import party.morino.mpm.api.application.health.DoctorService
 import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
@@ -37,6 +38,7 @@ import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
+import party.morino.mpm.application.health.DoctorServiceImpl
 import party.morino.mpm.application.lock.LockServiceImpl
 import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
@@ -140,6 +142,7 @@ class MpmTest :
                 single<PluginInfoService> { PluginInfoServiceImpl() }
                 single<PluginSearchService> { PluginSearchServiceImpl() }
                 single<LockService> { LockServiceImpl() }
+                single<DoctorService> { DoctorServiceImpl() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }

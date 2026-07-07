@@ -1,6 +1,13 @@
 {
     "commands": [
         {
+            "command": "mpm doctor",
+            "status": "newly",
+            "category": "plugin",
+            "section": "情報表示",
+            "description": "依存関係・整合性・更新・ロック・管理外を一括診断します"
+        },
+        {
             "command": "mpm verify",
             "status": "newly",
             "category": "plugin",
