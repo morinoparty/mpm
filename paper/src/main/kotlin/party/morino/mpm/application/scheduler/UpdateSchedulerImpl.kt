@@ -22,12 +22,14 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.model.ScheduleConfig
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.utils.regenerateQuietly
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -47,6 +49,7 @@ class UpdateSchedulerImpl :
     private val updateService: PluginUpdateService by inject()
     private val infoService: PluginInfoService by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val lockService: LockService by inject()
 
     // スケジューラータスクの参照（停止用）
     private var schedulerTask: BukkitTask? = null
@@ -344,6 +347,9 @@ class UpdateSchedulerImpl :
                                 "  ✓ ${result.pluginName}: ${result.oldVersion} -> ${result.newVersion}"
                             )
                         }
+                        // 実際にバージョンが更新された場合はロックファイルを再生成して追従させる
+                        // （スケジューラはコマンド層を経由しないため、ここで明示的に呼ぶ）
+                        lockService.regenerateQuietly(plugin.logger)
                     }
                     if (failed.isNotEmpty()) {
                         plugin.logger.warning("[Scheduled] Failed to update ${failed.size} plugin(s):")

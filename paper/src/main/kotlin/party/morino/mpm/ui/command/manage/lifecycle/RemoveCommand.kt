@@ -10,11 +10,14 @@
 package party.morino.mpm.ui.command.manage.lifecycle
 
 import org.bukkit.command.CommandSender
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.utils.regenerateQuietly
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -30,6 +33,8 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class RemoveCommand : KoinComponent {
     // Koinによる依存性注入
     private val lifecycleService: PluginLifecycleService by inject()
+    private val lockService: LockService by inject()
+    private val mpmPlugin: JavaPlugin by inject()
 
     /**
      * プラグインを管理対象から除外するコマンド
@@ -56,6 +61,9 @@ class RemoveCommand : KoinComponent {
                 sender.sendRichMessage("<gray>ファイルも削除する場合は 'mpm uninstall $pluginId' を実行してください。</gray>")
             }
         )
+
+        // 管理対象からの除外後の状態をロックファイルに反映する
+        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /*

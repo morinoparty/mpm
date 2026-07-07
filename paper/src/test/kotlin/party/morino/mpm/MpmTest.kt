@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtensionContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
@@ -31,10 +32,12 @@ import party.morino.mpm.api.domain.config.model.ConfigData
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
+import party.morino.mpm.application.lock.LockServiceImpl
 import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
@@ -44,6 +47,7 @@ import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
@@ -104,6 +108,7 @@ class MpmTest :
                 // リポジトリの登録
                 single<DownloaderRepository> { DownloaderRepositoryImpl() }
                 single<ProjectRepository> { ProjectRepositoryImpl() }
+                single<LockRepository> { LockRepositoryImpl() }
 
                 // メタデータマネージャーの登録
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
@@ -134,6 +139,7 @@ class MpmTest :
                 // 新しいApplication Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }
                 single<PluginSearchService> { PluginSearchServiceImpl() }
+                single<LockService> { LockServiceImpl() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }

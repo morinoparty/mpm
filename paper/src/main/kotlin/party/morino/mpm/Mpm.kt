@@ -15,6 +15,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
@@ -30,12 +31,14 @@ import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
+import party.morino.mpm.application.lock.LockServiceImpl
 import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginInstallValidator
@@ -52,6 +55,7 @@ import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
+import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
@@ -207,6 +211,7 @@ open class Mpm :
                 // リポジトリの登録（依存性はKoinのinjectによって自動注入される）
                 single<DownloaderRepository> { DownloaderRepositoryImpl() }
                 single<ProjectRepository> { ProjectRepositoryImpl() }
+                single<LockRepository> { LockRepositoryImpl() }
 
                 // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
@@ -228,6 +233,8 @@ open class Mpm :
                 single<PluginInfoService> { PluginInfoServiceImpl() }
                 // リポジトリ横断検索
                 single<PluginSearchService> { PluginSearchServiceImpl() }
+                // ロックファイル（mpm-lock.yaml）管理
+                single<LockService> { LockServiceImpl() }
                 // インストール前検証（APIバージョン互換性・依存関係）の共通ロジック
                 // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
                 single { PluginInstallValidator() }

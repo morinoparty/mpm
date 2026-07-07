@@ -10,13 +10,16 @@
 package party.morino.mpm.ui.command.manage.lifecycle
 
 import org.bukkit.command.CommandSender
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.utils.regenerateQuietly
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -34,6 +37,8 @@ class UpdateCommand : KoinComponent {
     private val updateService: PluginUpdateService by inject()
     private val infoService: PluginInfoService by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val lockService: LockService by inject()
+    private val mpmPlugin: JavaPlugin by inject()
 
     /**
      * 新しいバージョンがあるプラグインを更新するコマンド
@@ -110,6 +115,9 @@ class UpdateCommand : KoinComponent {
                 }
             }
         )
+
+        // 更新後の実際の状態をロックファイルに反映する
+        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /**
@@ -151,6 +159,9 @@ class UpdateCommand : KoinComponent {
                 }
             }
         )
+
+        // 更新後の実際の状態をロックファイルに反映する
+        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /**
