@@ -63,6 +63,11 @@ interface PluginRepositorySource {
  * @property defaultVersion デフォルトのバージョン指定文字列（例: "sync:MineAuth", "tag:beta"）
  *   mpm addで明示的なバージョン指定がない場合に使用される
  *   未指定の場合は"latest"がデフォルトとなる
+ * @property aliases このプラグインの別名リスト（オプション）
+ *   `mpm adopt` が既存JARのplugin.ymlの`name`をリポジトリに照合する際、
+ *   ファイル名やidと異なる名前でも一致させるために使用する。
+ *   例: リポジトリファイル名が"QuickShop"でも、plugin.ymlの`name`が"QuickShop-Hikari"の
+ *   JARを取り込めるように ["QuickShop-Hikari"] を指定する
  */
 @Serializable
 data class RepositoryFile(
@@ -73,7 +78,8 @@ data class RepositoryFile(
     val repositories: List<RepositoryConfig>,
     val dependencies: List<String> = emptyList(),
     val softDependencies: List<String> = emptyList(),
-    val defaultVersion: String? = null
+    val defaultVersion: String? = null,
+    val aliases: List<String> = emptyList()
 )
 
 /**

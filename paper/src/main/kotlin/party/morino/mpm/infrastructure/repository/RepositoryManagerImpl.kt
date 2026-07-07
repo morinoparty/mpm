@@ -100,6 +100,54 @@ class RepositoryManagerImpl(
     }
 
     /**
+     * 複数のplugin.ymlの`name`をリポジトリ上の正規プラグイン名へ一括解決する
+     * ファイル名 → id → aliases の順で照合する（すべて大文字小文字を無視）。
+     * id/aliasインデックスは1回だけ構築し、候補ごとの再読み込みを避ける。
+     */
+    override suspend fun resolvePluginNames(pluginYmlNames: Collection<String>): Map<String, String> {
+        if (pluginYmlNames.isEmpty()) return emptyMap()
+
+        val available = getAvailablePlugins()
+        // ファイル名（小文字）→ 正規名 のマップ（安価。従来の挙動）
+        val byFileName = available.associateBy { it.lowercase() }
+
+        val result = HashMap<String, String>()
+        val unresolved = mutableListOf<String>()
+
+        // 1. まずファイル名で照合し、見つからないものだけを後段へ回す
+        for (name in pluginYmlNames) {
+            val repoName = byFileName[name.lowercase()]
+            if (repoName != null) {
+                result[name] = repoName
+            } else {
+                unresolved.add(name)
+            }
+        }
+
+        // 2. ファイル名で見つからない候補がある場合のみ、id/aliasインデックスを1回だけ構築して照合する
+        //    （各リポジトリファイルの読み込みは全体で1回に抑え、候補×ファイル数のリクエスト爆発を防ぐ）
+        if (unresolved.isNotEmpty()) {
+            val idAliasIndex = HashMap<String, String>()
+            for (repoPluginName in available) {
+                val file =
+                    try {
+                        getRepositoryFile(repoPluginName)
+                    } catch (e: Exception) {
+                        null
+                    } ?: continue
+                // 先勝ち（putIfAbsent）で、優先順位の高いソースの解決を尊重する
+                idAliasIndex.putIfAbsent(file.id.lowercase(), repoPluginName)
+                file.aliases.forEach { idAliasIndex.putIfAbsent(it.lowercase(), repoPluginName) }
+            }
+            for (name in unresolved) {
+                idAliasIndex[name.lowercase()]?.let { result[name] = it }
+            }
+        }
+
+        return result
+    }
+
+    /**
      * すべてのリポジトリソースを取得
      * @return リポジトリソースのリスト
      */

@@ -18,7 +18,6 @@ import arrow.core.right
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.add.AddWithDependenciesResult
 import party.morino.mpm.api.application.model.add.AdoptResult
 import party.morino.mpm.api.application.model.add.PluginAddResult
@@ -26,7 +25,6 @@ import party.morino.mpm.api.application.model.install.InstallResult
 import party.morino.mpm.api.application.model.install.PluginInstallInfo
 import party.morino.mpm.api.application.model.install.PluginRemovalInfo
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
-import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.model.integrity.IntegrityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
@@ -74,7 +72,6 @@ class PluginLifecycleServiceImpl :
     private val downloaderRepository: DownloaderRepository by inject()
     private val metadataManager: PluginMetadataManager by inject()
     private val plugin: JavaPlugin by inject()
-    private val infoService: PluginInfoService by inject()
 
     // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
     // PluginUpdateServiceImpl と共有し、検証ロジックの重複・乖離を防ぐ
@@ -790,6 +787,25 @@ class PluginLifecycleServiceImpl :
         }
 
     /**
+     * JARファイルのplugin.ymlからプラグイン名を取得する
+     *
+     * パース不能・破損したJARはnullを返す（adoptのスキャンで例外を伝播させないため）。
+     *
+     * @param jar 対象のJARファイル
+     * @return plugin.ymlの`name`、取得できない場合はnull
+     */
+    private fun readPluginNameFromJar(jar: File): String? =
+        try {
+            when (val data = PluginDataUtils.getPluginData(jar)) {
+                is PluginData.BukkitPluginData -> data.name
+                is PluginData.PaperPluginData -> data.name
+                null -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
+
+    /**
      * ファイルのSHA-1ハッシュを計算する
      *
      * @param file ハッシュを計算するファイル
@@ -1419,29 +1435,43 @@ class PluginLifecycleServiceImpl :
         pinToCurrentVersion: Boolean,
         progressCallback: ((String) -> Unit)?
     ): Either<MpmError, AdoptResult> {
-        // unmanagedプラグイン一覧を取得
-        val unmanagedPlugins = infoService.list(PluginFilter.UNMANAGED)
-        val unmanagedNames = unmanagedPlugins.map { it.name.value }
+        // pluginsディレクトリのJARを直接スキャンしてplugin.ymlの名前を取得する
+        // （init未実行やinit後に追加したJARも対象にするため、mpm.jsonのunmanaged登録に依存しない）
+        // 既に管理下のプラグインとmpm自身は除外する
+        val project = projectRepository.find()
+        val managedNames =
+            project
+                ?.plugins
+                ?.filterValues { it is PluginSpec.Managed }
+                ?.keys
+                ?.map { it.value.lowercase() }
+                ?.toSet()
+                .orEmpty()
 
-        // リポジトリの利用可能なプラグイン一覧を取得
-        val availablePlugins = repositoryManager.getAvailablePlugins()
+        val candidateNames =
+            pluginDirectory
+                .getPluginsDirectory()
+                .listFiles { f -> f.isFile && f.extension == "jar" }
+                ?.mapNotNull { jar -> readPluginNameFromJar(jar) }
+                ?.distinct()
+                ?.filter { it.lowercase() !in managedNames && it != plugin.name }
+                .orEmpty()
 
-        // unmanagedプラグインとリポジトリをマッチング（大文字小文字を無視）
-        // リポジトリのプラグイン名をキー（小文字）、元の名前を値としたマップを作成
-        val availablePluginsMap = availablePlugins.associateBy { it.lowercase() }
+        // plugin.ymlの名前をリポジトリの正規名へ一括解決する（ファイル名 / id / aliases で照合）
+        // 一括解決により、id/alias照合時でも各リポジトリファイルの読み込みは1回に抑えられる
+        val resolvedNames = repositoryManager.resolvePluginNames(candidateNames)
 
-        // マッチしたプラグインと見つからなかったプラグインを分類
-        val matchedPlugins = mutableListOf<Pair<String, String>>() // unmanagedName to repoName
+        val matchedPlugins = mutableListOf<Pair<String, String>>() // pluginYmlName to repoName
         val skippedPlugins = mutableListOf<String>()
 
-        for (unmanagedName in unmanagedNames) {
-            val repoName = availablePluginsMap[unmanagedName.lowercase()]
+        for (pluginYmlName in candidateNames) {
+            val repoName = resolvedNames[pluginYmlName]
             if (repoName != null) {
-                // リポジトリに見つかった場合、元のリポジトリの名前を使用
-                matchedPlugins.add(unmanagedName to repoName)
+                // リポジトリに見つかった場合、リポジトリ側の正規名を使用
+                matchedPlugins.add(pluginYmlName to repoName)
             } else {
                 // リポジトリに見つからなかった場合
-                skippedPlugins.add(unmanagedName)
+                skippedPlugins.add(pluginYmlName)
             }
         }
 
