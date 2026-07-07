@@ -147,6 +147,43 @@ class DependencyCommand : KoinComponent {
     }
 
     /**
+     * 指定プラグインへの依存チェーンを表示するコマンド（このプラグインが導入されている理由）
+     * @param sender コマンド送信者
+     * @param plugin 対象プラグイン
+     */
+    @Subcommand("deps why")
+    fun why(
+        sender: CommandSender,
+        plugin: InstalledPlugin
+    ) {
+        val pluginName = plugin.pluginId
+
+        dependencyAnalyzer.getDependencyChains(pluginName).fold(
+            // 失敗時の処理
+            { error ->
+                sender.sendRichMessage("<red>$error")
+            },
+            // 成功時の処理
+            { chains ->
+                // トップレベル自身への1件のみのチェーン（[pluginName]）は「依存されていない」ことを意味する
+                val isTopLevelOnly = chains.size == 1 && chains.first() == listOf(pluginName)
+                if (isTopLevelOnly) {
+                    sender.sendRichMessage(
+                        "<gray>$pluginName は他のどのプラグインからも依存されていません" +
+                            "（トップレベルとして直接インストールされたと考えられます）。"
+                    )
+                    return@fold
+                }
+
+                sender.sendRichMessage("<yellow>$pluginName が導入されている理由:")
+                for (chain in chains) {
+                    sender.sendRichMessage("<white>  ${chain.joinToString(" -> ")}")
+                }
+            }
+        )
+    }
+
+    /**
      * プラグインの依存関係情報を表示するコマンド
      * @param sender コマンド送信者
      * @param plugin 対象プラグイン

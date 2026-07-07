@@ -68,6 +68,14 @@ interface DependencyService {
     fun getReverseDependencies(pluginName: String): List<String>
 
     /**
+     * 指定プラグインへの依存チェーンを取得する（`mpm deps why` 用）
+     *
+     * @param pluginName プラグイン名
+     * @return 成功時は `root -> ... -> pluginName` の順で並んだ経路のリスト、失敗時はDependencyError
+     */
+    fun getDependencyChains(pluginName: String): Either<DependencyError, List<List<String>>>
+
+    /**
      * プラグインの依存関係情報を取得する
      *
      * @param pluginName プラグイン名

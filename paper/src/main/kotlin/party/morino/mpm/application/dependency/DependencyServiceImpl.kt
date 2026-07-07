@@ -67,6 +67,14 @@ class DependencyServiceImpl :
         dependencyAnalyzer.getReverseDependencies(pluginName).getOrElse { emptyList() }
 
     /**
+     * 指定プラグインへの依存チェーンを取得する
+     *
+     * DependencyAnalyzerに委譲
+     */
+    override fun getDependencyChains(pluginName: String): Either<DependencyError, List<List<String>>> =
+        dependencyAnalyzer.getDependencyChains(pluginName)
+
+    /**
      * プラグインの依存関係情報を取得する
      *
      * DependencyAnalyzerに委譲
