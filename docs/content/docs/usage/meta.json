@@ -1,5 +1,5 @@
 {
     "title": "使い方",
     "description": "mpmの使い方を学びます",
-    "pages": ["getting-started", "install", "update", "integrity"]
+    "pages": ["getting-started", "install", "update", "discover", "integrity"]
 }

@@ -9,11 +9,16 @@
 
 package party.morino.mpm.infrastructure.downloader
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.downloader.model.PluginProjectDetail
+import party.morino.mpm.api.domain.downloader.model.PluginSearchResult
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
@@ -318,6 +323,62 @@ class DownloaderRepositoryImpl :
             RepositoryType.UNKNOWN -> null
         }
     }
+
+    /**
+     * すべてのリポジトリを横断してプラグインを検索する
+     *
+     * 各プラットフォームの検索を並列に実行し、結果を統合してダウンロード数の多い順に並べる。
+     * 個別プラットフォームの失敗は空リスト扱いとし、他プラットフォームの結果を妨げない。
+     *
+     * @param query 検索キーワード
+     * @param limit 全体の取得件数の上限
+     * @return 統合・ソート済みの検索結果
+     */
+    override suspend fun searchPlugins(
+        query: String,
+        limit: Int
+    ): List<PluginSearchResult> =
+        coroutineScope {
+            // 各プラットフォームへ並列に問い合わせる（1件の失敗が全体を止めないようにする）
+            val downloaders = listOf(modrinthDownloader, hangarDownloader, spigotDownloader, githubDownloader)
+            val perPlatform =
+                downloaders
+                    .map { downloader -> async { downloader.searchPlugins(query, limit) } }
+                    .awaitAll()
+
+            // ラウンドロビンで各プラットフォームを公平に取り込む
+            // （単純なダウンロード数ソートだと、DL数を持たないGitHub等が常に除外されてしまうため）
+            // 各プラットフォームの結果は、それぞれのAPIの関連度順を維持する
+            val merged = mutableListOf<PluginSearchResult>()
+            var index = 0
+            while (merged.size < limit) {
+                var added = false
+                for (list in perPlatform) {
+                    if (index < list.size) {
+                        merged.add(list[index])
+                        added = true
+                        if (merged.size >= limit) break
+                    }
+                }
+                // どのプラットフォームからも取り込めなくなったら終了
+                if (!added) break
+                index++
+            }
+            merged
+        }
+
+    /**
+     * プラグインのプロジェクト詳細を取得する
+     * urlDataの種別に応じて対応するダウンローダーへ委譲する
+     */
+    override suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? =
+        when (urlData) {
+            is UrlData.GithubUrlData -> githubDownloader.getProjectDetail(urlData)
+            is UrlData.SpigotMcUrlData -> spigotDownloader.getProjectDetail(urlData)
+            is UrlData.ModrinthUrlData -> modrinthDownloader.getProjectDetail(urlData)
+            is UrlData.HangarUrlData -> hangarDownloader.getProjectDetail(urlData)
+            else -> null
+        }
 
     /**
      * 保持しているダウンローダーのHTTPクライアントを解放する

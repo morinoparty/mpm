@@ -26,6 +26,7 @@ import party.morino.mpm.api.application.model.verify.VerifyEntry
 import party.morino.mpm.api.application.model.verify.VerifyStatus
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.model.detail.PluginDetail
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -360,6 +361,59 @@ class PluginInfoServiceImpl :
             expectedSha256 = expectedSha256,
             actualSha256 = actualSha256
         )
+    }
+
+    /**
+     * 指定プラグインの詳細情報を取得する（`mpm info`）
+     */
+    override suspend fun getPluginDetail(name: PluginName): Either<MpmError, PluginDetail> {
+        // リポジトリファイルを取得
+        val repositoryFile =
+            repositoryManager.getRepositoryFile(name.value)
+                ?: return MpmError.PluginError.RepositoryNotFound(name.value).left()
+
+        // リポジトリ設定から最初のリポジトリを取得
+        val firstRepository =
+            repositoryFile.repositories.firstOrNull()
+                ?: return MpmError.PluginError.RepositoryNotFound(name.value).left()
+
+        // RepositoryConfigからUrlDataを作成
+        val urlData =
+            createUrlData(firstRepository.type, firstRepository.repositoryId)
+                ?: return MpmError.PluginError.UnsupportedRepository(firstRepository.type).left()
+
+        // プロジェクト詳細を取得
+        val projectDetail =
+            try {
+                downloaderRepository.getProjectDetail(urlData)
+            } catch (e: Exception) {
+                return MpmError.Unknown("プロジェクト詳細の取得に失敗しました: ${e.message}").left()
+            } ?: return MpmError.PluginError.NotFound(name.value).left()
+
+        // 最新バージョンを補完（取得できない場合はnullのまま）
+        val latestVersion =
+            try {
+                ChannelVersionResolver.resolveLatest(downloaderRepository, urlData, firstRepository).version
+            } catch (e: Exception) {
+                null
+            }
+        val detailWithLatest = projectDetail.copy(latestVersion = latestVersion)
+
+        // ローカルのインストール状態（管理下の場合）を付加する
+        val metadata = pluginMetadataManager.loadMetadata(name.value).getOrNull()
+        val installedVersion =
+            metadata
+                ?.mpmInfo
+                ?.version
+                ?.current
+                ?.raw
+        val locked = metadata?.mpmInfo?.settings?.lock == true
+
+        return PluginDetail(
+            project = detailWithLatest,
+            installedVersion = installedVersion,
+            locked = locked
+        ).right()
     }
 
     /**

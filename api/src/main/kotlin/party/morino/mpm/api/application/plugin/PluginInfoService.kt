@@ -16,6 +16,7 @@ import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.model.verify.VerifyEntry
+import party.morino.mpm.api.application.plugin.model.detail.PluginDetail
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
@@ -68,4 +69,14 @@ interface PluginInfoService {
      * @return プラグインごとの検証結果一覧
      */
     suspend fun verifyInstalled(): Either<MpmError, List<VerifyEntry>>
+
+    /**
+     * 指定プラグインの詳細情報を取得する（`mpm info`）
+     *
+     * リポジトリからプロジェクト詳細を取得し、最新バージョンとローカルのインストール状態を付加する。
+     *
+     * @param name プラグイン名
+     * @return プラグイン詳細
+     */
+    suspend fun getPluginDetail(name: PluginName): Either<MpmError, PluginDetail>
 }

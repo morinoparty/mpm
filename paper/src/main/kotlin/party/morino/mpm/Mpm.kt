@@ -21,6 +21,7 @@ import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
+import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.domain.config.ConfigManager
@@ -42,6 +43,7 @@ import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
+import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
 import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
@@ -60,8 +62,10 @@ import party.morino.mpm.ui.command.manage.control.InitCommand
 import party.morino.mpm.ui.command.manage.control.LockCommand
 import party.morino.mpm.ui.command.manage.control.PinCommand
 import party.morino.mpm.ui.command.manage.info.DependencyCommand
+import party.morino.mpm.ui.command.manage.info.InfoCommand
 import party.morino.mpm.ui.command.manage.info.ListCommand
 import party.morino.mpm.ui.command.manage.info.OutdatedCommand
+import party.morino.mpm.ui.command.manage.info.SearchCommand
 import party.morino.mpm.ui.command.manage.info.VerifyCommand
 import party.morino.mpm.ui.command.manage.info.VersionsCommand
 import party.morino.mpm.ui.command.manage.lifecycle.AddCommand
@@ -222,6 +226,8 @@ open class Mpm :
 
                 // Application Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }
+                // リポジトリ横断検索
+                single<PluginSearchService> { PluginSearchServiceImpl() }
                 // インストール前検証（APIバージョン互換性・依存関係）の共通ロジック
                 // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
                 single { PluginInstallValidator() }
@@ -272,6 +278,8 @@ open class Mpm :
         lamp.register(UninstallCommand())
         lamp.register(PinCommand())
         lamp.register(UpdateCommand())
+        lamp.register(InfoCommand())
+        lamp.register(SearchCommand())
         lamp.register(VerifyCommand())
         lamp.register(VersionsCommand())
         lamp.register(RepositoryCommands())

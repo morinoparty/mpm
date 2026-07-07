@@ -11,6 +11,8 @@ This software is distributed without any warranty.
 
 package party.morino.mpm.api.domain.downloader
 
+import party.morino.mpm.api.domain.downloader.model.PluginProjectDetail
+import party.morino.mpm.api.domain.downloader.model.PluginSearchResult
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
@@ -116,6 +118,32 @@ interface PluginDownloader {
         url: String,
         fileNamePattern: String? = null
     ): File?
+
+    /**
+     * キーワードでプラグインを検索する
+     *
+     * 各プラットフォームの検索APIを呼び出し、結果を共通形式で返す。
+     * 検索非対応・失敗の場合は空リストを返す（デフォルト実装は空）。
+     *
+     * @param query 検索キーワード
+     * @param limit 取得件数の上限
+     * @return 検索結果（ダウンロード数の多い順が望ましい）
+     */
+    suspend fun searchPlugins(
+        query: String,
+        limit: Int
+    ): List<PluginSearchResult> = emptyList()
+
+    /**
+     * プラグインのプロジェクト詳細を取得する
+     *
+     * 各プラットフォームのプロジェクト情報APIを呼び出し、共通形式で返す。
+     * 取得できない場合はnullを返す（デフォルト実装はnull）。
+     *
+     * @param urlData URLデータ
+     * @return プロジェクト詳細、取得できない場合はnull
+     */
+    suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? = null
 
     /**
      * 保持しているダウンローダーのリソース（HTTPクライアント等）を解放する

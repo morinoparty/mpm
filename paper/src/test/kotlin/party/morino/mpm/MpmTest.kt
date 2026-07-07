@@ -24,6 +24,7 @@ import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
+import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.config.model.ConfigData
@@ -40,6 +41,7 @@ import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
+import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
@@ -131,6 +133,7 @@ class MpmTest :
 
                 // 新しいApplication Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }
+                single<PluginSearchService> { PluginSearchServiceImpl() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
