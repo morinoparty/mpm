@@ -164,6 +164,19 @@ sealed class MpmError {
             override val message: String = "An update is already in progress"
         }
 
+        // 整合性検証エラー（ダウンロードしたJARのハッシュが期待値と一致しない）
+        data class IntegrityCheckFailed(
+            val pluginName: String,
+            val algorithm: String,
+            val expected: String,
+            val actual: String
+        ) : PluginError() {
+            override val message: String =
+                "Integrity check failed for '$pluginName' ($algorithm): " +
+                    "expected=$expected, actual=$actual. " +
+                    "The download may be corrupted or tampered. Use --skip-integrity to override."
+        }
+
         // APIバージョン非互換エラー
         data class ApiVersionIncompatible(
             val pluginName: String,

@@ -147,6 +147,38 @@ open class HangarDownloader : AbstractPluginDownloader() {
     }
 
     /**
+     * 指定されたバージョンのハッシュを取得する
+     *
+     * Hangarはsha256ハッシュのみを提供する。[downloadByVersion] が実際に選択・ダウンロードする
+     * のと同じプラットフォームのハッシュのみを返す（別プラットフォームのハッシュと照合して
+     * 誤検知するのを防ぐため）。選択されたプラットフォームが外部ホスト（ハッシュなし）の場合や
+     * ハッシュが取得できない場合はnullを返す。
+     *
+     * @param urlData HangarのURL情報
+     * @param versionName バージョン名
+     * @param fileNamePattern ダウンロード時と同じプラットフォーム選択に使用するパターン
+     * @return ハッシュ情報のMap（例: {"sha256": "hash"}）、取得できない場合はnull
+     */
+    override suspend fun getVersionHashesByName(
+        urlData: UrlData,
+        versionName: String,
+        fileNamePattern: String?
+    ): Map<String, String>? {
+        urlData as UrlData.HangarUrlData
+        // バージョン詳細を取得（downloadByVersionと同じエンドポイント）
+        val url = "https://hangar.papermc.io/api/v1/projects/${urlData.projectName}/versions/$versionName"
+        val response = getRequest(url, "application/json")
+        val versionInfo = json.decodeFromString<HangarVersion>(response)
+
+        // ダウンロード時と同じプラットフォームを選択し、そのファイルのsha256のみを返す
+        val chosenPlatform = selectPlatform(versionInfo, fileNamePattern) ?: return null
+        val sha256 = versionInfo.downloads[chosenPlatform]?.fileInfo?.sha256Hash
+        if (sha256.isNullOrBlank()) return null
+
+        return mapOf("sha256" to sha256)
+    }
+
+    /**
      * すべてのバージョンを取得
      * @param urlData HangarのURL情報
      * @return バージョンリスト（新しい順）
@@ -195,24 +227,14 @@ open class HangarDownloader : AbstractPluginDownloader() {
         version: HangarVersion,
         fileNamePattern: String?
     ): Pair<String, String> {
-        // ダウンロードURL（Hangarホスト優先、無ければ外部URL）を解決するヘルパー
-        fun resolveUrl(platform: String) = version.downloads[platform]?.let { it.downloadUrl ?: it.externalUrl }
-
+        // ダウンロード対象のプラットフォームを選択（見つからなければ例外）
         val chosenPlatform =
-            if (fileNamePattern != null) {
-                // パターンにマッチするファイル名を持つプラットフォームを選択
-                val regex = Regex(fileNamePattern)
-                version.downloads.entries
-                    .firstOrNull { (platform, download) ->
-                        download.fileInfo?.name?.let { regex.matches(it) } == true && resolveUrl(platform) != null
-                    }?.key
-                    ?: throw Exception("パターン '$fileNamePattern' にマッチするファイルが見つかりません")
-            } else {
-                // PAPERを優先し、無ければダウンロード可能な最初のプラットフォーム
-                version.downloads.keys.firstOrNull { it == preferredPlatform && resolveUrl(it) != null }
-                    ?: version.downloads.keys.firstOrNull { resolveUrl(it) != null }
-                    ?: throw Exception("このバージョンにはダウンロード可能なファイルがありません")
-            }
+            selectPlatform(version, fileNamePattern)
+                ?: if (fileNamePattern != null) {
+                    throw Exception("パターン '$fileNamePattern' にマッチするファイルが見つかりません")
+                } else {
+                    throw Exception("このバージョンにはダウンロード可能なファイルがありません")
+                }
 
         val download = version.downloads.getValue(chosenPlatform)
         val downloadUrl =
@@ -221,6 +243,37 @@ open class HangarDownloader : AbstractPluginDownloader() {
         // ファイル名はfileInfoから、無ければバージョン名から生成
         val fileName = download.fileInfo?.name ?: "${version.name}.jar"
         return downloadUrl to fileName
+    }
+
+    /**
+     * ダウンロード対象のプラットフォームを選択する
+     *
+     * [selectDownload] と [getVersionHashesByName] で共通利用し、ハッシュ検証の対象が
+     * 実際にダウンロードするファイルと必ず一致するようにする。
+     *
+     * @param version バージョン情報
+     * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション）
+     * @return 選択したプラットフォームのキー、該当なしの場合はnull
+     */
+    private fun selectPlatform(
+        version: HangarVersion,
+        fileNamePattern: String?
+    ): String? {
+        // ダウンロードURL（Hangarホスト優先、無ければ外部URL）を解決するヘルパー
+        fun resolveUrl(platform: String) = version.downloads[platform]?.let { it.downloadUrl ?: it.externalUrl }
+
+        return if (fileNamePattern != null) {
+            // パターンにマッチするファイル名を持つプラットフォームを選択
+            val regex = Regex(fileNamePattern)
+            version.downloads.entries
+                .firstOrNull { (platform, download) ->
+                    download.fileInfo?.name?.let { regex.matches(it) } == true && resolveUrl(platform) != null
+                }?.key
+        } else {
+            // PAPERを優先し、無ければダウンロード可能な最初のプラットフォーム
+            version.downloads.keys.firstOrNull { it == preferredPlatform && resolveUrl(it) != null }
+                ?: version.downloads.keys.firstOrNull { resolveUrl(it) != null }
+        }
     }
 
     /**

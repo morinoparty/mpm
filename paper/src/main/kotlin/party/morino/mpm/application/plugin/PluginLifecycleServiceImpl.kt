@@ -25,8 +25,10 @@ import party.morino.mpm.api.application.model.add.PluginAddResult
 import party.morino.mpm.api.application.model.install.InstallResult
 import party.morino.mpm.api.application.model.install.PluginInstallInfo
 import party.morino.mpm.api.application.model.install.PluginRemovalInfo
+import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.application.plugin.model.integrity.IntegrityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -77,6 +79,9 @@ class PluginLifecycleServiceImpl :
     // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
     // PluginUpdateServiceImpl と共有し、検証ロジックの重複・乖離を防ぐ
     private val pluginInstallValidator: PluginInstallValidator by inject()
+
+    // ダウンロードしたJARのハッシュ整合性検証を行う
+    private val integrityVerifier: IntegrityVerifier by inject()
 
     /**
      * プラグインを管理対象に追加する
@@ -305,7 +310,8 @@ class PluginLifecycleServiceImpl :
      */
     override suspend fun install(
         name: PluginName,
-        force: Boolean
+        force: Boolean,
+        skipIntegrity: Boolean
     ): Either<MpmError, InstallResult> {
         val pluginName = name.value
 
@@ -456,6 +462,23 @@ class PluginLifecycleServiceImpl :
                 ).left()
         }
 
+        // ダウンロードしたtempファイルの整合性を検証する（ステージング前に実施）
+        // 不一致の場合はtempファイルを削除して失敗を返す（--skip-integrityで上書き可能）
+        // 保存済みsha256は、ダウンロードするバージョンが保存時と同一の場合のみ照合に使用する
+        // （バージョンが変わると当然ハッシュも変わるため、旧バージョンのハッシュで誤検知しないようにする）
+        val scopedStoredSha256 =
+            if (versionData.version == mpmInfo.version.current.raw) mpmInfo.download.sha256 else null
+        val verifiedSha256 =
+            verifyIntegrityOrAbort(
+                downloadedFile = downloadedFile,
+                urlData = urlData,
+                versionName = versionData.version,
+                storedSha256 = scopedStoredSha256,
+                fileNamePattern = mpmInfo.fileNamePattern,
+                skipIntegrity = skipIntegrity,
+                pluginName = pluginName
+            ).getOrElse { return it.left() }
+
         // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
         // 検証ロジックはPluginUpdateServiceImplと共通のPluginInstallValidatorに集約されている
         when (val validationResult = pluginInstallValidator.validate(downloadedFile, pluginName, force)) {
@@ -517,14 +540,16 @@ class PluginLifecycleServiceImpl :
             }
         }
 
-        // ファイル名をメタデータに記録して保存
+        // ファイル名と検証済みsha256をメタデータに記録して保存
+        // sha256を保存することで、次回以降のインストール時に自己検証（trust-on-first-use）できる
         val updatedMetadata =
             updatedMetadataWithLatest.copy(
                 mpmInfo =
                     updatedMetadataWithLatest.mpmInfo.copy(
                         download =
                             updatedMetadataWithLatest.mpmInfo.download.copy(
-                                fileName = newFileName
+                                fileName = newFileName,
+                                sha256 = verifiedSha256
                             )
                     )
             )
@@ -542,6 +567,49 @@ class PluginLifecycleServiceImpl :
                 ),
             removed = removedInfo
         ).right()
+    }
+
+    /**
+     * ダウンロードしたファイルの整合性を検証し、不一致であればインストールを中断する
+     *
+     * 検証にはリポジトリ提供ハッシュ、または（同一バージョンの場合のみ）保存済みsha256を用いる。
+     * 不一致かつ [skipIntegrity] が false の場合はtempファイルを削除してエラーを返す。
+     * [skipIntegrity] が true の場合は警告ログを出力して続行するが、検証をパスしていないため
+     * sha256は保存しない（nullを返す）。これにより後続の `mpm verify` が誤ってOKと報告するのを防ぐ。
+     *
+     * @param storedSha256 照合対象の保存済みsha256（ダウンロードするバージョンと一致する場合のみ渡す）
+     * @param fileNamePattern ダウンロード時と同じファイル選択に使用するパターン
+     * @return 成功時はメタデータに保存すべきsha256（skip時はnull）、不一致で中断する場合はエラー
+     */
+    private suspend fun verifyIntegrityOrAbort(
+        downloadedFile: File,
+        urlData: UrlData,
+        versionName: String,
+        storedSha256: String?,
+        fileNamePattern: String?,
+        skipIntegrity: Boolean,
+        pluginName: String
+    ): Either<MpmError, String?> {
+        val result = integrityVerifier.verify(downloadedFile, urlData, versionName, storedSha256, fileNamePattern)
+        return when (result) {
+            is IntegrityResult.Mismatch -> {
+                if (skipIntegrity) {
+                    plugin.logger.warning(
+                        "Integrity check mismatch for '$pluginName' (${result.algorithm}): " +
+                            "expected=${result.expected}, actual=${result.actual}. Skipped by --skip-integrity."
+                    )
+                    // 検証をパスしていないため、信頼済みハッシュとしては保存しない
+                    null.right()
+                } else {
+                    downloadedFile.delete()
+                    MpmError.PluginError
+                        .IntegrityCheckFailed(pluginName, result.algorithm, result.expected, result.actual)
+                        .left()
+                }
+            }
+            is IntegrityResult.Verified -> result.sha256.right()
+            is IntegrityResult.NoReference -> result.sha256.right()
+        }
     }
 
     /**
@@ -1192,7 +1260,8 @@ class PluginLifecycleServiceImpl :
         name: PluginName,
         version: VersionSpecifier,
         includeSoftDependencies: Boolean,
-        force: Boolean
+        force: Boolean,
+        skipIntegrity: Boolean
     ): Either<MpmError, AddWithDependenciesResult> {
         val addedPlugins = mutableListOf<PluginAddResult>()
         val skippedPlugins = mutableListOf<String>()
@@ -1208,6 +1277,7 @@ class PluginLifecycleServiceImpl :
             isDependency = false,
             includeSoftDependencies = includeSoftDependencies,
             force = force,
+            skipIntegrity = skipIntegrity,
             processedPlugins = processedPlugins,
             addedPlugins = addedPlugins,
             skippedPlugins = skippedPlugins,
@@ -1234,6 +1304,7 @@ class PluginLifecycleServiceImpl :
         isDependency: Boolean,
         includeSoftDependencies: Boolean,
         force: Boolean,
+        skipIntegrity: Boolean,
         processedPlugins: MutableSet<String>,
         addedPlugins: MutableList<PluginAddResult>,
         skippedPlugins: MutableList<String>,
@@ -1278,6 +1349,7 @@ class PluginLifecycleServiceImpl :
                 isDependency = true,
                 includeSoftDependencies = includeSoftDependencies,
                 force = force,
+                skipIntegrity = skipIntegrity,
                 processedPlugins = processedPlugins,
                 addedPlugins = addedPlugins,
                 skippedPlugins = skippedPlugins,
@@ -1312,8 +1384,8 @@ class PluginLifecycleServiceImpl :
                 failedPlugins[pluginName] = error.message
             },
             {
-                // 追加成功後、インストール（forceフラグを伝播）
-                val installResult = install(PluginName(pluginName), force)
+                // 追加成功後、インストール（force・skipIntegrityフラグを伝播）
+                val installResult = install(PluginName(pluginName), force, skipIntegrity)
                 installResult.fold(
                     { error ->
                         failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtensionContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
@@ -33,6 +34,7 @@ import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
+import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
@@ -123,6 +125,9 @@ class MpmTest :
                         override fun shutdown() {}
                     }
                 }
+
+                // 整合性検証の登録
+                single<IntegrityVerifier> { IntegrityVerifierImpl() }
 
                 // 新しいApplication Serviceの登録
                 single<PluginInfoService> { PluginInfoServiceImpl() }

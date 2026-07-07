@@ -15,6 +15,7 @@ import arrow.core.Either
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
+import party.morino.mpm.api.application.model.verify.VerifyEntry
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
@@ -57,4 +58,14 @@ interface PluginInfoService {
      * @return 更新が必要なプラグインの情報と、チェックに失敗したプラグインのエラー情報
      */
     suspend fun checkAllOutdated(): Either<MpmError, OutdatedCheckResult>
+
+    /**
+     * インストール済み管理下プラグインの整合性を再検証する
+     *
+     * 各プラグインのJARのsha256を計算し、メタデータに保存されたハッシュと照合する。
+     * ネットワークアクセスは行わず、ローカルの検証のみを行う。
+     *
+     * @return プラグインごとの検証結果一覧
+     */
+    suspend fun verifyInstalled(): Either<MpmError, List<VerifyEntry>>
 }

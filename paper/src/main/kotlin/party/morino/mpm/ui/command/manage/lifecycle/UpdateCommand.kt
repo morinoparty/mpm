@@ -45,7 +45,8 @@ class UpdateCommand : KoinComponent {
     suspend fun update(
         sender: CommandSender,
         @Switch("force") force: Boolean = false,
-        @Switch("dry-run") dryRun: Boolean = false
+        @Switch("dry-run") dryRun: Boolean = false,
+        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false
     ) {
         if (dryRun) {
             executeDryRun(sender)
@@ -57,8 +58,8 @@ class UpdateCommand : KoinComponent {
             sender.sendRichMessage(message)
         }
 
-        // PluginUpdateServiceを実行（forceフラグを伝播）
-        updateService.update(force, progressCallback).fold(
+        // PluginUpdateServiceを実行（force・skip-integrityフラグを伝播）
+        updateService.update(force, progressCallback, skipIntegrity).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
@@ -121,12 +122,13 @@ class UpdateCommand : KoinComponent {
     suspend fun updateOne(
         sender: CommandSender,
         plugin: InstalledPlugin,
-        @Switch("force") force: Boolean = false
+        @Switch("force") force: Boolean = false,
+        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false
     ) {
         val pluginId = plugin.pluginId
         sender.sendRichMessage("<gray>'$pluginId' を更新しています...</gray>")
 
-        updateService.update(PluginName(pluginId), force).fold(
+        updateService.update(PluginName(pluginId), force, skipIntegrity).fold(
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
             },

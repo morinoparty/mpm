@@ -1,6 +1,13 @@
 {
     "commands": [
         {
+            "command": "mpm verify",
+            "status": "newly",
+            "category": "plugin",
+            "section": "情報表示",
+            "description": "インストール済みプラグインの整合性（sha256）を検証します"
+        },
+        {
             "command": "mpm info <plugin>",
             "status": "proposal",
             "category": "plugin",

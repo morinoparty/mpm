@@ -139,17 +139,19 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
     /**
      * 指定されたバージョンの全ファイルのハッシュを取得する
      *
-     * Modrinth APIのレスポンスに含まれるsha1ハッシュを返す。
-     * 複数artifactがある場合は全ファイルのsha1をカンマ区切りで返す。
+     * Modrinth APIのレスポンスに含まれるsha1/sha512ハッシュを返す。
+     * 複数artifactがある場合は全ファイルのハッシュをカンマ区切りで返す。
      * バージョンが見つからない場合はnullを返す。
      *
      * @param urlData ModrinthのURL情報
      * @param versionName バージョン名
-     * @return ハッシュ情報のMap（例: {"sha1": "hash1,hash2,..."}）、見つからない場合はnull
+     * @param fileNamePattern 選択対象を絞り込むパターン（Modrinthは通常1バージョン1ファイルのため未使用）
+     * @return ハッシュ情報のMap（例: {"sha1": "...", "sha512": "..."}）、見つからない場合はnull
      */
     override suspend fun getVersionHashesByName(
         urlData: UrlData,
-        versionName: String
+        versionName: String,
+        fileNamePattern: String?
     ): Map<String, String>? {
         urlData as UrlData.ModrinthUrlData
         val versions = fetchVersions(urlData)
@@ -157,13 +159,16 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
         // 指定バージョンを検索
         val matchedVersion = versions.firstOrNull { it.versionNumber == versionName } ?: return null
 
-        // 全ファイルのsha1ハッシュを収集（複数artifact対応）
-        val sha1Hashes =
-            matchedVersion.files
-                .mapNotNull { it.hashes?.sha1 }
-        if (sha1Hashes.isEmpty()) return null
+        // 全ファイルのハッシュを収集（複数artifact対応）
+        val sha1Hashes = matchedVersion.files.mapNotNull { it.hashes?.sha1 }
+        val sha512Hashes = matchedVersion.files.mapNotNull { it.hashes?.sha512 }
+        if (sha1Hashes.isEmpty() && sha512Hashes.isEmpty()) return null
 
-        return mapOf("sha1" to sha1Hashes.joinToString(","))
+        // 取得できたアルゴリズムのみをMapに含める
+        return buildMap {
+            if (sha1Hashes.isNotEmpty()) put("sha1", sha1Hashes.joinToString(","))
+            if (sha512Hashes.isNotEmpty()) put("sha512", sha512Hashes.joinToString(","))
+        }
     }
 
     /**

@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
  * Hangarのファイル情報
  * @param name ファイル名（ダウンロード後のファイル名に使用）
  * @param sizeBytes ファイルサイズ（バイト）
- * @param sha256Hash SHA-256ハッシュ（Hangarはsha1を提供しないため、現状ハッシュ検証には未使用）
+ * @param sha256Hash SHA-256ハッシュ（Hangarが提供する唯一のハッシュ。インストール時の整合性検証に使用）
  */
 @Serializable
 data class HangarFileInfo(
