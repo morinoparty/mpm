@@ -9,13 +9,19 @@
 
 package party.morino.mpm.infrastructure.downloader.modrinth
 
+import party.morino.mpm.api.domain.downloader.model.PluginProjectDetail
+import party.morino.mpm.api.domain.downloader.model.PluginSearchResult
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.infrastructure.downloader.AbstractPluginDownloader
+import party.morino.mpm.infrastructure.downloader.modrinth.data.ModrinthProjectDetail
 import party.morino.mpm.infrastructure.downloader.modrinth.data.ModrinthProjectInfo
+import party.morino.mpm.infrastructure.downloader.modrinth.data.ModrinthSearchResponse
 import party.morino.mpm.infrastructure.downloader.modrinth.data.ModrinthVersion
 import java.io.File
+import java.net.URLEncoder
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Modrinthからプラグインをダウンロードするクラス
@@ -239,4 +245,82 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
         val latestVersion = getLatestVersion(urlData)
         return downloadByVersion(urlData, latestVersion, fileNamePattern)
     }
+
+    /**
+     * Modrinthリポジトリ全体からプラグインを検索する
+     *
+     * Modrinthの検索APIを利用し、クエリに一致するプロジェクトを取得する。
+     * ネットワークエラーやパース失敗時は例外を投げず空リストを返す。
+     *
+     * @param query 検索クエリ
+     * @param limit 取得する最大件数
+     * @return 検索結果のリスト（失敗時は空リスト）
+     */
+    override suspend fun searchPlugins(
+        query: String,
+        limit: Int
+    ): List<PluginSearchResult> =
+        try {
+            // クエリをURLエンコードして検索APIを呼び出す
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val url = "https://api.modrinth.com/v2/search?query=$encodedQuery&limit=$limit"
+            val response = getRequest(url, "application/json")
+            val searchResponse = json.decodeFromString<ModrinthSearchResponse>(response)
+
+            // 各ヒットを共通の検索結果モデルに変換する
+            searchResponse.hits.map { hit ->
+                PluginSearchResult(
+                    source = RepositoryType.MODRINTH,
+                    slug = hit.slug,
+                    name = hit.title,
+                    description = hit.description,
+                    downloads = hit.downloads,
+                    // Modrinthのプロジェクトページ URL を組み立てる（例: https://modrinth.com/plugin/xxx）
+                    url = "https://modrinth.com/${hit.projectType}/${hit.slug}"
+                )
+            }
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 検索失敗時は空リストを返す（呼び出し側で例外処理を不要にする）
+            emptyList()
+        }
+
+    /**
+     * Modrinthプロジェクトの詳細情報を取得する
+     *
+     * latestVersionはサービス層で別途補完するため、ここではnullのままとする。
+     * ネットワークエラーやパース失敗時は例外を投げずnullを返す。
+     *
+     * @param urlData ModrinthのURL情報
+     * @return プロジェクト詳細（失敗時はnull）
+     */
+    override suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? =
+        try {
+            urlData as UrlData.ModrinthUrlData
+            // プロジェクト詳細APIを呼び出す
+            val url = "https://api.modrinth.com/v2/project/${urlData.id}"
+            val response = getRequest(url, "application/json")
+            val detail = json.decodeFromString<ModrinthProjectDetail>(response)
+
+            PluginProjectDetail(
+                source = RepositoryType.MODRINTH,
+                slug = detail.slug,
+                name = detail.title,
+                description = detail.description,
+                // ソースコードURLをホームページとして扱う
+                homepage = detail.sourceUrl,
+                license = detail.license?.name,
+                downloads = detail.downloads,
+                // 最新バージョンはサービス層で補完するためnull
+                latestVersion = null
+            )
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 取得失敗時はnullを返す
+            null
+        }
 }

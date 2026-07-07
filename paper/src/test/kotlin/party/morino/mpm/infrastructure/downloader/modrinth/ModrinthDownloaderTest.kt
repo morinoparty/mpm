@@ -29,6 +29,48 @@ class ModrinthDownloaderTest {
     private val downloader = ModrinthDownloader()
 
     @Test
+    fun `searchPlugins parses hits into PluginSearchResult`() {
+        // Modrinth検索APIのモックレスポンス
+        val searchJson =
+            """
+            {"hits":[
+              {"slug":"plasmo-voice","title":"Plasmo Voice","description":"Proximity voice chat","downloads":1234567,"project_type":"mod"},
+              {"slug":"luckperms","title":"LuckPerms","description":"Permissions","downloads":9999,"project_type":"plugin"}
+            ]}
+            """.trimIndent()
+        val mockEngine =
+            MockEngine { request ->
+                when {
+                    request.url.toString().contains("/v2/search") ->
+                        respond(
+                            content = ByteReadChannel(searchJson),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        )
+                    else -> respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
+                }
+            }
+        val testDownloader =
+            object : ModrinthDownloader() {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking {
+            val results = testDownloader.searchPlugins("voice", 10)
+
+            assertEquals(2, results.size)
+            assertEquals(RepositoryType.MODRINTH, results[0].source)
+            assertEquals("plasmo-voice", results[0].slug)
+            assertEquals("Plasmo Voice", results[0].name)
+            assertEquals(1234567L, results[0].downloads)
+            // project_typeがURLに反映されること
+            assertEquals("https://modrinth.com/mod/plasmo-voice", results[0].url)
+        }
+    }
+
+    @Test
     fun getRepositoryType() {
         // ModrinthのURLが正しく認識されることをテスト
         val validUrl = "https://modrinth.com/plugin/plasmo-voice"

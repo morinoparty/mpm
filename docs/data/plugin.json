@@ -9,10 +9,10 @@
         },
         {
             "command": "mpm info <plugin>",
-            "status": "proposal",
+            "status": "newly",
             "category": "plugin",
             "section": "情報表示",
-            "description": "プラグインの詳細情報を表示します",
+            "description": "プラグインの詳細情報（説明・DL数・ライセンス・最新バージョン）を表示します",
             "arguments": [
                 {
                     "name": "plugin",
@@ -21,14 +21,14 @@
             ]
         },
         {
-            "command": "mpm search <plugin>",
-            "status": "proposal",
+            "command": "mpm search <query>",
+            "status": "newly",
             "category": "plugin",
             "section": "情報表示",
-            "description": "プラグインを検索します",
+            "description": "複数リポジトリを横断してプラグインを検索します",
             "arguments": [
                 {
-                    "name": "plugin",
+                    "name": "query",
                     "required": true
                 }
             ]

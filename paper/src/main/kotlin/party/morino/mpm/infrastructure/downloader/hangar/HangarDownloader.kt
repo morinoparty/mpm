@@ -9,13 +9,19 @@
 
 package party.morino.mpm.infrastructure.downloader.hangar
 
+import party.morino.mpm.api.domain.downloader.model.PluginProjectDetail
+import party.morino.mpm.api.domain.downloader.model.PluginSearchResult
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.infrastructure.downloader.AbstractPluginDownloader
+import party.morino.mpm.infrastructure.downloader.hangar.data.HangarProject
+import party.morino.mpm.infrastructure.downloader.hangar.data.HangarProjectSearchResponse
 import party.morino.mpm.infrastructure.downloader.hangar.data.HangarVersion
 import party.morino.mpm.infrastructure.downloader.hangar.data.HangarVersionsResponse
 import java.io.File
+import java.net.URLEncoder
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Hangar（PaperMC公式プラグインリポジトリ）からプラグインをダウンロードするクラス
@@ -290,4 +296,98 @@ open class HangarDownloader : AbstractPluginDownloader() {
         val latestVersion = getLatestVersion(urlData)
         return downloadByVersion(urlData, latestVersion, fileNamePattern)
     }
+
+    /**
+     * Hangar内でプラグインを検索する
+     *
+     * Hangarの検索API（/projects?q=...）を利用し、ヒットしたプロジェクトを
+     * 共通の検索結果モデルへ変換する。失敗時は例外を投げず空リストを返す。
+     *
+     * @param query 検索クエリ
+     * @param limit 取得件数の上限
+     * @return 検索結果のリスト（失敗時は空リスト）
+     */
+    override suspend fun searchPlugins(
+        query: String,
+        limit: Int
+    ): List<PluginSearchResult> =
+        try {
+            // クエリはURLエンコードして安全にリクエストURLへ埋め込む
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            // Hangar APIのlimit上限は25。超過すると空になるため上限でクランプする
+            val clampedLimit = limit.coerceIn(1, 25)
+            val url = "https://hangar.papermc.io/api/v1/projects?q=$encodedQuery&limit=$clampedLimit"
+            val response = getRequest(url, "application/json")
+            val searchResponse = json.decodeFromString<HangarProjectSearchResponse>(response)
+
+            // 各プロジェクトを共通の検索結果モデルへ変換
+            // namespaceが無い場合はslug/URLを構築できないためスキップする
+            searchResponse.result.mapNotNull { project ->
+                val namespace = project.namespace ?: return@mapNotNull null
+                val slug = "${namespace.owner}/${namespace.slug}"
+                PluginSearchResult(
+                    source = RepositoryType.HANGAR,
+                    slug = slug,
+                    name = project.name,
+                    description = project.description,
+                    downloads = project.stats?.downloads,
+                    url = "https://hangar.papermc.io/$slug"
+                )
+            }
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 検索は付加的な機能のため、失敗しても例外を伝播させず空リストを返す
+            emptyList()
+        }
+
+    /**
+     * Hangarのプロジェクト詳細を取得する
+     *
+     * Hangarのプロジェクト詳細API（/projects/{slug}）を利用する。
+     * latestVersionはサービス層で別途補完するため、ここではnullのままとする。
+     * 失敗時は例外を投げずnullを返す。
+     *
+     * @param urlData HangarのURL情報
+     * @return プロジェクト詳細、取得できない場合はnull
+     */
+    override suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? =
+        try {
+            urlData as UrlData.HangarUrlData
+            val url = "https://hangar.papermc.io/api/v1/projects/${urlData.projectName}"
+            val response = getRequest(url, "application/json")
+            val project = json.decodeFromString<HangarProject>(response)
+
+            // ownerが空の場合はprojectName単体をslugとする
+            val slug =
+                if (urlData.owner.isBlank()) {
+                    urlData.projectName
+                } else {
+                    "${urlData.owner}/${urlData.projectName}"
+                }
+            // ホームページは settings.links[].links[] の name=="Homepage" のリンクから取得する
+            val homepage =
+                project.settings
+                    ?.links
+                    ?.flatMap { it.links }
+                    ?.firstOrNull { it.name.equals("Homepage", ignoreCase = true) }
+                    ?.url
+            PluginProjectDetail(
+                source = RepositoryType.HANGAR,
+                slug = slug,
+                name = project.name,
+                description = project.description,
+                homepage = homepage,
+                license = project.settings?.license?.name,
+                downloads = project.stats?.downloads,
+                latestVersion = null
+            )
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 詳細取得に失敗した場合はnullを返す
+            null
+        }
 }

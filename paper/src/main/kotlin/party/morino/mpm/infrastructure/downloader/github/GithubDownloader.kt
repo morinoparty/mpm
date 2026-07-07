@@ -18,12 +18,18 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import party.morino.mpm.api.domain.downloader.model.PluginProjectDetail
+import party.morino.mpm.api.domain.downloader.model.PluginSearchResult
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.infrastructure.downloader.AbstractPluginDownloader
+import party.morino.mpm.infrastructure.downloader.github.data.GithubRepositoryDetail
+import party.morino.mpm.infrastructure.downloader.github.data.GithubSearchResponse
 import java.io.File
+import java.net.URLEncoder
 import java.time.LocalDateTime
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * GitHubからプラグインをダウンロードするクラス
@@ -269,4 +275,86 @@ open class GithubDownloader(
         val latestVersion = getLatestVersion(urlData)
         return downloadByVersion(urlData, latestVersion, fileNamePattern)
     }
+
+    /**
+     * キーワードでGitHubのリポジトリを検索する
+     *
+     * GitHubのリポジトリ検索API（GET /search/repositories）を呼び出し、
+     * 結果を共通形式（PluginSearchResult）へ正規化して返す。
+     * GitHubのリポジトリにはダウンロード数の概念がないため、downloadsは常にnull。
+     * 失敗時は例外を投げず空リストを返す。
+     *
+     * @param query 検索キーワード
+     * @param limit 取得件数の上限（per_page）
+     * @return 検索結果の一覧（取得失敗時は空リスト）
+     */
+    override suspend fun searchPlugins(
+        query: String,
+        limit: Int
+    ): List<PluginSearchResult> =
+        try {
+            // クエリはURLエンコードして安全にクエリ文字列へ埋め込む
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val url = "https://api.github.com/search/repositories?q=$encodedQuery&per_page=$limit"
+            val response = getRequest(url, "application/vnd.github+json")
+            // @Serializable DTOでJSONをパース
+            val searchResponse = json.decodeFromString<GithubSearchResponse>(response)
+            // 各リポジトリを共通形式へ正規化（GitHubにダウンロード数はないためnull）
+            searchResponse.items.map { item ->
+                PluginSearchResult(
+                    source = RepositoryType.GITHUB,
+                    slug = item.fullName,
+                    name = item.fullName,
+                    description = item.description,
+                    downloads = null,
+                    url = item.htmlUrl
+                )
+            }
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 検索失敗時は空リストを返す（呼び出し側へ例外を伝播させない）
+            emptyList()
+        }
+
+    /**
+     * GitHubリポジトリのプロジェクト詳細を取得する
+     *
+     * GitHubのリポジトリ詳細API（GET /repos/{owner}/{repo}）を呼び出し、
+     * 共通形式（PluginProjectDetail）へ正規化して返す。
+     * homepageが未設定/空文字の場合はリポジトリのWebページURLで代替する。
+     * 最新バージョン（latestVersion）はサービス層で別途補完するためここではnull。
+     * 失敗時は例外を投げずnullを返す。
+     *
+     * @param urlData GitHubのURL情報
+     * @return プロジェクト詳細（取得失敗時はnull）
+     */
+    override suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? =
+        try {
+            urlData as UrlData.GithubUrlData
+            val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}"
+            val response = getRequest(url, "application/vnd.github+json")
+            // @Serializable DTOでJSONをパース
+            val detail = json.decodeFromString<GithubRepositoryDetail>(response)
+            // homepageが空の場合はリポジトリのWebページURLで代替
+            val homepage = detail.homepage?.takeIf { it.isNotBlank() } ?: detail.htmlUrl
+            PluginProjectDetail(
+                source = RepositoryType.GITHUB,
+                slug = detail.fullName,
+                name = detail.fullName,
+                description = detail.description,
+                homepage = homepage,
+                license = detail.license?.name,
+                downloads = null,
+                // latestVersionはサービス層で別途補完する
+                latestVersion = null
+            )
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 取得失敗時はnullを返す（呼び出し側へ例外を伝播させない）
+            null
+        }
 }

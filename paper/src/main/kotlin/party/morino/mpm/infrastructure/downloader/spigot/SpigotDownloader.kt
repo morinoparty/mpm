@@ -9,13 +9,19 @@
 
 package party.morino.mpm.infrastructure.downloader.spigot
 
+import party.morino.mpm.api.domain.downloader.model.PluginProjectDetail
+import party.morino.mpm.api.domain.downloader.model.PluginSearchResult
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.infrastructure.downloader.AbstractPluginDownloader
+import party.morino.mpm.infrastructure.downloader.spigot.data.SpigotProjectInfo
 import party.morino.mpm.infrastructure.downloader.spigot.data.SpigotResourceDetails
+import party.morino.mpm.infrastructure.downloader.spigot.data.SpigotSearchResult
 import party.morino.mpm.infrastructure.downloader.spigot.data.SpigotVersionInfo
 import java.io.File
+import java.net.URLEncoder
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * SpigotMCからプラグインをダウンロードするクラス
@@ -156,4 +162,79 @@ open class SpigotDownloader : AbstractPluginDownloader() {
         val latestVersion = getLatestVersion(urlData)
         return downloadByVersion(urlData, latestVersion, fileNamePattern)
     }
+
+    /**
+     * キーワードでSpigotMCのリソースを検索する
+     *
+     * Spigetの検索APIを呼び出し、共通形式の検索結果へ変換する。
+     * 失敗時は例外を投げず空リストを返す。
+     * @param query 検索キーワード
+     * @param limit 取得件数の上限
+     * @return 検索結果のリスト
+     */
+    override suspend fun searchPlugins(
+        query: String,
+        limit: Int
+    ): List<PluginSearchResult> =
+        try {
+            // クエリはパス要素として渡す。URLEncoderは空白を'+'にするが、パスセグメントでは
+            // '+'はリテラル扱いになるため、'%20'へ置換して正しくデコードされるようにする
+            val encodedQuery = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+            val url =
+                "https://api.spiget.org/v2/search/resources/$encodedQuery" +
+                    "?size=$limit&fields=id,name,tag,downloads"
+            val response = getRequest(url, "application/json")
+            // トップレベルはリソースの配列
+            val results = json.decodeFromString<List<SpigotSearchResult>>(response)
+            results.map { result ->
+                PluginSearchResult(
+                    source = RepositoryType.SPIGOTMC,
+                    slug = result.id.toString(),
+                    name = result.name ?: "",
+                    description = result.tag,
+                    downloads = result.downloads,
+                    url = "https://www.spigotmc.org/resources/${result.id}"
+                )
+            }
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 検索失敗時は空リストを返す
+            emptyList()
+        }
+
+    /**
+     * SpigotMCのプロジェクト詳細を取得する
+     *
+     * Spigetのリソース情報APIを呼び出し、共通形式へ変換する。
+     * latestVersionはサービス層で別途補完するためnullのままにする。
+     * 失敗時は例外を投げずnullを返す。
+     * @param urlData SpigotMCのURL情報
+     * @return プロジェクト詳細、取得できない場合はnull
+     */
+    override suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? =
+        try {
+            val spigotUrlData = urlData as UrlData.SpigotMcUrlData
+            val resourceId = spigotUrlData.resourceId
+            val url = "https://api.spiget.org/v2/resources/$resourceId"
+            val response = getRequest(url, "application/json")
+            val info = json.decodeFromString<SpigotProjectInfo>(response)
+            PluginProjectDetail(
+                source = RepositoryType.SPIGOTMC,
+                slug = resourceId,
+                name = info.name ?: "",
+                description = info.tag,
+                homepage = "https://www.spigotmc.org/resources/$resourceId",
+                license = null,
+                downloads = info.downloads,
+                latestVersion = null
+            )
+        } catch (e: CancellationException) {
+            // コルーチンのキャンセルは握り潰さず伝播させる
+            throw e
+        } catch (e: Exception) {
+            // 取得失敗時はnullを返す
+            null
+        }
 }
