@@ -7,13 +7,12 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 ## 概要
 
-<Callout type="warn" title="⚠️ 未実装機能">
-mpm-lock.yamlは現在未実装です。この仕様は将来のバージョンで実装される予定です。
-現在はmetadata/*.yamlファイルが同等の役割を果たしています。
-</Callout>
-
 `mpm-lock.yaml`は、mpmのロックファイルです。
 npmの`package-lock.json`に相当し、実際にインストールされたプラグインの正確なバージョンとダウンロード情報を記録します。
+
+<Callout type="info" title="自動生成">
+`mpm-lock.yaml`は自動生成・自動更新されます。`mpm install` / `mpm update` / `mpm add` / `mpm remove` / `mpm uninstall` の実行後に、実際のインストール状態を反映して再生成されます。手動で編集する必要はありません。
+</Callout>
 
 ## ファイルの配置
 
@@ -262,11 +261,19 @@ plugins:
 ### 再現可能なインストール
 
 `mpm-lock.yaml`があることで、別の環境で全く同じバージョンのプラグインをインストールできます。
+`--frozen` フラグを付けると、`mpm.json`で`version: latest`等を指定していても、
+ロックファイルに記録された正確なバージョンのみをインストールします（npmの`npm ci`に相当）。
 
 ```bash
-# 他の環境で同じプラグインをインストール
-mpm install
+# ロックファイルどおりの正確なバージョンで再現インストール
+mpm install --frozen
 ```
+
+<Callout type="info" title="ドリフト検出">
+`--frozen` 実行時、`mpm.json`で管理されているプラグインがロックファイルに記録されていない場合（ドリフト）は、そのプラグインを失敗として報告します。ロックファイルを最新化するには、通常の `mpm install` を実行してください。
+</Callout>
+
+`--frozen` を付けない通常の `mpm install` は、`mpm.json`のバージョン指定を解決してインストールし、その結果でロックファイルを更新します。
 
 ### バージョンの固定
 

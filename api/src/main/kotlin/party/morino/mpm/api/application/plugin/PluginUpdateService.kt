@@ -59,11 +59,14 @@ interface PluginUpdateService {
      *
      * @param force trueの場合、api-version非互換でも強制インストールする
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
+     * @param frozen trueの場合、mpm-lock.yamlに記録された正確なバージョンをインストールする
+     *   （mpm.jsonのlatest/tag指定を無視した再現インストール。ロック未存在時はエラー）
      * @return 一括インストール結果
      */
     suspend fun installAll(
         force: Boolean = false,
-        skipIntegrity: Boolean = false
+        skipIntegrity: Boolean = false,
+        frozen: Boolean = false
     ): Either<MpmError, BulkInstallResult>
 
     /**

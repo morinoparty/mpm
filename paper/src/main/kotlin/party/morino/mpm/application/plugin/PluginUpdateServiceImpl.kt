@@ -43,6 +43,7 @@ import party.morino.mpm.api.domain.project.dto.MpmConfig
 import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
 import party.morino.mpm.api.domain.project.dto.topologicalSortPlugins
 import party.morino.mpm.api.domain.project.dto.validateSyncDependencies
+import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.backup.BackupReason
@@ -86,6 +87,9 @@ class PluginUpdateServiceImpl :
 
     // ダウンロードしたJARのハッシュ整合性検証を行う
     private val integrityVerifier: IntegrityVerifier by inject()
+
+    // ロックファイル（mpm-lock.yaml）の読み込み（frozenインストールで使用）
+    private val lockRepository: LockRepository by inject()
 
     // 並行更新を防止するためのMutex（スケジューラーとコマンドの競合回避）
     private val updateMutex = Mutex()
@@ -379,17 +383,93 @@ class PluginUpdateServiceImpl :
      */
     override suspend fun installAll(
         force: Boolean,
-        skipIntegrity: Boolean
+        skipIntegrity: Boolean,
+        frozen: Boolean
     ): Either<MpmError, BulkInstallResult> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
             return MpmError.PluginError.UpdateInProgress.left()
         }
         try {
-            return executeInstallAll(force, skipIntegrity)
+            // frozen指定時はロックファイルどおりの正確なバージョンをインストールする
+            return if (frozen) {
+                executeFrozenInstall(force, skipIntegrity)
+            } else {
+                executeInstallAll(force, skipIntegrity)
+            }
         } finally {
             updateMutex.unlock()
         }
+    }
+
+    /**
+     * mpm-lock.yaml に記録された正確なバージョンをインストールする（再現インストール / npm ci 相当）
+     *
+     * mpm.jsonのlatest/tag指定は無視し、ロックファイルのバージョンをそのまま導入する。
+     * ロックファイルが存在しない場合、および管理下プラグインがロックに含まれていない場合（ドリフト）は
+     * エラーとして扱う。
+     */
+    private suspend fun executeFrozenInstall(
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, BulkInstallResult> {
+        // ロックファイルを読み込む。未存在と破損を区別する
+        // （破損時に 'mpm install' を促すと再生成で上書きされ再現性が失われるため、明確に区別する）
+        val lock =
+            lockRepository.find()
+                ?: return if (lockRepository.exists()) {
+                    MpmError.ProjectError
+                        .ConfigParseError(
+                            "mpm-lock.yaml が破損しています。手動で確認・修正してください（再現インストールのため自動再生成しません）。"
+                        ).left()
+                } else {
+                    MpmError.ProjectError
+                        .ConfigParseError(
+                            "mpm-lock.yaml が見つかりません。先に 'mpm install' を実行してロックファイルを生成してください。"
+                        ).left()
+                }
+
+        // プロジェクト（管理下プラグイン）を取得
+        val project = projectRepository.findOrError().getOrElse { return it.left() }
+        val mpmConfig = project.toDto()
+
+        // 依存順にインストールするためトポロジカルソートする
+        val sortedPlugins = mpmConfig.topologicalSortPlugins()
+
+        val installed = mutableListOf<PluginInstallInfo>()
+        val removed = mutableListOf<PluginRemovalInfo>()
+        val failed = mutableMapOf<String, String>()
+
+        for (pluginName in sortedPlugins) {
+            val expectedVersion = mpmConfig.plugins[pluginName] ?: continue
+            // unmanagedはロック対象外なのでスキップ
+            if (expectedVersion == "unmanaged") continue
+
+            // ロックにエントリが無い管理下プラグインはドリフトとして失敗扱いにする
+            val lockEntry = lock.plugins[pluginName]
+            if (lockEntry == null) {
+                failed[pluginName] = "ロックファイルにエントリがありません（mpm install で再生成してください）"
+                continue
+            }
+
+            // ロックに記録された正確なバージョンとsha256でインストールする
+            // （sha256を渡すことで、ダウンロードしたバイト列がロックと一致することを保証する）
+            installPluginWithVersion(
+                pluginName = pluginName,
+                expectedVersion = lockEntry.version.raw,
+                force = force,
+                skipIntegrity = skipIntegrity,
+                expectedSha256 = lockEntry.download.sha256
+            ).fold(
+                { failed[pluginName] = it },
+                { result ->
+                    installed.add(result.installed)
+                    result.removed?.let { removed.add(it) }
+                }
+            )
+        }
+
+        return BulkInstallResult(installed = installed, removed = removed, failed = failed).right()
     }
 
     /**
@@ -928,7 +1008,8 @@ class PluginUpdateServiceImpl :
         pluginName: String,
         expectedVersion: String,
         force: Boolean = false,
-        skipIntegrity: Boolean = false
+        skipIntegrity: Boolean = false,
+        expectedSha256: String? = null
     ): Either<String, InstallResult> {
         // リポジトリファイルを取得
         val repositoryFile =
@@ -1024,6 +1105,21 @@ class PluginUpdateServiceImpl :
 
         if (downloadedFile == null) {
             return "プラグインファイルのダウンロードに失敗しました。".left()
+        }
+
+        // frozenインストール時は、ロックファイルに記録されたsha256を最優先で照合する。
+        // リポジトリ側でアーティファクトが同じバージョン名のまま差し替えられていても検出でき、
+        // バイト単位の再現性（npm ci相当）を保証する。--skip-integrityでも省略しない（frozenの本質のため）。
+        if (expectedSha256 != null) {
+            val actualSha256 = integrityVerifier.computeSha256(downloadedFile)
+            if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
+                downloadedFile.delete()
+                return (
+                    "ロックファイルのハッシュと一致しません (sha256): " +
+                        "expected=$expectedSha256, actual=$actualSha256。" +
+                        "アーティファクトが差し替えられた可能性があります。"
+                ).left()
+            }
         }
 
         // ダウンロードしたtempファイルの整合性を検証する（ステージング前に実施）

@@ -10,9 +10,12 @@
 package party.morino.mpm.ui.command.manage.lifecycle
 
 import org.bukkit.command.CommandSender
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.utils.regenerateQuietly
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -28,21 +31,27 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class InstallCommand : KoinComponent {
     // KoinによるDI
     private val updateService: PluginUpdateService by inject()
+    private val lockService: LockService by inject()
+    private val plugin: JavaPlugin by inject()
 
     /**
      * mpm.jsonに定義されたプラグインを一括インストールするコマンド
      * @param sender コマンド送信者
+     * @param force api-version非互換でも強制インストールする
+     * @param skipIntegrity 整合性検証の不一致を無視する
+     * @param frozen mpm-lock.yamlに記録された正確なバージョンをインストールする（再現インストール）
      */
     @Subcommand("install")
     suspend fun install(
         sender: CommandSender,
         @Switch("force") force: Boolean = false,
-        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false
+        @Switch("skip-integrity", shorthand = 'k') skipIntegrity: Boolean = false,
+        @Switch("frozen", shorthand = 'z') frozen: Boolean = false
     ) {
         sender.sendRichMessage("<gray>mpm.jsonを読み込んでいます...")
 
-        // PluginUpdateServiceを実行（force・skip-integrityフラグを伝播）
-        updateService.installAll(force, skipIntegrity).fold(
+        // PluginUpdateServiceを実行（force・skip-integrity・frozenフラグを伝播）
+        updateService.installAll(force, skipIntegrity, frozen).fold(
             // 失敗時の処理
             { error ->
                 sender.sendRichMessage("<red>${error.message}")
@@ -94,6 +103,12 @@ class InstallCommand : KoinComponent {
                 } else if (result.failed.isEmpty()) {
                     // すべて成功した場合
                     sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。")
+                }
+
+                // frozenインストールはロックファイルどおりに導入するだけなので再生成しない。
+                // 通常インストール後は、実際の状態を反映するためロックファイルを再生成する
+                if (!frozen) {
+                    lockService.regenerateQuietly(plugin.logger)
                 }
             }
         )
