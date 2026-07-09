@@ -11,11 +11,12 @@ package party.morino.mpm.infrastructure.mineauth
 
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mineauth.api.annotations.GetMapping
-import party.morino.mineauth.api.annotations.PathParam
-import party.morino.mineauth.api.annotations.Permission
-import party.morino.mineauth.api.annotations.PostMapping
-import party.morino.mineauth.api.annotations.QueryParams
+import party.morino.mineauth.api.CallerType
+import party.morino.mineauth.api.annotations.Authenticated
+import party.morino.mineauth.api.annotations.Get
+import party.morino.mineauth.api.annotations.Path
+import party.morino.mineauth.api.annotations.Post
+import party.morino.mineauth.api.annotations.QueryMap
 import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
 import party.morino.mpm.api.application.model.PluginFilter
@@ -61,11 +62,14 @@ private fun MpmError.toHttpStatus(): HttpStatus =
 /**
  * mpm の MineAuth HTTP ハンドラー
  *
- * MineAuth の RegisterHandler API を通じて登録される。
+ * MineAuth v2 API（[party.morino.mineauth.api.MineAuthApi.register]）を通じて登録される。
  * エンドポイントは /api/v1/plugins/mpm/ 配下にマウントされる。
- * @Permission("mpm.api") によって保護され、service account は自動的にバイパスできる。
+ *
+ * MineAuth v2 では全エンドポイントがアクセス宣言を必須とするため、各メソッドに
+ * `@Authenticated(permission = "mpm.api", callers = [USER, SERVICE])` を付与する。
+ * permission はユーザートークンにのみ評価され、サービストークンは明示的に
+ * `callers` へ含めることで許可される（旧 API の service account バイパス相当の挙動を維持する）。
  */
-@Permission("mpm.api")
 class MpmPluginHandler : KoinComponent {
     // KoinによるDI
     private val pluginInfoService: PluginInfoService by inject()
@@ -78,7 +82,8 @@ class MpmPluginHandler : KoinComponent {
      *
      * @return 管理中プラグインの一覧
      */
-    @GetMapping("/plugins")
+    @Get("/plugins")
+    @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listPlugins(): List<PluginSummaryResponse> {
         val plugins = pluginInfoService.list(PluginFilter.ALL)
         return plugins.map { PluginSummaryResponse.from(it) }
@@ -90,7 +95,8 @@ class MpmPluginHandler : KoinComponent {
      *
      * @return 更新可能なプラグインの一覧
      */
-    @GetMapping("/plugins/outdated")
+    @Get("/plugins/outdated")
+    @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun listOutdatedPlugins(): List<OutdatedPluginResponse> {
         val result =
             pluginInfoService.checkAllOutdated().fold(
@@ -110,9 +116,10 @@ class MpmPluginHandler : KoinComponent {
      * @param params クエリパラメータ（force=true で api-version 非互換でも強制更新）
      * @return 各プラグインの更新結果一覧
      */
-    @PostMapping("/plugins/update")
+    @Post("/plugins/update")
+    @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun updateAllPlugins(
-        @QueryParams params: Map<String, String>
+        @QueryMap params: Map<String, String>
     ): List<UpdateResult> {
         val force = params["force"]?.parseBooleanParam() ?: false
         return pluginUpdateService.update(force = force).fold(
@@ -131,10 +138,11 @@ class MpmPluginHandler : KoinComponent {
      * @param params クエリパラメータ（force=true で強制更新）
      * @return 更新結果
      */
-    @PostMapping("/plugins/{name}/update")
+    @Post("/plugins/{name}/update")
+    @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun updatePlugin(
-        @PathParam("name") name: String,
-        @QueryParams params: Map<String, String>
+        @Path("name") name: String,
+        @QueryMap params: Map<String, String>
     ): UpdateResult {
         val force = params["force"]?.parseBooleanParam() ?: false
         return pluginUpdateService.update(PluginName(name), force = force).fold(
@@ -154,10 +162,11 @@ class MpmPluginHandler : KoinComponent {
      * @param params クエリパラメータ（force=true で api-version 非互換でも強制インストール）
      * @return インストール結果
      */
-    @PostMapping("/plugins/{name}/install")
+    @Post("/plugins/{name}/install")
+    @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun installPlugin(
-        @PathParam("name") name: String,
-        @QueryParams params: Map<String, String>
+        @Path("name") name: String,
+        @QueryMap params: Map<String, String>
     ): InstallResultResponse {
         val force = params["force"]?.parseBooleanParam() ?: false
         val result =
@@ -177,9 +186,10 @@ class MpmPluginHandler : KoinComponent {
      * @param name アンインストール対象のプラグイン名
      * @return アンインストール結果
      */
-    @PostMapping("/plugins/{name}/uninstall")
+    @Post("/plugins/{name}/uninstall")
+    @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun uninstallPlugin(
-        @PathParam("name") name: String
+        @Path("name") name: String
     ): UninstallResponse {
         pluginLifecycleService.uninstall(PluginName(name)).fold(
             ifLeft = { error ->

@@ -13,25 +13,35 @@ mpm自体の動作には一切影響しません。
 
 ## 有効化の仕組み
 
-サーバー起動時、mpmは以下の順序でMineAuthとの連携を試みます。
+mpmはMineAuthの`MineAuthApi`（v2）に対応しています。サーバー起動時、mpmは以下の順序でMineAuthとの連携を試みます。
 
 1. `MineAuth` プラグインがサーバーに存在するか確認する
-2. 存在する場合、`MineAuthAPI` を実装しているか確認する
-3. 両方を満たす場合のみ、mpmのハンドラーをMineAuthに登録する
+2. 存在する場合、Bukkitの`ServicesManager`経由で`MineAuthApi`インスタンスを取得する
+3. 取得できた場合のみ、mpmのハンドラーを`mpm`名前空間で登録する
 
-いずれかの条件を満たさない場合や、バージョン不整合などで例外が発生した場合は、警告ログを出力したうえで連携を無効化し、
-mpm本体の起動は継続します。
+登録はall-or-nothingで行われます。いずれかのエンドポイントが検証に失敗した場合は何もマウントされず、
+検証エラーの一覧を含む警告ログを出力したうえで連携を無効化します。いずれの場合もmpm本体の起動は継続します。
+なお、登録されたエンドポイントはmpmプラグインの無効化時にMineAuth側で自動的に登録解除されます。
 
 | 状態 | ログ | 結果 |
 | --- | --- | --- |
 | MineAuth未導入 | `MineAuth not found - HTTP API integration disabled` | 連携なしで起動 |
-| 互換性のないMineAuth | `MineAuth found but doesn't implement MineAuthAPI - HTTP API integration disabled` | 連携なしで起動 |
-| 連携成功 | `MineAuth integration enabled - endpoints registered at /api/v1/plugins/mpm/` | エンドポイント有効化 |
+| APIサービス取得不可 | `MineAuth found but MineAuthApi service is unavailable - HTTP API integration disabled` | 連携なしで起動 |
+| 登録検証エラー | `MineAuth endpoint registration failed - HTTP API will be unavailable: ...` | 連携なしで起動 |
+| 連携成功 | `MineAuth integration enabled - N endpoints registered under /api/v1/plugins/mpm/` | エンドポイント有効化 |
 
 ## 認証・権限
 
-登録されるすべてのエンドポイントは、MineAuthの権限 `mpm.api` によって保護されます。
-この権限を持つユーザー、またはMineAuthのservice accountからのみアクセスできます。
+登録されるすべてのエンドポイントは`@Authenticated`により認証必須で、権限 `mpm.api` によって保護されます。
+
+- **ユーザートークン**: 権限 `mpm.api` を持つプレイヤーのトークンからのみアクセスできます。
+- **サービストークン**: 各エンドポイントが `callers` にサービストークンを明示的に許可しているためアクセスできます。サービストークンは管理者が発行する信頼された資格情報であり、`mpm.api` 権限の評価対象外です。
+
+:::info
+MineAuth v2では、旧APIにあった「サービストークンによる権限の暗黙的なバイパス」は廃止され、
+エンドポイントごとに `callers` で明示的に許可する方式に変わりました。mpmの全エンドポイントは
+ユーザートークン・サービストークンの両方を許可するよう設定されています。
+:::
 
 ## エンドポイント一覧
 
