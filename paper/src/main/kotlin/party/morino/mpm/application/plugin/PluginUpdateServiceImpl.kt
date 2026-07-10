@@ -173,13 +173,18 @@ class PluginUpdateServiceImpl :
         // 更新結果のリスト
         val updateResults = mutableListOf<UpdateResult>()
 
-        // 更新が成功したプラグイン名を追跡（Syncプラグインの連動更新用）
-        val updatedPlugins = mutableSetOf<String>()
-
         // 更新が必要なプラグインを処理
         for (outdatedInfo in outdatedInfoList) {
             // 更新が不要な場合はスキップ
             if (!outdatedInfo.needsUpdate) {
+                continue
+            }
+
+            // sync: プラグインはメインループでは更新しない。
+            // 自身のリポジトリの最新ではなく、親のバージョンに追従させる必要があるため、
+            // ループ後の updateSyncPlugins（連動更新）でまとめて処理する。
+            val specString = mpmConfig?.plugins?.get(outdatedInfo.pluginName)
+            if (specString != null && VersionSpecifierParser.isSyncFormat(specString)) {
                 continue
             }
 
@@ -283,15 +288,19 @@ class PluginUpdateServiceImpl :
                             success = true
                         )
                     )
-                    // 更新成功したプラグインを記録
-                    updatedPlugins.add(outdatedInfo.pluginName)
                 }
             )
         }
 
         // Syncプラグインの連動更新（forceフラグを伝播）
+        // 一括更新では全ての sync: プラグインを対象に、それぞれの親の（更新後）バージョンへ追従させる。
+        // 既に同期済みの子は再取得せずスキップされる。
         mpmConfig?.let { config ->
-            updateSyncPlugins(config, updatedPlugins, updateResults, force, progressCallback, skipIntegrity)
+            val allSyncChildren =
+                config.plugins
+                    .filterValues { VersionSpecifierParser.isSyncFormat(it) }
+                    .keys
+            updateSyncPlugins(config, allSyncChildren, updateResults, force, progressCallback, skipIntegrity)
         }
 
         return (checkFailResults + updateResults).right()
@@ -306,26 +315,63 @@ class PluginUpdateServiceImpl :
         name: PluginName,
         force: Boolean,
         skipIntegrity: Boolean
-    ): Either<MpmError, UpdateResult> {
+    ): Either<MpmError, List<UpdateResult>> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
             return MpmError.PluginError.UpdateInProgress.left()
         }
         try {
+            val mpmConfig = loadMpmConfig()
+
+            // sync: プラグインを直接更新する場合は、自身のリポジトリの最新ではなく
+            // 同期先（親）のバージョンに追従させる（一括更新の連動更新と同じ挙動）。
+            // これにより mpm outdated の表示（親に追従）と mpm update <子> の挙動が一致する。
+            val specString = mpmConfig?.plugins?.get(name.value)
+            if (specString != null && VersionSpecifierParser.isSyncFormat(specString)) {
+                val syncResults = mutableListOf<UpdateResult>()
+                updateSyncPlugins(
+                    mpmConfig = mpmConfig,
+                    syncChildren = listOf(name.value),
+                    updateResults = syncResults,
+                    force = force,
+                    skipIntegrity = skipIntegrity
+                )
+                // 既に親と同期済みで更新が発生しなかった場合は現状維持の成功結果を返す
+                if (syncResults.isEmpty()) {
+                    val current =
+                        pluginMetadataManager.loadMetadata(name.value).fold(
+                            { "unknown" },
+                            { it.mpmInfo.version.current.raw }
+                        )
+                    syncResults.add(
+                        UpdateResult(
+                            pluginName = name.value,
+                            oldVersion = current,
+                            newVersion = current,
+                            success = true,
+                            errorMessage = null
+                        )
+                    )
+                }
+                return syncResults.right()
+            }
+
             // 更新が必要かチェック
             val outdatedInfo =
                 infoService.checkOutdated(name).getOrElse {
                     return it.left()
                 }
 
-            // 更新が不要かつforceでない場合はスキップ
+            // 更新が不要かつforceでない場合は、親の現状維持結果のみを返す（連動更新は行わない）
             if (outdatedInfo == null || (!outdatedInfo.needsUpdate && !force)) {
-                return UpdateResult(
-                    pluginName = name.value,
-                    oldVersion = outdatedInfo?.currentVersion ?: "unknown",
-                    newVersion = outdatedInfo?.latestVersion ?: "unknown",
-                    success = true,
-                    errorMessage = null
+                return listOf(
+                    UpdateResult(
+                        pluginName = name.value,
+                        oldVersion = outdatedInfo?.currentVersion ?: "unknown",
+                        newVersion = outdatedInfo?.latestVersion ?: "unknown",
+                        success = true,
+                        errorMessage = null
+                    )
                 ).right()
             }
 
@@ -358,19 +404,37 @@ class PluginUpdateServiceImpl :
                 { info -> plugin.logger.info("[update] バックアップ作成完了: ${info.fileName}") }
             )
 
+            // 更新結果（先頭が親、以降が連動更新した子）
+            val updateResults = mutableListOf<UpdateResult>()
+
             // 最新バージョンをtargetVersionとして渡してインストール
-            return installSinglePlugin(name.value, force, useLatest = true, skipIntegrity = skipIntegrity).fold(
-                { error -> MpmError.PluginError.UpdateFailed(name.value, error).left() },
+            installSinglePlugin(name.value, force, useLatest = true, skipIntegrity = skipIntegrity).fold(
+                { error -> return MpmError.PluginError.UpdateFailed(name.value, error).left() },
                 {
-                    UpdateResult(
-                        pluginName = name.value,
-                        oldVersion = outdatedInfo.currentVersion,
-                        newVersion = outdatedInfo.latestVersion,
-                        success = true,
-                        errorMessage = null
-                    ).right()
+                    updateResults.add(
+                        UpdateResult(
+                            pluginName = name.value,
+                            oldVersion = outdatedInfo.currentVersion,
+                            newVersion = outdatedInfo.latestVersion,
+                            success = true,
+                            errorMessage = null
+                        )
+                    )
                 }
             )
+
+            // 連動更新: この親に同期している sync: プラグイン（子）を親の新バージョンに追従させる
+            mpmConfig?.let { config ->
+                updateSyncPlugins(
+                    mpmConfig = config,
+                    syncChildren = config.getPluginsSyncingTo(name.value),
+                    updateResults = updateResults,
+                    force = force,
+                    skipIntegrity = skipIntegrity
+                )
+            }
+
+            return updateResults.right()
         } finally {
             updateMutex.unlock()
         }
@@ -693,57 +757,51 @@ class PluginUpdateServiceImpl :
     // === プライベートヘルパーメソッド ===
 
     /**
-     * 更新されたプラグインに同期しているプラグインを連動更新する
+     * sync: プラグイン（子）を、その同期先（親）の現在バージョンに追従して連動更新する
+     *
+     * 各子について親のインストール済みバージョンを解決し、既に一致していれば何もしない。
+     * 一致していなければ [installPluginWithVersion] で親のバージョンを子のリポジトリから取得して置換する。
+     * 1件の失敗は該当プラグインの失敗結果として記録し、残りの処理は継続する。
+     *
+     * @param mpmConfig mpm.json の設定（sync ターゲット解決に使用）
+     * @param syncChildren 連動更新の対象とする sync: プラグイン名の集合
      */
     private suspend fun updateSyncPlugins(
         mpmConfig: MpmConfig,
-        updatedPlugins: Set<String>,
+        syncChildren: Collection<String>,
         updateResults: MutableList<UpdateResult>,
         force: Boolean = false,
         progressCallback: ((String) -> Unit)? = null,
         skipIntegrity: Boolean = false
     ) {
-        // 更新されたプラグインに同期しているプラグインを取得
-        val syncPluginsToUpdate = mutableSetOf<String>()
-        for (updatedPlugin in updatedPlugins) {
-            val syncingPlugins = mpmConfig.getPluginsSyncingTo(updatedPlugin)
-            syncPluginsToUpdate.addAll(syncingPlugins)
+        if (syncChildren.isEmpty()) {
+            return
         }
+        progressCallback?.invoke("<gray>連動更新を確認しています...")
 
-        // 既に更新済みのプラグインは除外
-        syncPluginsToUpdate.removeAll(updatedPlugins)
+        for (childName in syncChildren) {
+            // 子の同期先（親プラグイン名）を mpm.json の sync: 指定から特定する
+            val syncTarget =
+                mpmConfig.plugins[childName]?.let { VersionSpecifierParser.extractSyncTarget(it) }
+            // 親の（更新後の）インストール済みバージョンを解決する
+            val targetVersion =
+                syncTarget?.let { parent ->
+                    pluginMetadataManager.loadMetadata(parent).fold({ null }, { it.mpmInfo.version.current.raw })
+                }
 
-        // Syncプラグインを更新
-        if (syncPluginsToUpdate.isNotEmpty()) {
-            progressCallback?.invoke("<gray>連動更新を確認しています...")
-        }
-        for (syncPluginName in syncPluginsToUpdate) {
-            // メタデータを読み込んで現在のバージョンとロック状態を取得
-            val metadataEither = pluginMetadataManager.loadMetadata(syncPluginName)
-            val currentVersion =
-                metadataEither.fold(
-                    {
-                        progressCallback?.invoke(
-                            "<gray>[$syncPluginName] <yellow>メタデータの読み込みに失敗しました"
-                        )
-                        "unknown"
-                    },
-                    { it.mpmInfo.version.current.raw }
-                )
+            // 子の現在バージョンとロック状態を取得
+            val childMetadata = pluginMetadataManager.loadMetadata(childName)
+            val currentVersion = childMetadata.fold({ "unknown" }, { it.mpmInfo.version.current.raw })
+            val isLocked = childMetadata.fold({ false }, { it.mpmInfo.settings.lock == true })
 
-            // ロックされている場合はスキップ
-            val isLocked =
-                metadataEither.fold(
-                    { false },
-                    { it.mpmInfo.settings.lock == true }
-                )
+            // ロックされている場合はスキップ（現状維持）
             if (isLocked) {
-                progressCallback?.invoke("<gray>[$syncPluginName] <yellow>ロック中のためスキップ")
+                progressCallback?.invoke("<gray>[$childName] <yellow>ロック中のためスキップ")
                 updateResults.add(
                     UpdateResult(
-                        pluginName = syncPluginName,
+                        pluginName = childName,
                         oldVersion = currentVersion,
-                        newVersion = "sync",
+                        newVersion = currentVersion,
                         success = false,
                         errorMessage = LOCKED_ERROR_MESSAGE
                     )
@@ -751,38 +809,52 @@ class PluginUpdateServiceImpl :
                 continue
             }
 
-            // プラグインをインストール（forceフラグを伝播）
-            progressCallback?.invoke("<gray>[$syncPluginName] 連動更新をダウンロード中...")
-            val installResult = installSinglePlugin(syncPluginName, force, skipIntegrity = skipIntegrity)
+            // 親のバージョンを解決できない場合はスキップ（親のメタデータ欠落など）
+            if (targetVersion == null) {
+                progressCallback?.invoke("<gray>[$childName] <yellow>同期先のバージョンを解決できませんでした")
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = childName,
+                        oldVersion = currentVersion,
+                        newVersion = currentVersion,
+                        success = false,
+                        errorMessage = "同期先 '${syncTarget ?: "?"}' のバージョンを解決できませんでした"
+                    )
+                )
+                continue
+            }
 
-            installResult.fold(
+            // 既に親のバージョンに同期済みなら再取得しない
+            if (targetVersion == currentVersion) {
+                continue
+            }
+
+            // 親のバージョンを子のリポジトリから取得して置換する
+            progressCallback?.invoke(
+                "<gray>[$childName] $currentVersion → $targetVersion 連動更新をダウンロード中..."
+            )
+            installPluginWithVersion(childName, targetVersion, force, skipIntegrity).fold(
                 // インストール失敗時
                 { errorMessage ->
-                    progressCallback?.invoke("<gray>[$syncPluginName] <red>連動更新失敗: $errorMessage")
+                    progressCallback?.invoke("<gray>[$childName] <red>連動更新失敗: $errorMessage")
                     updateResults.add(
                         UpdateResult(
-                            pluginName = syncPluginName,
+                            pluginName = childName,
                             oldVersion = currentVersion,
-                            newVersion = "sync",
+                            newVersion = targetVersion,
                             success = false,
                             errorMessage = "連動更新に失敗: $errorMessage"
                         )
                     )
                 },
                 // インストール成功時
-                {
-                    // 新しいバージョンを取得
-                    val newVersion =
-                        pluginMetadataManager.loadMetadata(syncPluginName).fold(
-                            { "unknown" },
-                            { it.mpmInfo.version.current.raw }
-                        )
-                    progressCallback?.invoke("<gray>[$syncPluginName] <green>連動更新完了 ✓")
+                { result ->
+                    progressCallback?.invoke("<gray>[$childName] <green>連動更新完了 ✓")
                     updateResults.add(
                         UpdateResult(
-                            pluginName = syncPluginName,
+                            pluginName = childName,
                             oldVersion = currentVersion,
-                            newVersion = newVersion,
+                            newVersion = result.installed.currentVersion,
                             success = true
                         )
                     )

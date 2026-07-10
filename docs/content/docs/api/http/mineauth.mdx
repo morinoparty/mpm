@@ -111,8 +111,30 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
 
 ### POST `/plugins/{name}/update`
 
-指定したプラグイン1件のみを更新します。パスパラメータ `name` にはプラグイン名を指定します。
+指定したプラグインを更新します。パスパラメータ `name` にはプラグイン名を指定します。
 プラグインが管理対象に存在しない場合は `404 Not Found` を返します。
+
+更新対象に同期している `sync:` プラグイン（子）がある場合、親の更新後バージョンに追従して連動更新します。
+レスポンスは配列で、先頭が親の更新結果、以降が連動更新した子の結果となります。
+
+```json title="レスポンス例"
+[
+  {
+    "pluginName": "MineAuth",
+    "oldVersion": "0.2.30",
+    "newVersion": "0.2.33",
+    "success": true,
+    "errorMessage": null
+  },
+  {
+    "pluginName": "MineAuth-addon-griefprevention",
+    "oldVersion": "0.2.30",
+    "newVersion": "0.2.33",
+    "success": true,
+    "errorMessage": null
+  }
+]
+```
 
 ### POST `/plugins/{name}/install`
 

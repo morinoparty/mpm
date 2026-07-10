@@ -140,22 +140,41 @@ class UpdateCommand : KoinComponent {
             { error ->
                 sender.sendRichMessage("<red>${error.message}</red>")
             },
-            { result ->
-                if (result.success) {
-                    sender.sendRichMessage(
-                        "<green>'$pluginId' を更新しました: ${result.oldVersion} → ${result.newVersion}</green>"
-                    )
-                    sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
-                } else {
-                    val displayMessage =
-                        result.errorMessage
-                            ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
+            { results ->
+                // 更新結果は先頭が親、以降が連動更新した sync: プラグイン（子）
+                val successResults = results.filter { it.success }
+                val failedResults = results.filter { !it.success }
+
+                // 成功した更新（親＋連動更新した子）を表示
+                if (successResults.isNotEmpty()) {
+                    sender.sendRichMessage("<green>以下のプラグインを更新しました:</green>")
+                    successResults.forEach { result ->
+                        sender.sendRichMessage(
+                            "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}"
+                        )
+                    }
+                }
+
+                // 失敗した更新を表示
+                if (failedResults.isNotEmpty()) {
                     val hasApiVersionError =
-                        result.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
-                    sender.sendRichMessage("<red>'$pluginId' の更新に失敗しました: $displayMessage</red>")
+                        failedResults.any {
+                            it.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
+                        }
+                    sender.sendRichMessage("<red>以下のプラグインの更新に失敗しました:</red>")
+                    failedResults.forEach { result ->
+                        val displayMessage =
+                            result.errorMessage
+                                ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
+                        sender.sendRichMessage("  ✗ ${result.pluginName}: $displayMessage")
+                    }
                     if (hasApiVersionError) {
                         sender.sendRichMessage("<yellow>--force フラグで強制更新できます。</yellow>")
                     }
+                }
+
+                if (successResults.isNotEmpty()) {
+                    sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。</gray>")
                 }
             }
         )

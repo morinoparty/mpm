@@ -43,16 +43,20 @@ interface PluginUpdateService {
     /**
      * 指定プラグインを更新する
      *
+     * 更新対象プラグインに同期している `sync:` プラグイン（子）があれば、
+     * 親の更新後バージョンに追従して連動更新する。
+     * 戻り値のリストは先頭が親の更新結果、以降が連動更新した子の結果となる。
+     *
      * @param name プラグイン名
      * @param force trueの場合、api-version非互換でも強制更新する
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
-     * @return 更新結果
+     * @return 更新結果一覧（親＋連動更新した子）
      */
     suspend fun update(
         name: PluginName,
         force: Boolean = false,
         skipIntegrity: Boolean = false
-    ): Either<MpmError, UpdateResult>
+    ): Either<MpmError, List<UpdateResult>>
 
     /**
      * mpm.jsonに記載されたすべてのプラグインを一括インストールする

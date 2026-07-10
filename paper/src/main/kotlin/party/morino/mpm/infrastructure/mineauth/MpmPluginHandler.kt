@@ -134,16 +134,19 @@ class MpmPluginHandler : KoinComponent {
      * 指定したプラグインを更新する
      * POST /api/v1/plugins/mpm/plugins/{name}/update
      *
+     * 対象プラグインに同期している sync: プラグイン（子）があれば、親の更新後バージョンに
+     * 追従して連動更新する。レスポンスは先頭が親、以降が連動更新した子の結果となる。
+     *
      * @param name 更新対象のプラグイン名
      * @param params クエリパラメータ（force=true で強制更新）
-     * @return 更新結果
+     * @return 更新結果一覧（親＋連動更新した子）
      */
     @Post("/plugins/{name}/update")
     @Authenticated(permission = "mpm.api", callers = [CallerType.USER, CallerType.SERVICE])
     suspend fun updatePlugin(
         @Path("name") name: String,
         @QueryMap params: Map<String, String>
-    ): UpdateResult {
+    ): List<UpdateResult> {
         val force = params["force"]?.parseBooleanParam() ?: false
         return pluginUpdateService.update(PluginName(name), force = force).fold(
             ifLeft = { error ->
