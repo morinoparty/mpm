@@ -44,6 +44,19 @@
             ]
         },
         {
+            "command": "mpm deps why <plugin>",
+            "status": "newly",
+            "category": "dependency",
+            "section": "依存理由の追跡",
+            "description": "指定したプラグインがなぜインストールされているか、依存チェーンをルートまで追跡して表示します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                }
+            ]
+        },
+        {
             "command": "mpm deps info <plugin>",
             "status": "newly",
             "category": "dependency",

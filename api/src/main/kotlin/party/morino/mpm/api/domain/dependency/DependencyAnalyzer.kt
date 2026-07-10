@@ -57,6 +57,19 @@ interface DependencyAnalyzer {
     fun getReverseDependencies(pluginName: String): Either<DependencyError, List<String>>
 
     /**
+     * 指定プラグインへの依存チェーンを取得する（`mpm deps why` 用）
+     *
+     * 逆依存グラフを遡り、他のどのプラグインからも依存されていない
+     * （トップレベルと推定される）プラグインに到達するまでの経路をすべて収集する。
+     * 指定プラグイン自身が既にトップレベルの場合は、そのプラグイン単体のみを含む
+     * 1件のチェーンを返す。
+     *
+     * @param pluginName プラグイン名
+     * @return 成功時は `root -> ... -> pluginName` の順で並んだ経路のリスト、失敗時はDependencyError
+     */
+    fun getDependencyChains(pluginName: String): Either<DependencyError, List<List<String>>>
+
+    /**
      * すべてのインストール済みプラグインの依存関係情報を取得する
      *
      * @return プラグイン名とDependencyInfoのマップ

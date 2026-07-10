@@ -165,6 +165,72 @@ class DependencyAnalyzerImpl :
     }
 
     /**
+     * 指定プラグインへの依存チェーンを取得する（`mpm deps why` 用）
+     *
+     * 逆依存グラフを遡り、他のどのプラグインからも依存されていない
+     * （トップレベルと推定される）プラグインに到達するまでの経路をすべて収集する。
+     *
+     * @param pluginName プラグイン名
+     * @return 成功時は `root -> ... -> pluginName` の順で並んだ経路のリスト、失敗時はDependencyError
+     */
+    override fun getDependencyChains(pluginName: String): Either<DependencyError, List<List<String>>> {
+        refreshCacheIfNeeded()
+
+        if (!pluginDataCache.containsKey(pluginName)) {
+            return DependencyError.PluginNotFound(pluginName).left()
+        }
+
+        // 全プラグインの「直接の逆依存」を1回のパスで事前計算しておく
+        // （プラグインごとにgetReverseDependencies相当を呼ぶとO(n^2)の重複走査になるため）
+        val reverseIndex = buildReverseDependencyIndex()
+
+        val chains = mutableListOf<List<String>>()
+
+        // pluginNameから逆依存方向へDFSする。訪問済みは経路ごとに追跡し、循環依存を打ち切る
+        fun walk(
+            current: String,
+            pathFromCurrent: List<String>,
+            visited: Set<String>
+        ) {
+            // 同一経路内で既に訪問済みの依存元は循環依存としてあらかじめ除外しておく
+            // （除外を先に行わないと、「全ての依存元が循環でスキップされた」ケースで
+            //   分岐先0件のままループが終わり、経路が一切記録されずに消失してしまう）
+            val unvisitedDependents = reverseIndex[current].orEmpty().filterNot { it in visited }
+            if (unvisitedDependents.isEmpty()) {
+                // これ以上遡れる（循環でない）依存元が無い = トップレベルまたは循環境界。経路を確定する
+                chains.add(pathFromCurrent)
+                return
+            }
+            for (dependent in unvisitedDependents) {
+                walk(dependent, listOf(dependent) + pathFromCurrent, visited + dependent)
+            }
+        }
+
+        walk(pluginName, listOf(pluginName), setOf(pluginName))
+
+        return chains.right()
+    }
+
+    /**
+     * 全プラグインの「直接の逆依存」インデックスを構築する
+     *
+     * キー: 依存されているプラグイン名、値: それに依存しているプラグイン名のリスト
+     * 必須依存（depend）とオプション依存（softDepend）の両方を対象とする。
+     */
+    private fun buildReverseDependencyIndex(): Map<String, List<String>> {
+        val index = mutableMapOf<String, MutableList<String>>()
+        for ((name, data) in pluginDataCache) {
+            val info = extractDependencyInfo(name, data)
+            for (dep in info.depend + info.softDepend) {
+                // 自己依存は無視する（getReverseDependenciesと同様の挙動に揃える）
+                if (dep == name) continue
+                index.getOrPut(dep) { mutableListOf() }.add(name)
+            }
+        }
+        return index
+    }
+
+    /**
      * すべてのインストール済みプラグインの依存関係情報を取得する
      *
      * @return プラグイン名とDependencyInfoのマップ
