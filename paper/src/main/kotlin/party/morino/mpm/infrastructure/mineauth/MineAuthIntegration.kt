@@ -10,7 +10,6 @@
 package party.morino.mpm.infrastructure.mineauth
 
 import org.bukkit.plugin.java.JavaPlugin
-import party.morino.mineauth.api.EndpointRegistrationException
 import party.morino.mineauth.api.MineAuthApi
 
 /**
@@ -33,8 +32,14 @@ class MineAuthIntegration(
      */
     fun setup() {
         // NoClassDefFoundError など Throwable も含めて全体を保護する。
-        // MineAuth 未導入時は compileOnly の API クラスが解決できず
-        // NoClassDefFoundError が発生しうるため、try-catch は最外側に配置する。
+        // MineAuth 未導入時は compileOnly の API クラス（EndpointRegistrationException 等）が
+        // 解決できず NoClassDefFoundError が発生しうる。
+        //
+        // 重要: MineAuth 由来の型は「本体で遅延解決される」参照だけに留め、catch 節の例外型には
+        // 使わないこと。catch 節の例外型はメソッド検証時（＝呼び出した瞬間）に即ロードされるため、
+        // MineAuth が無い環境では setup() の呼び出し自体が catch(Throwable) の外側で
+        // NoClassDefFoundError を投げ、soft dependency の保護をすり抜けてしまう。
+        // そのため EndpointRegistrationException は個別 catch せず catch(Throwable) でまとめて扱う。
         try {
             // MineAuth プラグインの存在確認。
             // API クラスに触れずに soft dependency を判定することで、
@@ -61,13 +66,10 @@ class MineAuthIntegration(
                 "MineAuth integration enabled - " +
                     "${registration.endpoints.size} endpoints registered under ${registration.basePath}/"
             )
-        } catch (e: EndpointRegistrationException) {
-            // 登録は all-or-nothing のため、検証エラーの全リストをまとめて出力する
-            plugin.logger.warning(
-                "MineAuth endpoint registration failed - HTTP API will be unavailable:\n${e.message}"
-            )
         } catch (e: Throwable) {
-            // NoClassDefFoundError（互換性のない MineAuth など）を含む全エラーをキャッチ
+            // 登録検証エラー（EndpointRegistrationException。message に全検証エラーを含む）や
+            // NoClassDefFoundError（互換性のない MineAuth など）を含む全エラーをキャッチする。
+            // EndpointRegistrationException を個別 catch しないのは上記コメントの理由による。
             plugin.logger.warning(
                 "MineAuth integration failed (${e::class.simpleName}): ${e.message} - HTTP API will be unavailable"
             )
