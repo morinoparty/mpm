@@ -291,7 +291,20 @@ class PluginInfoServiceImpl :
             )
         }
 
-        return OutdatedCheckResult(outdatedInfoList, checkErrors).right()
+        // Sync子の表示バージョンを親の更新先（latest）に合わせる（dry-run/outdated表示の一貫性）。
+        // 実際の更新では sync: プラグインは自身のリポジトリlatestではなく親のバージョンに追従するため、
+        // 表示上も親のlatestを更新先とし、needsUpdate も親のlatestと比較して判定する。
+        // 子 -> 同期先（親）のマップを構築し、補正は純粋関数 adjustSyncOutdated に委譲する。
+        val syncTargets =
+            project.plugins
+                .mapNotNull { (pluginName, spec) ->
+                    val target =
+                        ((spec as? PluginSpec.Managed)?.versionRequirement as? VersionSpecifier.Sync)?.targetPlugin
+                    target?.let { pluginName.value to it }
+                }.toMap()
+        val adjustedList = adjustSyncOutdated(outdatedInfoList, syncTargets)
+
+        return OutdatedCheckResult(adjustedList, checkErrors).right()
     }
 
     /**
