@@ -41,7 +41,7 @@ ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
-mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.2.33" }
+mineauth-api = { group = "party.morino", name = "mineauth-api", version = "0.3.4" }
 
 commons-io = { group = "commons-io", name = "commons-io", version.ref = "commonsIo" }
 snakeyaml = { group = "org.yaml", name = "snakeyaml", version = "2.6" }
