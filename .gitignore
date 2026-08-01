@@ -145,3 +145,5 @@ paper/src/test/resources/plugins/mpm/config.local.json
 
 # Old docs backup
 docs_old/
+
+.env
