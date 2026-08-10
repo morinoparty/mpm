@@ -1,5 +1,5 @@
 [versions]
-lamp = "4.0.0-rc.17"
+lamp = "4.0.0-rc.18"
 paper = "26.2.build.105-stable"
 mccoroutine = "2.22.0"
 koin = "4.2.2"
