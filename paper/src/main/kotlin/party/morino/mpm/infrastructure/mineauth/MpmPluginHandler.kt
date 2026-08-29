@@ -94,12 +94,10 @@ private fun parsePluginFilter(filter: String?): PluginFilter {
  * パーミッションは読み取り専用の [MpmApiPermission.READ] と、サーバー状態を変更する
  * [MpmApiPermission.WRITE] に分割している（従来の `mpm.api` は両方を含む親として維持）。
  *
- * 重要な制約（mineauth-api 0.3.6 の `AuthenticationHandler` 仕様）:
- * `permission` はユーザープリンシパルにしか評価されない。`callers` に含まれる
- * サービストークンはパーミッションチェックを完全にバイパスするため、
- * サービストークンにとっては `callers` リストが唯一のアクセス制御である。
- * 読み書きの分割はユーザートークンに対してのみ有効であり、これは mineauth-api 側の
- * 制約のため mpm 側では解消できない。
+ * パーミッションの適用範囲（MineAuth の設計による）:
+ * `permission` はユーザープリンシパルに対して評価される。サービストークンは
+ * 管理者が発行する信頼された資格情報として権限の評価対象外であり、
+ * エンドポイントごとの `callers` によってアクセスの可否が決まる。
  */
 class MpmPluginHandler : KoinComponent {
     // KoinによるDI
