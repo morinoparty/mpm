@@ -62,6 +62,7 @@ import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
+import party.morino.mpm.infrastructure.mineauth.MpmApiPermission
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
@@ -169,6 +170,10 @@ open class Mpm :
     /**
      * パーミッション階層の登録
      * mpm.commandが全子パーミッションを含むように設定する（後方互換性）
+     *
+     * HTTP API のパーミッションは `mpm.api.read` / `mpm.api.write` に分割されており、
+     * 従来の `mpm.api` は両方を子に持つ親として登録する。これにより既存の
+     * `mpm.api` 付与はそのまま全エンドポイントへのアクセスを維持する。
      */
     private fun registerPermissions() {
         val childPermissions =
@@ -186,7 +191,7 @@ open class Mpm :
                 "mpm.command.init",
                 "mpm.command.reload",
                 // MineAuth HTTP API 権限（mpm.command の子として OP に自動付与）
-                "mpm.api"
+                MpmApiPermission.ROOT
             )
         // 子パーミッションを登録（OP は親経由で全子権限を持つ）
         val children = childPermissions.associateWith { true }
@@ -198,6 +203,21 @@ open class Mpm :
                 children
             )
         server.pluginManager.addPermission(parentPermission)
+
+        // HTTP API の read/write を mpm.api の子として登録する。
+        // mpm.api 自体のデフォルトは付与しない（OP は mpm.command 経由で継承する）ため、
+        // 「mpm.api を持つ = read と write の両方を持つ」という従来の意味が保たれる。
+        val apiPermission =
+            org.bukkit.permissions.Permission(
+                MpmApiPermission.ROOT,
+                "All mpm HTTP API endpoints",
+                org.bukkit.permissions.PermissionDefault.FALSE,
+                mapOf(
+                    MpmApiPermission.READ to true,
+                    MpmApiPermission.WRITE to true
+                )
+            )
+        server.pluginManager.addPermission(apiPermission)
     }
 
     /**
