@@ -18,7 +18,7 @@ import party.morino.mpm.api.shared.error.MpmError
 /**
  * plugins/mpm/cache/ 配下のキャッシュディレクトリを管理するインターフェース
  *
- * `mpm cache list|size|clean` コマンドおよびHTTP API から利用される。
+ * `mpm cache list|size|clean` コマンドから利用される（HTTP API には未公開）。
  */
 interface CacheManager {
     /**
