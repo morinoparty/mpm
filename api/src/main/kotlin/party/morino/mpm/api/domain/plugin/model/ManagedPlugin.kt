@@ -34,7 +34,14 @@ import party.morino.mpm.api.shared.error.MpmError
  */
 class ManagedPlugin private constructor(
     private val pluginInfo: PluginInfo,
-    private val mpmInfo: MpmInfoDto
+    private val mpmInfo: MpmInfoDto,
+    /**
+     * エントリの由来（管理下 / 管理外 / メタデータ読み込み失敗）
+     *
+     * 一覧取得時に「mpm.jsonに未登録」と「登録済みだがメタデータを読めなかった」を
+     * 呼び出し側が区別するために保持する。
+     */
+    val status: PluginEntryStatus = PluginEntryStatus.MANAGED
 ) {
     /**
      * プラグイン名（PluginInfo由来の単一ソース）
@@ -132,7 +139,7 @@ class ManagedPlugin private constructor(
         }
         val newSettings = mpmInfo.settings.copy(lock = true)
         val newMpmInfo = mpmInfo.copy(settings = newSettings)
-        return ManagedPlugin(pluginInfo, newMpmInfo).right()
+        return ManagedPlugin(pluginInfo, newMpmInfo, status).right()
     }
 
     /**
@@ -146,7 +153,7 @@ class ManagedPlugin private constructor(
         }
         val newSettings = mpmInfo.settings.copy(lock = false)
         val newMpmInfo = mpmInfo.copy(settings = newSettings)
-        return ManagedPlugin(pluginInfo, newMpmInfo).right()
+        return ManagedPlugin(pluginInfo, newMpmInfo, status).right()
     }
 
     /**
@@ -206,7 +213,7 @@ class ManagedPlugin private constructor(
                 download = newDownload,
                 history = mpmInfo.history + newHistoryEntry
             )
-        return ManagedPlugin(newPluginInfo, newMpmInfo)
+        return ManagedPlugin(newPluginInfo, newMpmInfo, status)
     }
 
     /**
@@ -220,7 +227,7 @@ class ManagedPlugin private constructor(
                 action = entry.action
             )
         val newMpmInfo = mpmInfo.copy(history = mpmInfo.history + entryDto)
-        return ManagedPlugin(pluginInfo, newMpmInfo)
+        return ManagedPlugin(pluginInfo, newMpmInfo, status)
     }
 
     // ===== DTO変換 =====
@@ -243,6 +250,12 @@ class ManagedPlugin private constructor(
         )
 
     companion object {
+        // mpm.jsonでunmanagedを表すバージョン文字列（MpmProjectのパースと同じ値）
+        private const val UNMANAGED_VERSION = "unmanaged"
+
+        // メタデータを読み込めなかった場合のバージョン表示
+        private const val UNKNOWN_VERSION = "unknown"
+
         /**
          * DTOからエンティティを生成
          */
@@ -267,21 +280,50 @@ class ManagedPlugin private constructor(
          * @param pluginName プラグイン名
          * @return ManagedPluginインスタンス（unmanaged状態）
          */
-        fun createUnmanaged(pluginName: String): ManagedPlugin {
+        fun createUnmanaged(pluginName: String): ManagedPlugin =
+            createPlaceholder(pluginName, UNMANAGED_VERSION, PluginEntryStatus.UNMANAGED)
+
+        /**
+         * メタデータを読み込めなかった管理下プラグイン用のインスタンスを作成
+         *
+         * mpm.jsonには登録されているがmetadata/xxx.yamlを読めなかった場合に用いる。
+         * 一覧から黙って除外すると「未登録」と区別できなくなるため、
+         * [PluginEntryStatus.METADATA_UNAVAILABLE] を持つプレースホルダとして返す。
+         *
+         * @param pluginName プラグイン名
+         * @return ManagedPluginインスタンス（メタデータ不明状態）
+         */
+        fun createMetadataUnavailable(pluginName: String): ManagedPlugin =
+            createPlaceholder(pluginName, UNKNOWN_VERSION, PluginEntryStatus.METADATA_UNAVAILABLE)
+
+        /**
+         * メタデータを持たないプラグイン用のプレースホルダを生成する
+         *
+         * @param pluginName プラグイン名
+         * @param versionSentinel バージョン欄に入れるセンチネル文字列
+         * @param status エントリの状態
+         */
+        private fun createPlaceholder(
+            pluginName: String,
+            versionSentinel: String,
+            status: PluginEntryStatus
+        ): ManagedPlugin {
             val pluginInfo =
                 PluginInfo(
                     name = pluginName,
-                    version = "unmanaged",
+                    version = versionSentinel,
                     description = null,
                     main = null,
                     author = null,
                     website = null
                 )
-            // unmanagedプラグイン用のダミーMpmInfo
-            val unmanagedVersion =
+            // メタデータを持たないプラグイン用のダミーMpmInfo
+            // currentとlatestが同値になるためisOutdated()は常にfalseとなり、
+            // OUTDATED/LOCKEDフィルタからは自然に除外される
+            val sentinelVersion =
                 VersionDetailDto(
-                    raw = "unmanaged",
-                    normalized = "unmanaged"
+                    raw = versionSentinel,
+                    normalized = versionSentinel
                 )
             val mpmInfo =
                 MpmInfoDto(
@@ -292,8 +334,8 @@ class ManagedPlugin private constructor(
                         ),
                     version =
                         VersionManagementDto(
-                            current = unmanagedVersion,
-                            latest = unmanagedVersion,
+                            current = sentinelVersion,
+                            latest = sentinelVersion,
                             lastChecked = ""
                         ),
                     download =
@@ -305,7 +347,7 @@ class ManagedPlugin private constructor(
                     settings = PluginSettings(),
                     history = emptyList()
                 )
-            return ManagedPlugin(pluginInfo, mpmInfo)
+            return ManagedPlugin(pluginInfo, mpmInfo, status)
         }
 
         /**

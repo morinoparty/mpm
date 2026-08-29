@@ -145,7 +145,8 @@ open class SpigotDownloader : AbstractPluginDownloader() {
             "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions/" +
                 "${version.downloadId}/download/proxy"
         val fileName = "${details.name}-${version.version}.jar"
-        return downloadFile(downloadUrl, fileName)
+        // Spigetはダウンロード前にファイルサイズを提供しないため、サイズ検証は行わない
+        return downloadFileOrThrow(downloadUrl, fileName)
     }
 
     /**

@@ -17,6 +17,7 @@ import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.model.verify.VerifyEntry
 import party.morino.mpm.api.application.plugin.model.detail.PluginDetail
+import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
@@ -44,6 +45,17 @@ interface PluginInfoService {
      * @return バージョン一覧
      */
     suspend fun getVersions(name: PluginName): Either<MpmError, List<VersionDetail>>
+
+    /**
+     * 指定プラグインのインストール履歴を取得する
+     *
+     * メタデータ（metadata/<plugin>.yaml）に記録された履歴を、古い順のまま返す。
+     * `mpm rollback` の切り戻し先解決や、web console の履歴表示から利用する。
+     *
+     * @param name プラグイン名
+     * @return 履歴エントリ一覧（古い順）。メタデータが無い場合は [MpmError.PluginError.MetadataNotFound]
+     */
+    suspend fun getHistory(name: PluginName): Either<MpmError, List<HistoryEntryDto>>
 
     /**
      * 指定プラグインの更新情報を取得する

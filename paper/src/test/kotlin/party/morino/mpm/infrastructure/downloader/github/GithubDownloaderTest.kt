@@ -124,8 +124,9 @@ class GithubDownloaderTest {
                         "https://github.com/EssentialsX/Essentials/releases/download/"
                     ) -> {
                         // ファイルダウンロードのモックレスポンス
+                        // releases_assets.json の size と一致させ、ダウンロードサイズ検証を通す
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(4734714)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )
@@ -185,8 +186,9 @@ class GithubDownloaderTest {
                         "https://github.com/EssentialsX/Essentials/releases/download/"
                     ) -> {
                         // ファイルダウンロードのモックレスポンス
+                        // releases_assets.json の EssentialsXChat の size と一致させる
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(21626)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )

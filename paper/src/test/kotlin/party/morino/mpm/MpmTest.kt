@@ -32,6 +32,7 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.config.model.ConfigData
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
@@ -51,6 +52,7 @@ import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.mock.config.PluginDirectoryMock
@@ -114,6 +116,9 @@ class MpmTest :
 
                 // メタデータマネージャーの登録
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
+
+                // pluginsディレクトリのスキャナーの登録
+                single<InstalledJarScanner> { InstalledJarScannerImpl() }
 
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }

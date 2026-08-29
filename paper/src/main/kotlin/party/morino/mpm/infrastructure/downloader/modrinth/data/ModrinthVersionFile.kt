@@ -17,11 +17,13 @@ import kotlinx.serialization.Serializable
  * @param filename ファイル名
  * @param primary プライマリファイルかどうか
  * @param hashes ファイルのハッシュ情報（SHA-1, SHA-512）
+ * @param size ファイルサイズ（バイト）。ダウンロード後の欠損検証に使用する
  */
 @Serializable
 data class ModrinthVersionFile(
     val url: String,
     val filename: String,
     val primary: Boolean,
-    val hashes: ModrinthVersionFileHashes? = null
+    val hashes: ModrinthVersionFileHashes? = null,
+    val size: Long = 0
 )

@@ -227,8 +227,8 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
                     ?: throw Exception("パターン '$fileNamePattern' にマッチするファイルが見つかりません")
             }
 
-        // ファイルをダウンロード
-        return downloadFile(file.url, file.filename)
+        // ファイルをダウンロード（sizeが取得できる場合はバイト数も検証する）
+        return downloadFileOrThrow(file.url, file.filename, file.size.takeIf { it > 0 })
     }
 
     /**

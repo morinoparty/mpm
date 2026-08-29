@@ -164,8 +164,10 @@ class HangarDownloaderTest {
                                     }
 
                                     request.url.host == "hangarcdn.papermc.io" -> {
+                                        // version-detail.json の PAPER の sizeBytes と一致させ、
+                                        // ダウンロードサイズ検証を通す
                                         respond(
-                                            content = ByteReadChannel(ByteArray(100)),
+                                            content = ByteReadChannel(ByteArray(233744)),
                                             status = HttpStatusCode.OK,
                                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                                         )

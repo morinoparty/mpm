@@ -258,7 +258,14 @@ open class GithubDownloader(
                 ?: throw Exception("ダウンロードURLが見つかりません")
 
         val fileName = asset["name"]?.jsonPrimitive?.content ?: "plugin-${LocalDateTime.now()}.jar"
-        return downloadFile(downloadUrl, fileName)
+        // アセットのsizeが取得できる場合はダウンロード後にバイト数を検証する
+        val expectedSizeBytes =
+            asset["size"]
+                ?.jsonPrimitive
+                ?.content
+                ?.toLongOrNull()
+                ?.takeIf { it > 0 }
+        return downloadFileOrThrow(downloadUrl, fileName, expectedSizeBytes)
     }
 
     /**

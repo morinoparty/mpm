@@ -162,8 +162,9 @@ class ModrinthDownloaderTest {
 
                     request.url.toString().startsWith("https://cdn.modrinth.com/") -> {
                         // ファイルダウンロードのモックレスポンス
+                        // version-detail.json の size と一致させ、ダウンロードサイズ検証を通す
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(8645636)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )
@@ -220,8 +221,9 @@ class ModrinthDownloaderTest {
 
                     request.url.toString().startsWith("https://cdn.modrinth.com/") -> {
                         // ファイルダウンロードのモックレスポンス
+                        // version-detail.json の size と一致させ、ダウンロードサイズ検証を通す
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(8645636)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )

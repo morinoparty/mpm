@@ -30,12 +30,15 @@ import party.morino.mpm.api.application.plugin.model.detail.PluginDetail
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
+import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
@@ -61,6 +64,9 @@ class PluginInfoServiceImpl :
     private val integrityVerifier: IntegrityVerifier by inject()
     private val plugin: JavaPlugin by inject()
 
+    // pluginsディレクトリの実態を走査するスキャナー（unmanagedのライブスキャンに使用）
+    private val installedJarScanner: InstalledJarScanner by inject()
+
     /**
      * プラグイン一覧を取得する
      *
@@ -71,48 +77,62 @@ class PluginInfoServiceImpl :
         // ProjectRepositoryを通じてプロジェクトを取得
         val project = projectRepository.find() ?: return emptyList()
 
+        // UNMANAGEDはmpm.jsonのスナップショットではなくpluginsディレクトリの実態を返す
+        if (filter == PluginFilter.UNMANAGED) {
+            return listUnmanaged(project)
+        }
+
         // 各プラグインのメタデータを読み込んでManagedPluginに変換
         val managedPlugins =
             project.plugins.mapNotNull { (pluginName, spec) ->
-                // unmanagedの場合はスキップ（フィルタ次第で含める）
-                val isUnmanaged = spec is PluginSpec.Unmanaged
+                // unmanagedはメタデータを持たないため、UNMANAGED以外のフィルタでは対象外
+                if (spec is PluginSpec.Unmanaged) return@mapNotNull null
 
-                // フィルタに応じた処理
-                when (filter) {
-                    PluginFilter.UNMANAGED -> {
-                        // unmanagedのみを対象
-                        if (!isUnmanaged) return@mapNotNull null
-                        // unmanagedプラグインはメタデータがないので、最小限のManagedPluginを作成
-                        return@mapNotNull ManagedPlugin.createUnmanaged(pluginName.value)
-                    }
-                    PluginFilter.MANAGED -> {
-                        // managedのみを対象
-                        if (isUnmanaged) return@mapNotNull null
-                    }
-                    PluginFilter.ALL -> {
-                        // unmanagedはスキップ（メタデータがないため）
-                        if (isUnmanaged) return@mapNotNull null
-                    }
-                    PluginFilter.OUTDATED, PluginFilter.LOCKED -> {
-                        // 後でフィルタするのでスキップしない
-                        if (isUnmanaged) return@mapNotNull null
-                    }
-                }
-
-                // メタデータを読み込む
-                val metadataResult = pluginMetadataManager.loadMetadata(pluginName.value)
-                val dto = metadataResult.getOrElse { return@mapNotNull null }
+                // メタデータを読み込む。読み込みに失敗しても黙って捨てず、
+                // 「登録済みだがメタデータ不明」として残す（未登録と区別できるようにするため）
+                val dto =
+                    pluginMetadataManager.loadMetadata(pluginName.value).getOrNull()
+                        ?: return@mapNotNull ManagedPlugin.createMetadataUnavailable(pluginName.value)
 
                 // DTOからドメインエンティティに変換
                 ManagedPlugin.fromDto(dto)
             }
 
         // フィルタに応じた絞り込み
+        // メタデータ不明のエントリはisOutdated()もisLockedもfalseになるため、
+        // OUTDATED/LOCKEDからは条件式によって自然に除外される
         return when (filter) {
             PluginFilter.OUTDATED -> managedPlugins.filter { it.isOutdated() }
             PluginFilter.LOCKED -> managedPlugins.filter { it.isLocked }
             else -> managedPlugins
         }
+    }
+
+    /**
+     * pluginsディレクトリを走査して管理外プラグインの一覧を返す
+     *
+     * mpm.jsonのスナップショットではなく、現在ディレクトリに置かれているJARを反映する。
+     * init後に追加されたJARも検出できる。
+     *
+     * @param project 現在のmpm.json
+     * @return 管理外プラグインの一覧
+     */
+    private fun listUnmanaged(project: MpmProject): List<ManagedPlugin> {
+        // mpm.jsonのキーは大文字小文字を無視して突き合わせる（removeUnmanagedの既存挙動に合わせる）
+        val specsByLowerName =
+            project.plugins.entries.associate { (pluginName, spec) ->
+                pluginName.value.lowercase() to spec
+            }
+
+        return installedJarScanner
+            .scan()
+            // 旧バージョンのJARが残っているなど同名JARが複数ある場合は1件に集約する
+            .distinctBy { it.name.lowercase() }
+            .filter { installedJar ->
+                // mpm.jsonに未登録、またはunmanagedとして登録されているものが管理外
+                val spec = specsByLowerName[installedJar.name.lowercase()]
+                spec == null || spec is PluginSpec.Unmanaged
+            }.map { installedJar -> ManagedPlugin.createUnmanaged(installedJar.name) }
     }
 
     /**
@@ -161,6 +181,22 @@ class PluginInfoServiceImpl :
             .map { versionData ->
                 VersionDetail.fromRaw(versionData.version, versionPattern)
             }.right()
+    }
+
+    /**
+     * プラグインのインストール履歴を取得する
+     *
+     * メタデータに記録された履歴をそのまま（古い順で）返す。
+     * ネットワークアクセスは行わず、ローカルのメタデータのみを参照する。
+     */
+    override suspend fun getHistory(name: PluginName): Either<MpmError, List<HistoryEntryDto>> {
+        // メタデータが読めない場合は履歴を辿れないためエラーとする
+        val metadata =
+            pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                return MpmError.PluginError.MetadataNotFound(name.value).left()
+            }
+
+        return metadata.mpmInfo.history.right()
     }
 
     /**

@@ -29,6 +29,7 @@ import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.plugin.model.integrity.IntegrityResult
+import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
@@ -36,6 +37,8 @@ import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.model.PluginName
+import party.morino.mpm.api.domain.plugin.model.PluginSpec
+import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -69,6 +72,12 @@ class PluginUpdateServiceImpl :
     companion object {
         // ロック中プラグインをスキップした際の共通エラーメッセージ
         private const val LOCKED_ERROR_MESSAGE = "プラグインがロックされています"
+
+        // バージョン切り替え時に履歴へ記録するアクション名
+        private const val ACTION_SWITCH = "switch"
+
+        // 切り戻し時に履歴へ記録するアクション名
+        private const val ACTION_ROLLBACK = "rollback"
     }
 
     // Koinによる依存性注入
@@ -79,6 +88,10 @@ class PluginUpdateServiceImpl :
     private val downloaderRepository: DownloaderRepository by inject()
     private val backupManager: ServerBackupManager by inject()
     private val infoService: PluginInfoService by inject()
+
+    // mpm.jsonの保存（バージョン切り替え時のFixed書き換え）に使用する
+    // ProjectRepository.save()はエラーを返さないため、Eitherで失敗を扱えるProjectServiceを使う
+    private val projectService: ProjectService by inject()
     private val plugin: JavaPlugin by inject()
 
     // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
@@ -437,6 +450,264 @@ class PluginUpdateServiceImpl :
             return updateResults.right()
         } finally {
             updateMutex.unlock()
+        }
+    }
+
+    /**
+     * 管理下プラグインを指定バージョンに切り替える
+     *
+     * アップグレード・ダウングレードを方向で区別せず、単一の実体として扱う（#405 / #355）。
+     */
+    override suspend fun switchVersion(
+        name: PluginName,
+        version: String,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, UpdateResult> = executeVersionSwitch(name, version, force, skipIntegrity, ACTION_SWITCH)
+
+    /**
+     * 管理下プラグインを過去のバージョンへ切り戻す
+     *
+     * [switchVersion] の薄いラッパー。バージョン省略時のみ履歴から直前のバージョンを解決する。
+     */
+    override suspend fun rollback(
+        name: PluginName,
+        version: String?,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, UpdateResult> {
+        // バージョンが明示された場合は履歴を参照せずそのまま切り替える
+        if (version != null) {
+            return executeVersionSwitch(name, version, force, skipIntegrity, ACTION_ROLLBACK)
+        }
+
+        // 省略時はメタデータの履歴から「直前のバージョン」を解決する
+        val metadata =
+            pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                return MpmError.PluginError.MetadataNotFound(name.value).left()
+            }
+        val previousVersion =
+            resolvePreviousVersionFromHistory(metadata)
+                ?: return MpmError.PluginError
+                    .VersionResolutionFailed(
+                        name.value,
+                        "履歴に切り戻せる過去バージョンがありません"
+                    ).left()
+
+        return executeVersionSwitch(name, previousVersion, force, skipIntegrity, ACTION_ROLLBACK)
+    }
+
+    /**
+     * バージョン切り替えの本体
+     *
+     * switchVersion / rollback の唯一の実体であり、Mutexの取得もここだけで行う
+     * （kotlinx の Mutex は再入不可のため、rollbackからswitchVersionを呼ばずに本メソッドへ集約する）。
+     *
+     * @param name プラグイン名
+     * @param requestedVersion 要求されたバージョン（raw / normalized のどちらでもよい）
+     * @param force ロック済み・api-version非互換でも強制するか
+     * @param skipIntegrity 整合性検証の不一致を無視するか
+     * @param action 履歴に記録するアクション名（"switch" / "rollback"）
+     */
+    private suspend fun executeVersionSwitch(
+        name: PluginName,
+        requestedVersion: String,
+        force: Boolean,
+        skipIntegrity: Boolean,
+        action: String
+    ): Either<MpmError, UpdateResult> {
+        // 並行更新を防止（jar/metadataファイルの競合回避）。update/installAllと同じMutexを共有する
+        if (!updateMutex.tryLock()) {
+            return MpmError.PluginError.UpdateInProgress.left()
+        }
+        try {
+            val pluginName = name.value
+
+            // mpm.jsonを取得（未初期化とパースエラーを区別する）
+            val project = projectRepository.findOrError().getOrElse { return it.left() }
+
+            // 管理下（Managed）でなければ切り替え対象外
+            val managedSpec =
+                project.getPluginSpec(name) as? PluginSpec.Managed
+                    ?: return MpmError.PluginError.NotManaged(pluginName).left()
+
+            // sync:指定は他プラグインへの追従が目的であり、Fixedへ書き換えると同期が壊れる（PinCommandと同じ方針）
+            (managedSpec.versionRequirement as? VersionSpecifier.Sync)?.let { sync ->
+                return MpmError.PluginError
+                    .VersionSwitchNotAllowed(
+                        pluginName,
+                        "'${sync.targetPlugin}' に同期する設定のため個別にバージョンを変更できません"
+                    ).left()
+            }
+
+            // 現在バージョン・ロック状態をメタデータから取得
+            val metadata =
+                pluginMetadataManager.loadMetadata(pluginName).getOrElse {
+                    return MpmError.PluginError.MetadataNotFound(pluginName).left()
+                }
+            if (metadata.mpmInfo.settings.lock == true && !force) {
+                return MpmError.PluginError.Locked(pluginName).left()
+            }
+            val currentVersion = metadata.mpmInfo.version.current.raw
+
+            // 対象バージョンをリポジトリ上の実バージョン名（raw）へ解決する。
+            // ダウンロード前に解決しておくことで、バックアップ作成前に不正なバージョン指定を弾ける
+            val resolvedVersion =
+                resolveSwitchTargetVersion(pluginName, metadata, requestedVersion).getOrElse {
+                    return it.left()
+                }
+
+            // 切り替えをキャンセル可能にするためイベントを発火する（update(name)と同じ扱い）
+            val switchEvent =
+                BukkitDispatcher.callEventSync(
+                    plugin,
+                    PluginUpdateEvent(
+                        installedPlugin = InstalledPlugin(pluginName),
+                        beforeVersion = VersionSpecifier.Fixed(currentVersion),
+                        targetVersion = VersionSpecifier.Fixed(resolvedVersion)
+                    )
+                )
+            if (switchEvent.isCancelled) {
+                return MpmError.PluginError.OperationCancelled(pluginName, action).left()
+            }
+
+            // jarを差し替える前に自動バックアップを作成する（失敗しても切り替え自体は続行する）
+            backupManager.createBackup(BackupReason.UPDATE).fold(
+                { error -> plugin.logger.warning("[$action] バックアップ作成失敗: ${error.message} - 処理を続行") },
+                { info -> plugin.logger.info("[$action] バックアップ作成完了: ${info.fileName}") }
+            )
+
+            // ダウンロード → 整合性検証 → jar差し替え → メタデータ更新 → 履歴追記
+            installPluginWithVersion(
+                pluginName = pluginName,
+                expectedVersion = resolvedVersion,
+                force = force,
+                skipIntegrity = skipIntegrity,
+                action = action
+            ).getOrElse { return MpmError.PluginError.UpdateFailed(pluginName, it).left() }
+
+            // mpm.jsonのバージョン指定をFixedへ書き換え、次回のmpm updateで巻き戻らないようにする
+            rewriteSpecToFixed(name, resolvedVersion).getOrElse { return it.left() }
+
+            return UpdateResult(
+                pluginName = pluginName,
+                oldVersion = currentVersion,
+                newVersion = resolvedVersion,
+                success = true,
+                errorMessage = null
+            ).right()
+        } finally {
+            updateMutex.unlock()
+        }
+    }
+
+    /**
+     * 履歴から「直前にインストールされていたバージョン」を解決する
+     *
+     * 履歴は同一バージョンの再インストールで重複エントリが積まれるため、
+     * 末尾から遡って現在バージョンと異なる最初のエントリを採用する。
+     * 履歴に記録されるのは正規化済みバージョンのため、戻り値も正規化済みとなる
+     * （実バージョン名への解決は [resolveSwitchTargetVersion] が行う）。
+     *
+     * @param metadata 対象プラグインのメタデータ
+     * @return 直前のバージョン（見つからない場合はnull）
+     */
+    private fun resolvePreviousVersionFromHistory(metadata: ManagedPluginDto): String? {
+        val currentNormalized = metadata.mpmInfo.version.current.normalized
+        return metadata.mpmInfo.history
+            .lastOrNull { it.version != currentNormalized }
+            ?.version
+    }
+
+    /**
+     * 要求されたバージョン文字列をリポジトリ上の実バージョン名（raw）へ解決する
+     *
+     * web console や履歴からは正規化済みバージョン（例: "5.4.1"）が渡ることがあるが、
+     * ダウンロードには実バージョン名（例: "v5.4.1-bukkit"）が必要になる。
+     * まず実バージョン名としての解決を試し、失敗した場合のみ全バージョンを正規化して突き合わせる。
+     *
+     * @param pluginName プラグイン名
+     * @param metadata 対象プラグインのメタデータ（リポジトリ情報とversionPatternの取得に使用）
+     * @param requestedVersion 要求されたバージョン文字列
+     * @return 解決された実バージョン名
+     */
+    private suspend fun resolveSwitchTargetVersion(
+        pluginName: String,
+        metadata: ManagedPluginDto,
+        requestedVersion: String
+    ): Either<MpmError, String> {
+        val repositoryInfo = metadata.mpmInfo.repository
+        val urlData =
+            createUrlData(repositoryInfo.type.name, repositoryInfo.id)
+                ?: return MpmError.PluginError.UnsupportedRepository(repositoryInfo.type.name).left()
+
+        // まずはリポジトリ上のバージョン名としてそのまま解決を試みる
+        val exactMatch =
+            try {
+                downloaderRepository.getVersionByName(urlData, requestedVersion)
+            } catch (e: Exception) {
+                // 実バージョン名として存在しないだけの可能性があるため、ここでは失敗としない
+                plugin.logger.fine("[switchVersion] '$requestedVersion' の直接解決に失敗: ${e.message}")
+                null
+            }
+        if (exactMatch != null) {
+            return exactMatch.version.right()
+        }
+
+        // 見つからない場合は正規化済みバージョンとみなし、全バージョンを正規化して突き合わせる
+        val versionPattern = metadata.mpmInfo.versionPattern
+        val requestedNormalized = VersionDetail.normalizeWithPattern(requestedVersion, versionPattern)
+        val candidates =
+            try {
+                downloaderRepository.getAllVersions(urlData)
+            } catch (e: Exception) {
+                return MpmError.PluginError
+                    .VersionResolutionFailed(
+                        pluginName,
+                        "バージョン一覧の取得に失敗しました: ${e.message}"
+                    ).left()
+            }
+
+        val matched =
+            candidates.firstOrNull { candidate ->
+                candidate.version == requestedVersion ||
+                    VersionDetail.normalizeWithPattern(candidate.version, versionPattern) == requestedNormalized
+            } ?: return MpmError.PluginError
+                .VersionResolutionFailed(
+                    pluginName,
+                    "バージョン '$requestedVersion' はリポジトリに存在しません"
+                ).left()
+
+        return matched.version.right()
+    }
+
+    /**
+     * mpm.jsonのバージョン指定を固定バージョンへ書き換えて保存する
+     *
+     * mpm.jsonはファイル全体を上書き保存するため、ダウンロード前に読み込んだスナップショットを
+     * 使うと、その間に実行された `mpm add` / `mpm remove` の結果を消してしまう。
+     * それを避けるため、保存直前に読み直したプロジェクトに対して書き換えを行う。
+     *
+     * @param name プラグイン名
+     * @param version 固定するバージョン
+     * @return 成功時はUnit
+     */
+    private suspend fun rewriteSpecToFixed(
+        name: PluginName,
+        version: String
+    ): Either<MpmError, Unit> {
+        // 保存直前に最新のmpm.jsonを読み直す（他コマンドによる変更を巻き戻さないため）
+        val project = projectRepository.findOrError().getOrElse { return it.left() }
+
+        val newSpec = PluginSpec.Managed(name, VersionSpecifier.Fixed(version))
+        val updatedProject = project.updatePlugin(name, newSpec).getOrElse { return it.left() }
+
+        // 保存に失敗した場合、jarは既に差し替わっているため、その旨をメッセージに含める
+        return projectService.save(updatedProject.withSortedPlugins()).mapLeft { error ->
+            MpmError.PluginError.UpdateFailed(
+                name.value,
+                "mpm.jsonの更新に失敗しました（jarは既に $version へ差し替わっています）: ${error.message}"
+            )
         }
     }
 
@@ -1075,13 +1346,16 @@ class PluginUpdateServiceImpl :
 
     /**
      * 指定バージョンでプラグインをインストールする
+     *
+     * @param action メタデータの履歴に記録するアクション名（"install" / "switch" / "rollback" など）
      */
     private suspend fun installPluginWithVersion(
         pluginName: String,
         expectedVersion: String,
         force: Boolean = false,
         skipIntegrity: Boolean = false,
-        expectedSha256: String? = null
+        expectedSha256: String? = null,
+        action: String = "install"
     ): Either<String, InstallResult> {
         // リポジトリファイルを取得
         val repositoryFile =
@@ -1152,13 +1426,13 @@ class PluginUpdateServiceImpl :
                 // メタデータが存在しない場合は新規作成
                 {
                     pluginMetadataManager
-                        .createMetadata(pluginName, firstRepository, versionData, "install", resolvedChannel)
+                        .createMetadata(pluginName, firstRepository, versionData, action, resolvedChannel)
                         .getOrElse { return it.left() }
                 },
                 // メタデータが存在する場合は更新
                 {
                     pluginMetadataManager
-                        .updateMetadata(pluginName, versionData, latestVersionData, "install")
+                        .updateMetadata(pluginName, versionData, latestVersionData, action)
                         .getOrElse { return it.left() }
                 }
             )

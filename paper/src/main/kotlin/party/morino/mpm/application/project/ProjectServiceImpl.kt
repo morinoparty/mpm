@@ -14,18 +14,15 @@ package party.morino.mpm.application.project
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
-import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.project.ProjectService
-import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
-import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.shared.error.MpmError
-import party.morino.mpm.utils.PluginDataUtils
 
 /**
  * プロジェクト管理を行うApplication Service実装
@@ -35,9 +32,10 @@ import party.morino.mpm.utils.PluginDataUtils
 class ProjectServiceImpl :
     ProjectService,
     KoinComponent {
-    private val pluginDirectory: PluginDirectory by inject()
     private val projectRepository: ProjectRepository by inject()
-    private val plugin: JavaPlugin by inject()
+
+    // pluginsディレクトリの走査は共通のスキャナーに委譲する
+    private val installedJarScanner: InstalledJarScanner by inject()
 
     /**
      * プロジェクトを初期化する
@@ -73,36 +71,17 @@ class ProjectServiceImpl :
             return "既にmpm.jsonが存在します。上書きする場合は --overwrite フラグを使用してください。".left()
         }
 
-        // pluginsディレクトリからすべてのJARファイルを取得
-        val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val pluginFiles =
-            pluginsDir.listFiles { file ->
-                // .jarファイルのみを対象にし、自分自身（mpm）は除外
-                file.isFile && file.extension == "jar"
-            } ?: emptyArray()
+        // pluginsディレクトリからインストール済みのJARを取得する
+        // （解析できないJAR・名前が空のJAR・mpm自身はスキャナー側で除外される）
+        val installedJars = installedJarScanner.scan()
 
         // MpmProjectを作成し、各JARファイルのプラグインをunmanagedとして追加
         var project = MpmProject.create(projectName)
-        pluginFiles.forEach { jarFile ->
-            try {
-                // JARファイルからプラグイン情報を取得
-                val pluginData = PluginDataUtils.getPluginData(jarFile)
-                if (pluginData != null) {
-                    val pluginName =
-                        when (pluginData) {
-                            is PluginData.BukkitPluginData -> pluginData.name
-                            is PluginData.PaperPluginData -> pluginData.name
-                        }
-                    // 自分自身（mpm）は除外し、プラグイン名が空でない場合のみ追加
-                    if (pluginName.isNotEmpty() && pluginName != plugin.name) {
-                        project
-                            .addPlugin(PluginSpec.Unmanaged(PluginName(pluginName)))
-                            .onRight { project = it }
-                    }
-                }
-            } catch (e: Exception) {
-                // エラーが発生した場合はスキップ（無効なJARファイルの可能性）
-            }
+        installedJars.forEach { installedJar ->
+            // 同名プラグインが重複する場合はaddPluginがLeftを返すため、onRightで先勝ちにする
+            project
+                .addPlugin(PluginSpec.Unmanaged(PluginName(installedJar.name)))
+                .onRight { project = it }
         }
 
         // pluginsをa-Z順にソートして保存

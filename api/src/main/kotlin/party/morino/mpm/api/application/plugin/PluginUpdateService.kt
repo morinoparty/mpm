@@ -59,6 +59,53 @@ interface PluginUpdateService {
     ): Either<MpmError, List<UpdateResult>>
 
     /**
+     * 管理下プラグインを指定バージョンに切り替える
+     *
+     * アップグレード・ダウングレードのどちらも本メソッドで扱う
+     * （「このプラグインをバージョン X にする」という1つの操作として統一する）。
+     *
+     * 処理内容:
+     * 1. 対象バージョンをリポジトリ上の実バージョン名に解決する
+     * 2. jar差し替え前にサーバーバックアップを自動作成する（失敗しても処理は継続する）
+     * 3. ダウンロードとハッシュ整合性検証を行い、jarを差し替える
+     * 4. メタデータを更新し、履歴エントリを追記する
+     * 5. mpm.json のバージョン指定を VersionSpecifier.Fixed に書き換える
+     *
+     * `sync:` 指定のプラグインは他プラグインへの追従が目的のため、切り替えを拒否する。
+     *
+     * @param name プラグイン名
+     * @param version 切り替え先バージョン（raw / normalized のどちらでも解決を試みる）
+     * @param force trueの場合、ロック済み・api-version非互換でも強制的に切り替える
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視して続行する
+     * @return 切り替え結果（oldVersion/newVersion を含む）
+     */
+    suspend fun switchVersion(
+        name: PluginName,
+        version: String,
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
+    ): Either<MpmError, UpdateResult>
+
+    /**
+     * 管理下プラグインを過去のバージョンへ切り戻す
+     *
+     * [switchVersion] の薄いラッパーであり、実処理はすべて [switchVersion] に委譲する。
+     * [version] が null の場合のみ、メタデータの履歴から「直前のバージョン」を解決する。
+     *
+     * @param name プラグイン名
+     * @param version 切り戻し先バージョン。null の場合は履歴上の直前のバージョンを使用する
+     * @param force trueの場合、ロック済み・api-version非互換でも強制的に切り戻す
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視して続行する
+     * @return 切り戻し結果（oldVersion/newVersion を含む）
+     */
+    suspend fun rollback(
+        name: PluginName,
+        version: String? = null,
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
+    ): Either<MpmError, UpdateResult>
+
+    /**
      * mpm.jsonに記載されたすべてのプラグインを一括インストールする
      *
      * @param force trueの場合、api-version非互換でも強制インストールする
