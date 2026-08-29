@@ -12,6 +12,7 @@ package party.morino.mpm.infrastructure.cache
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -25,6 +26,7 @@ import party.morino.mpm.api.domain.config.model.ConfigData
 import party.morino.mpm.api.domain.config.model.GlobalSettings
 import party.morino.mpm.mock.config.TempPluginDirectory
 import java.io.File
+import java.nio.file.Files
 
 /**
  * CacheManagerImplのサイズ集計と削除を検証するテスト
@@ -93,4 +95,59 @@ class CacheManagerImplTest {
         // 削除後は一覧が空になる
         assertTrue(manager.list().getOrNull()?.isEmpty() == true)
     }
+
+    @Test
+    @DisplayName("clean does not follow symlinks out of the cache")
+    fun cleanDoesNotFollowSymlinks() {
+        // キャッシュディレクトリの外（cacheの兄弟）に通常ファイルを用意する
+        val outsideDir = File(tempDir, "outside-${System.nanoTime()}")
+        outsideDir.mkdirs()
+        val outsideFile = File(outsideDir, "important.dat")
+        outsideFile.writeText("must survive")
+
+        // cache/link -> outsideDir というシンボリックリンクを張る
+        val cacheDir = TempPluginDirectory(tempDir).getCacheDirectory()
+        assumeTrue(createSymlink(File(cacheDir, "link"), outsideDir))
+
+        val result = CacheManagerImpl().clean().getOrNull()
+
+        // リンク先の外部ファイルは削除されず、削除件数にも含まれない
+        assertTrue(outsideFile.exists())
+        assertEquals(0, result?.removedEntries)
+    }
+
+    @Test
+    @DisplayName("expired clean ignores a symlinked metadata directory")
+    fun expiredCleanIgnoresSymlinkedMetadataDir() {
+        // キャッシュディレクトリの外（cacheの兄弟）にJSONを用意する
+        val outsideDir = File(tempDir, "outside-metadata-${System.nanoTime()}")
+        outsideDir.mkdirs()
+        val outsideEntry = File(outsideDir, "entry.json")
+        outsideEntry.writeText("{\"broken\":true}")
+
+        // cache/metadata 自体をシンボリックリンクに置き換える
+        val cacheDir = TempPluginDirectory(tempDir).getCacheDirectory()
+        assumeTrue(createSymlink(File(cacheDir, CacheDirectories.METADATA), outsideDir))
+
+        val result = CacheManagerImpl().clean(expiredOnly = true).getOrNull()
+
+        // デコードできないJSONでも外部ファイルは削除されない
+        assertTrue(outsideEntry.exists())
+        assertEquals(0, result?.removedEntries)
+    }
+
+    /**
+     * シンボリックリンクを作成する（作成できない環境ではfalseを返す）
+     */
+    private fun createSymlink(
+        link: File,
+        target: File
+    ): Boolean =
+        try {
+            Files.createSymbolicLink(link.toPath(), target.toPath())
+            true
+        } catch (e: Exception) {
+            // シンボリックリンクを作成できない環境ではテストをスキップする
+            false
+        }
 }

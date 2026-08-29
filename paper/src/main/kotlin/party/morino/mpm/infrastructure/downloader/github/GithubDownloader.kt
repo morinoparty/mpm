@@ -27,6 +27,7 @@ import party.morino.mpm.infrastructure.downloader.github.data.GithubSearchRespon
 import java.io.File
 import java.net.URLEncoder
 import java.time.LocalDateTime
+import java.util.logging.Logger
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -38,6 +39,17 @@ import kotlin.coroutines.cancellation.CancellationException
 open class GithubDownloader(
     private val githubToken: String? = null
 ) : AbstractPluginDownloader() {
+    // 取得件数の打ち切りを通知するためのロガー
+    private val logger: Logger = Logger.getLogger(GithubDownloader::class.java.name)
+
+    companion object {
+        // GitHub APIの1ページあたり取得件数（許容される最大値）
+        private const val RELEASES_PER_PAGE = 100
+
+        // リリースが極端に多いリポジトリで無限に取得しないためのページ数上限
+        private const val MAX_RELEASE_PAGES = 10
+    }
+
     init {
         // トークンが設定されている場合、認証ヘッダー付きのHTTPクライアントを使用
         if (githubToken != null) {
@@ -150,12 +162,10 @@ open class GithubDownloader(
         val isPrerelease = tag.equals("beta", ignoreCase = true) || tag.equals("alpha", ignoreCase = true)
 
         // ページネーション: per_page=100で最大10ページまで走査
-        val perPage = 100
-        val maxPages = 10
-        for (page in 1..maxPages) {
+        for (page in 1..MAX_RELEASE_PAGES) {
             val url =
                 "https://api.github.com/repos/${urlData.owner}/${urlData.repository}" +
-                    "/releases?per_page=$perPage&page=$page"
+                    "/releases?per_page=$RELEASES_PER_PAGE&page=$page"
             val response = getRequest(url, "application/vnd.github+json")
             val releases = json.parseToJsonElement(response).jsonArray
 
@@ -181,7 +191,7 @@ open class GithubDownloader(
             }
 
             // このページが最終ページなら終了（取得件数がper_page未満）
-            if (releases.size < perPage) return null
+            if (releases.size < RELEASES_PER_PAGE) return null
         }
 
         return null
@@ -189,23 +199,45 @@ open class GithubDownloader(
 
     /**
      * すべてのバージョンを取得
+     *
+     * GitHub APIはデフォルト30件/ページのため、1ページだけの取得では
+     * 31件目以降のタグをnormalized表記（例: `1.2.3`）で解決できなくなる。
+     * per_page=100でページネーションし、raw表記と到達できる履歴の範囲を揃える。
+     *
      * @param urlData GitHubのURL情報
      * @return バージョンリスト（新しい順）
      */
     override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
         urlData as UrlData.GithubUrlData
-        // すべてのリリースを取得
-        val url = "https://api.github.com/repos/${urlData.owner}/${urlData.repository}/releases"
-        val response = getRequest(url, "application/vnd.github+json")
-        val releases = json.parseToJsonElement(response).jsonArray
 
-        // 各リリースからバージョン情報を抽出
-        return releases.map { releaseElement ->
-            val releaseJson = releaseElement.jsonObject
-            val id = releaseJson["id"]?.jsonPrimitive?.content ?: "unknown"
-            val tagName = releaseJson["tag_name"]?.jsonPrimitive?.content ?: "unknown"
-            VersionData(downloadId = id, version = tagName)
+        val versions = mutableListOf<VersionData>()
+        for (page in 1..MAX_RELEASE_PAGES) {
+            val url =
+                "https://api.github.com/repos/${urlData.owner}/${urlData.repository}" +
+                    "/releases?per_page=$RELEASES_PER_PAGE&page=$page"
+            val response = getRequest(url, "application/vnd.github+json")
+            val releases = json.parseToJsonElement(response).jsonArray
+
+            // 各リリースからバージョン情報を抽出
+            releases.forEach { releaseElement ->
+                val releaseJson = releaseElement.jsonObject
+                val id = releaseJson["id"]?.jsonPrimitive?.content ?: "unknown"
+                val tagName = releaseJson["tag_name"]?.jsonPrimitive?.content ?: "unknown"
+                versions.add(VersionData(downloadId = id, version = tagName))
+            }
+
+            // 取得件数がper_page未満なら最終ページ（空ページ含む）
+            if (releases.size < RELEASES_PER_PAGE) return versions
+
+            // 上限に達した場合は黙って打ち切らず、履歴が不完全であることをログに残す
+            if (page == MAX_RELEASE_PAGES) {
+                logger.warning(
+                    "リリースが多すぎるため${MAX_RELEASE_PAGES}ページ(${versions.size}件)で取得を打ち切りました: " +
+                        "${urlData.owner}/${urlData.repository}"
+                )
+            }
         }
+        return versions
     }
 
     /**

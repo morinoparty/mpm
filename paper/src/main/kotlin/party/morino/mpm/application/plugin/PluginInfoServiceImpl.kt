@@ -37,6 +37,7 @@ import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
+import party.morino.mpm.api.domain.plugin.scan.model.InstalledJar
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
@@ -114,6 +115,10 @@ class PluginInfoServiceImpl :
      * mpm.jsonのスナップショットではなく、現在ディレクトリに置かれているJARを反映する。
      * init後に追加されたJARも検出できる。
      *
+     * 判定は「mpm.jsonのキーとの名前一致」だけでなく「メタデータに記録されたJARファイル名との一致」でも行う。
+     * mpm.jsonの管理名（リポジトリのslug等）とJAR内のplugin.ymlの名前は必ずしも一致しないため、
+     * 名前だけで突き合わせると管理済みのJARを管理外と誤判定してしまう。
+     *
      * @param project 現在のmpm.json
      * @return 管理外プラグインの一覧
      */
@@ -124,16 +129,37 @@ class PluginInfoServiceImpl :
                 pluginName.value.lowercase() to spec
             }
 
-        return installedJarScanner
-            .scan()
-            // 旧バージョンのJARが残っているなど同名JARが複数ある場合は1件に集約する
-            .distinctBy { it.name.lowercase() }
-            .filter { installedJar ->
-                // mpm.jsonに未登録、またはunmanagedとして登録されているものが管理外
-                val spec = specsByLowerName[installedJar.name.lowercase()]
-                spec == null || spec is PluginSpec.Unmanaged
-            }.map { installedJar -> ManagedPlugin.createUnmanaged(installedJar.name) }
+        return selectUnmanaged(
+            installedJars = installedJarScanner.scan(),
+            specsByLowerName = specsByLowerName,
+            managedJarFileNames = collectManagedJarFileNames(project)
+        ).map { installedJar -> ManagedPlugin.createUnmanaged(installedJar.name) }
     }
+
+    /**
+     * 管理下プラグインのメタデータに記録された、配置済みJARのファイル名を集める
+     *
+     * メタデータを読めないプラグイン（METADATA_UNAVAILABLE相当）やfileName未記録のものは
+     * 突き合わせに使えないため単に除外する。
+     *
+     * @param project 現在のmpm.json
+     * @return 小文字化したJARファイル名の集合
+     */
+    private fun collectManagedJarFileNames(project: MpmProject): Set<String> =
+        project.plugins
+            // unmanagedはメタデータを持たないため対象外
+            .filterValues { it !is PluginSpec.Unmanaged }
+            .keys
+            .mapNotNull { pluginName ->
+                pluginMetadataManager
+                    .loadMetadata(pluginName.value)
+                    .getOrNull()
+                    ?.mpmInfo
+                    ?.download
+                    ?.fileName
+                    ?.takeIf { it.isNotBlank() }
+                    ?.lowercase()
+            }.toSet()
 
     /**
      * プラグインの利用可能なバージョン一覧を取得する
@@ -504,6 +530,49 @@ class PluginInfoServiceImpl :
                 }
             }
             else -> null
+        }
+    }
+
+    internal companion object {
+        /**
+         * 走査結果から管理外のJARだけを選び出す（副作用のない純粋なロジック）
+         *
+         * 次のいずれかに一致するJARは管理済みとみなして除外する。
+         * - mpm.jsonのキーとプラグイン名が一致する（大文字小文字は無視、unmanaged登録は除く）
+         * - 管理下プラグインのメタデータに記録されたJARファイル名と実ファイル名が一致する
+         *
+         * ファイル名照合は、mpm.jsonの管理名とplugin.ymlの名前が食い違う場合の誤検出を防ぐためのもの。
+         *
+         * @param installedJars 走査で見つかったJARの一覧
+         * @param specsByLowerName 小文字化したmpm.jsonのキー -> プラグイン指定
+         * @param managedJarFileNames 管理下プラグインのメタデータに記録された小文字のJARファイル名
+         * @return 管理外と判定されたJARの一覧（同名のJARは1件に集約される）
+         */
+        internal fun selectUnmanaged(
+            installedJars: List<InstalledJar>,
+            specsByLowerName: Map<String, PluginSpec>,
+            managedJarFileNames: Set<String>
+        ): List<InstalledJar> {
+            // ファイル名で管理済みと判明したJARのプラグイン名を集める。
+            // 集約(distinctBy)より前に全件から集めることで、旧バージョンのJARが残っていて
+            // そちらが代表に選ばれた場合でも管理済みと判定できる。
+            val managedJarNames =
+                installedJars
+                    .filter { it.file.name.lowercase() in managedJarFileNames }
+                    .map { it.name.lowercase() }
+                    .toSet()
+
+            return installedJars
+                // 旧バージョンのJARが残っているなど同名JARが複数ある場合は1件に集約する
+                .distinctBy { it.name.lowercase() }
+                .filter { installedJar ->
+                    val lowerName = installedJar.name.lowercase()
+                    // メタデータのファイル名と一致したものは管理済み
+                    if (lowerName in managedJarNames) return@filter false
+                    // mpm.jsonに未登録、またはunmanagedとして登録されているものが管理外
+                    val spec = specsByLowerName[lowerName]
+                    spec == null || spec is PluginSpec.Unmanaged
+                }
         }
     }
 }

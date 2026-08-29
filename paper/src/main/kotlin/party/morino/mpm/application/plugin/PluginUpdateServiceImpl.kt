@@ -58,9 +58,11 @@ import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.state.PluginLockEvent
 import party.morino.mpm.event.state.PluginUnlockEvent
 import party.morino.mpm.event.state.PluginUpdateEvent
+import party.morino.mpm.infrastructure.downloader.PluginDownloadException
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.regenerateQuietly
+import party.morino.mpm.utils.replaceJarAtomically
 import java.io.File
 
 /**
@@ -280,9 +282,9 @@ class PluginUpdateServiceImpl :
 
             installResult.fold(
                 // インストール失敗時
-                { errorMessage ->
+                { error ->
                     progressCallback?.invoke(
-                        "<gray>[${outdatedInfo.pluginName}] <red>更新失敗: $errorMessage"
+                        "<gray>[${outdatedInfo.pluginName}] <red>更新失敗: ${error.message}"
                     )
                     updateResults.add(
                         UpdateResult(
@@ -290,7 +292,7 @@ class PluginUpdateServiceImpl :
                             oldVersion = outdatedInfo.currentVersion,
                             newVersion = outdatedInfo.latestVersion,
                             success = false,
-                            errorMessage = errorMessage
+                            errorMessage = error.message
                         )
                     )
                 },
@@ -428,7 +430,8 @@ class PluginUpdateServiceImpl :
 
             // 最新バージョンをtargetVersionとして渡してインストール
             installSinglePlugin(name.value, force, useLatest = true, skipIntegrity = skipIntegrity).fold(
-                { error -> return MpmError.PluginError.UpdateFailed(name.value, error).left() },
+                // 型付きエラーをそのまま返す（上流障害は503、メタデータ保存失敗は500など）
+                { error -> return error.left() },
                 {
                     updateResults.add(
                         UpdateResult(
@@ -463,6 +466,17 @@ class PluginUpdateServiceImpl :
      * 管理下プラグインを指定バージョンに切り替える
      *
      * アップグレード・ダウングレードを方向で区別せず、単一の実体として扱う（#405 / #355）。
+     *
+     * jar・メタデータ・mpm.json はファイルシステムを跨るため単一トランザクションにはできず、
+     * 失敗した位置によっては次の中間状態が残りうる。どこまで進んだかは戻り値のエラーメッセージに含める。
+     * - メタデータ保存に失敗: jarは新バージョン、メタデータとmpm.jsonは旧バージョンのまま
+     * - mpm.json保存に失敗: jarとメタデータは新バージョン、mpm.jsonのバージョン指定は旧値のまま
+     *   （ロックファイルも再生成されない）
+     * どちらの場合も切り替え前に自動バックアップを作成しているため、
+     * `mpm backup restore <id>` で切り替え前の状態へ戻せる（IDはエラーメッセージに含まれる）。
+     *
+     * また `sync:` で追従している子プラグインの更新に失敗した場合でも、親の切り替え自体は成功として返す。
+     * その場合は success=true のまま [UpdateResult.errorMessage] に子の失敗内容を載せる。
      */
     override suspend fun switchVersion(
         name: PluginName,
@@ -578,22 +592,28 @@ class PluginUpdateServiceImpl :
             }
 
             // jarを差し替える前に自動バックアップを作成する（失敗しても切り替え自体は続行する）
+            // 途中で失敗した場合の復旧手順を案内するため、作成できたバックアップのIDを控えておく
+            var backupId: String? = null
             backupManager.createBackup(BackupReason.UPDATE).fold(
                 { error -> plugin.logger.warning("[$action] バックアップ作成失敗: ${error.message} - 処理を続行") },
-                { info -> plugin.logger.info("[$action] バックアップ作成完了: ${info.fileName}") }
+                { info ->
+                    backupId = info.id
+                    plugin.logger.info("[$action] バックアップ作成完了: ${info.fileName}")
+                }
             )
 
             // ダウンロード → 整合性検証 → jar差し替え → メタデータ更新 → 履歴追記
+            // 失敗時は型付きエラーをそのまま返す（上流障害は503、メタデータ保存失敗は500など）
             installPluginWithVersion(
                 pluginName = pluginName,
                 expectedVersion = resolvedVersion,
                 force = force,
                 skipIntegrity = skipIntegrity,
                 action = action
-            ).getOrElse { return MpmError.PluginError.UpdateFailed(pluginName, it).left() }
+            ).getOrElse { return it.left() }
 
             // mpm.jsonのバージョン指定をFixedへ書き換え、次回のmpm updateで巻き戻らないようにする
-            rewriteSpecToFixed(name, resolvedVersion).getOrElse { return it.left() }
+            rewriteSpecToFixed(name, resolvedVersion, backupId).getOrElse { return it.left() }
 
             // sync: で追従している子プラグインを親の新バージョンへ揃える（update(name)と同じ連動更新）。
             // 親だけを切り替えると、アドオンと本体のバージョンが食い違ったまま残ってしまうため。
@@ -626,12 +646,14 @@ class PluginUpdateServiceImpl :
             // （再生成はメタデータから作り直す冪等な処理のため、呼び出しが重なっても害はない）。
             lockService.regenerateQuietly(plugin.logger)
 
+            // 子の失敗をログだけに留めると、sync: の不変条件が崩れた状態が成功として確定してしまう。
+            // 親の切り替え自体は完了しているため success は true のまま、要約を errorMessage に載せる
             return UpdateResult(
                 pluginName = pluginName,
                 oldVersion = currentVersion,
                 newVersion = resolvedVersion,
                 success = true,
-                errorMessage = null
+                errorMessage = buildSyncFailureMessage(syncResults)
             ).right()
         } finally {
             updateMutex.unlock()
@@ -727,11 +749,13 @@ class PluginUpdateServiceImpl :
      *
      * @param name プラグイン名
      * @param version 固定するバージョン
+     * @param backupId 切り替え前に作成したバックアップのID（作成できていない場合はnull）
      * @return 成功時はUnit
      */
     private suspend fun rewriteSpecToFixed(
         name: PluginName,
-        version: String
+        version: String,
+        backupId: String? = null
     ): Either<MpmError, Unit> {
         // 保存直前に最新のmpm.jsonを読み直す（他コマンドによる変更を巻き戻さないため）
         val project = projectRepository.findOrError().getOrElse { return it.left() }
@@ -739,11 +763,18 @@ class PluginUpdateServiceImpl :
         val newSpec = PluginSpec.Managed(name, VersionSpecifier.Fixed(version))
         val updatedProject = project.updatePlugin(name, newSpec).getOrElse { return it.left() }
 
-        // 保存に失敗した場合、jarは既に差し替わっているため、その旨をメッセージに含める
+        // 保存に失敗した場合、jarとメタデータは既に新バージョンへ差し替わっているため、
+        // どこまで進んだのかと復旧手順（バックアップからの復元）をメッセージに含める
+        val recoveryHint =
+            backupId
+                ?.let { "切り替え前に戻す場合は 'mpm backup restore $it' を実行してください。" }
+                ?: "mpm.jsonのバージョン指定を手動で確認してください。"
         return projectService.save(updatedProject.withSortedPlugins()).mapLeft { error ->
             MpmError.PluginError.UpdateFailed(
                 name.value,
-                "mpm.jsonの更新に失敗しました（jarは既に $version へ差し替わっています）: ${error.message}"
+                "jarとメタデータは $version へ差し替え済みですが、mpm.jsonの更新に失敗しました" +
+                    "（バージョン指定は旧値のまま、ロックファイルも再生成されていません）: ${error.message}。" +
+                    recoveryHint
             )
         }
     }
@@ -833,7 +864,7 @@ class PluginUpdateServiceImpl :
                 skipIntegrity = skipIntegrity,
                 expectedSha256 = lockEntry.download.sha256
             ).fold(
-                { failed[pluginName] = it },
+                { failed[pluginName] = it.message },
                 { result ->
                     installed.add(result.installed)
                     result.removed?.let { removed.add(it) }
@@ -937,7 +968,7 @@ class PluginUpdateServiceImpl :
 
             val versionToInstall = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
             installPluginWithVersion(pluginName, versionToInstall, force, skipIntegrity).fold(
-                { failed[pluginName] = it },
+                { failed[pluginName] = it.message },
                 { result ->
                     installed.add(
                         PluginInstallInfo(
@@ -1143,15 +1174,15 @@ class PluginUpdateServiceImpl :
             )
             installPluginWithVersion(childName, targetVersion, force, skipIntegrity).fold(
                 // インストール失敗時
-                { errorMessage ->
-                    progressCallback?.invoke("<gray>[$childName] <red>連動更新失敗: $errorMessage")
+                { error ->
+                    progressCallback?.invoke("<gray>[$childName] <red>連動更新失敗: ${error.message}")
                     updateResults.add(
                         UpdateResult(
                             pluginName = childName,
                             oldVersion = currentVersion,
                             newVersion = targetVersion,
                             success = false,
-                            errorMessage = "連動更新に失敗: $errorMessage"
+                            errorMessage = "連動更新に失敗: ${error.message}"
                         )
                     )
                 },
@@ -1172,6 +1203,33 @@ class PluginUpdateServiceImpl :
     }
 
     /**
+     * 更新経路の失敗理由を型付きエラーへ包む
+     *
+     * 内部処理の失敗理由は文字列で組み立てているが、サービス境界では型付きの [MpmError] が必要になる
+     * （HTTPステータスへのマッピングが型で決まるため）。包み方を1箇所に集約するためのヘルパー。
+     *
+     * @param pluginName 対象プラグイン名
+     * @param reason 失敗理由
+     */
+    private fun updateFailure(
+        pluginName: String,
+        reason: String
+    ): MpmError = MpmError.PluginError.UpdateFailed(pluginName, reason)
+
+    /**
+     * インストール経路の失敗理由を型付きエラーへ包む
+     *
+     * 役割は [updateFailure] と同じで、履歴・メッセージ上の文脈がインストールの場合に使う。
+     *
+     * @param pluginName 対象プラグイン名
+     * @param reason 失敗理由
+     */
+    private fun installFailure(
+        pluginName: String,
+        reason: String
+    ): MpmError = MpmError.PluginError.InstallFailed(pluginName, reason)
+
+    /**
      * 単一のプラグインをインストールする
      *
      * PluginInstallUseCaseImplから移行したロジック
@@ -1181,12 +1239,12 @@ class PluginUpdateServiceImpl :
         force: Boolean = false,
         useLatest: Boolean = false,
         skipIntegrity: Boolean = false
-    ): Either<String, InstallResult> {
+    ): Either<MpmError, InstallResult> {
         val metadataDir = pluginDirectory.getMetadataDirectory()
         val metadataFile = File(metadataDir, "$pluginName.yaml")
 
         if (!metadataFile.exists()) {
-            return "メタデータファイルが見つかりません: $pluginName.yaml".left()
+            return updateFailure(pluginName, "メタデータファイルが見つかりません: $pluginName.yaml").left()
         }
 
         val metadata =
@@ -1194,7 +1252,7 @@ class PluginUpdateServiceImpl :
                 val yamlString = metadataFile.readText()
                 Yaml.default.decodeFromString(ManagedPluginDto.serializer(), yamlString)
             } catch (e: Exception) {
-                return "メタデータの読み込みに失敗しました: ${e.message}".left()
+                return updateFailure(pluginName, "メタデータの読み込みに失敗しました: ${e.message}").left()
             }
 
         val mpmInfoDto = metadata.mpmInfo
@@ -1203,7 +1261,10 @@ class PluginUpdateServiceImpl :
 
         val urlData =
             createUrlData(repositoryInfo.type.name, repositoryInfo.id)
-                ?: return "未対応のリポジトリタイプです: ${repositoryInfo.type.name}".left()
+                ?: return updateFailure(
+                    pluginName,
+                    "未対応のリポジトリタイプです: ${repositoryInfo.type.name}"
+                ).left()
 
         // mpm.jsonからtag指定を取得（tag:指定の場合はチャンネル別の最新を取得する）
         val mpmConfig = loadMpmConfig()
@@ -1239,7 +1300,10 @@ class PluginUpdateServiceImpl :
                         urlData,
                         matchingRepositoryConfig,
                         tagChannelForPlugin
-                    ) ?: return "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName".left()
+                    ) ?: return updateFailure(
+                        pluginName,
+                        "tag '$tagChannelForPlugin' に該当するバージョンが見つかりません: $pluginName"
+                    ).left()
                 } else {
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
@@ -1248,7 +1312,7 @@ class PluginUpdateServiceImpl :
                     )
                 }
             } catch (e: Exception) {
-                return "最新バージョン情報の取得に失敗しました: ${e.message}".left()
+                return updateFailure(pluginName, "最新バージョン情報の取得に失敗しました: ${e.message}").left()
             }
 
         // useLatestの場合は最新バージョン（Fixed指定時はその固定バージョン）でDL、
@@ -1259,7 +1323,10 @@ class PluginUpdateServiceImpl :
                     try {
                         downloaderRepository.getVersionByName(urlData, fixedVersionForPlugin)
                     } catch (e: Exception) {
-                        return "指定されたバージョン '$fixedVersionForPlugin' の取得に失敗しました: ${e.message}".left()
+                        return updateFailure(
+                            pluginName,
+                            "指定されたバージョン '$fixedVersionForPlugin' の取得に失敗しました: ${e.message}"
+                        ).left()
                     }
                 } else {
                     latestVersionData
@@ -1273,7 +1340,7 @@ class PluginUpdateServiceImpl :
         val updatedMetadataWithLatest =
             pluginMetadataManager
                 .updateMetadata(pluginName, versionData, latestVersionData, action)
-                .getOrElse { return it.left() }
+                .getOrElse { return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left() }
 
         // PluginInstallEventを発火
         // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
@@ -1290,7 +1357,7 @@ class PluginUpdateServiceImpl :
 
         // イベントがキャンセルされた場合はスキップ
         if (installEvent.isCancelled) {
-            return "インストールがキャンセルされました".left()
+            return MpmError.PluginError.OperationCancelled(pluginName, action).left()
         }
 
         val downloadedFile =
@@ -1300,12 +1367,16 @@ class PluginUpdateServiceImpl :
                     versionData,
                     mpmInfoDto.fileNamePattern
                 )
+            } catch (e: PluginDownloadException) {
+                // 型付きのダウンロード失敗は文字列へ潰さずに伝播させる。
+                // 上流の429/5xxはUpstreamUnavailableとなり、HTTPでは再試行可能な503になる
+                return e.toMpmError(pluginName).left()
             } catch (e: Exception) {
-                return "プラグインのダウンロードに失敗しました: ${e.message}".left()
+                return updateFailure(pluginName, "プラグインのダウンロードに失敗しました: ${e.message}").left()
             }
 
         if (downloadedFile == null) {
-            return "プラグインファイルのダウンロードに失敗しました。".left()
+            return updateFailure(pluginName, "プラグインファイルのダウンロードに失敗しました。").left()
         }
 
         // ダウンロードしたtempファイルの整合性を検証する（ステージング前に実施）
@@ -1322,13 +1393,13 @@ class PluginUpdateServiceImpl :
                 fileNamePattern = mpmInfoDto.fileNamePattern,
                 skipIntegrity = skipIntegrity,
                 pluginName = pluginName
-            ).getOrElse { return it.left() }
+            ).getOrElse { return updateFailure(pluginName, it).left() }
 
         // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
         // チェックに失敗した場合はtempファイルを削除して早期リターン
         validateDownloadedPlugin(downloadedFile, pluginName, force).onLeft { error ->
             downloadedFile.delete()
-            return error.left()
+            return updateFailure(pluginName, error).left()
         }
 
         // 更新後のメタデータからバージョン情報を取得してファイル名を生成
@@ -1336,23 +1407,12 @@ class PluginUpdateServiceImpl :
         val updatedVersion = updatedMetadataWithLatest.mpmInfo.version.current.normalized
         val newFileName = generateFileName(template, pluginInfoDto.name, updatedVersion)
 
-        // staged copy: 一時ファイル経由で安全にファイルを置換する
-        // 同名ファイルの上書き中にクラッシュしても既存JARが壊れないようにする
+        // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
+        // 途中で失敗しても既存JARが壊れず、中間ファイルも残らない
         val pluginsDir = pluginDirectory.getPluginsDirectory()
         val targetFile = File(pluginsDir, newFileName)
-        val stagedFile = File(pluginsDir, "$newFileName.tmp")
-        try {
-            downloadedFile.copyTo(stagedFile, overwrite = true)
-            downloadedFile.delete()
-            // staged fileを最終位置にリネーム（同一ファイルシステム上ではアトミック）
-            if (!stagedFile.renameTo(targetFile)) {
-                // renameToが失敗した場合はcopy+deleteにフォールバック
-                stagedFile.copyTo(targetFile, overwrite = true)
-                stagedFile.delete()
-            }
-        } catch (e: Exception) {
-            stagedFile.delete()
-            return "プラグインファイルの移動に失敗しました: ${e.message}".left()
+        replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
+            return updateFailure(pluginName, reason).left()
         }
 
         // 新しいファイルの配置が成功してから古いファイルを削除する
@@ -1384,7 +1444,16 @@ class PluginUpdateServiceImpl :
             )
         pluginMetadataManager
             .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
-            .getOrElse { return it.left() }
+            .getOrElse {
+                // ここに到達した時点でjarは既に新バージョンへ差し替わっているため、
+                // メタデータだけが旧バージョンのまま残る。手動確認が必要であることを明示する
+                return MpmError.PluginError
+                    .MetadataSaveFailed(
+                        pluginName,
+                        "jarは既に $newFileName へ差し替え済みですが、メタデータの保存に失敗しました" +
+                            "（plugins/ と metadata の内容を手動で確認してください）: $it"
+                    ).left()
+            }
 
         // インストール結果を返す
         val installInfo =
@@ -1412,20 +1481,20 @@ class PluginUpdateServiceImpl :
         skipIntegrity: Boolean = false,
         expectedSha256: String? = null,
         action: String = "install"
-    ): Either<String, InstallResult> {
+    ): Either<MpmError, InstallResult> {
         // リポジトリファイルを取得
         val repositoryFile =
             repositoryManager.getRepositoryFile(pluginName)
-                ?: return "リポジトリファイルが見つかりません: $pluginName".left()
+                ?: return installFailure(pluginName, "リポジトリファイルが見つかりません: $pluginName").left()
 
         val firstRepository =
             repositoryFile.repositories.firstOrNull()
-                ?: return "リポジトリ設定が見つかりません: $pluginName".left()
+                ?: return installFailure(pluginName, "リポジトリ設定が見つかりません: $pluginName").left()
 
         // UrlDataを作成
         val urlData =
             createUrlData(firstRepository.type, firstRepository.repositoryId)
-                ?: return "未対応のリポジトリタイプです: ${firstRepository.type}".left()
+                ?: return installFailure(pluginName, "未対応のリポジトリタイプです: ${firstRepository.type}").left()
 
         // 最新バージョンを取得（tag:指定の場合は該当チャンネルの最新を取得）
         // チャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
@@ -1438,7 +1507,10 @@ class PluginUpdateServiceImpl :
                         urlData,
                         firstRepository,
                         tagChannel
-                    ) ?: return "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName".left()
+                    ) ?: return installFailure(
+                        pluginName,
+                        "tag '$tagChannel' に該当するバージョンが見つかりません: $pluginName"
+                    ).left()
                 } else {
                     ChannelVersionResolver.resolveLatest(
                         downloaderRepository,
@@ -1447,7 +1519,7 @@ class PluginUpdateServiceImpl :
                     )
                 }
             } catch (e: Exception) {
-                return "バージョン情報の取得に失敗しました: ${e.message}".left()
+                return installFailure(pluginName, "バージョン情報の取得に失敗しました: ${e.message}").left()
             }
 
         // 指定バージョンを取得
@@ -1459,7 +1531,10 @@ class PluginUpdateServiceImpl :
                 try {
                     downloaderRepository.getVersionByName(urlData, expectedVersion)
                 } catch (e: Exception) {
-                    return "指定されたバージョン '$expectedVersion' の取得に失敗しました: ${e.message}".left()
+                    return installFailure(
+                        pluginName,
+                        "指定されたバージョン '$expectedVersion' の取得に失敗しました: ${e.message}"
+                    ).left()
                 }
             }
 
@@ -1483,13 +1558,13 @@ class PluginUpdateServiceImpl :
                 {
                     pluginMetadataManager
                         .createMetadata(pluginName, firstRepository, versionData, action, resolvedChannel)
-                        .getOrElse { return it.left() }
+                        .getOrElse { return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left() }
                 },
                 // メタデータが存在する場合は更新
                 {
                     pluginMetadataManager
                         .updateMetadata(pluginName, versionData, latestVersionData, action)
-                        .getOrElse { return it.left() }
+                        .getOrElse { return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left() }
                 }
             )
 
@@ -1501,12 +1576,16 @@ class PluginUpdateServiceImpl :
                     versionData,
                     firstRepository.fileNamePattern
                 )
+            } catch (e: PluginDownloadException) {
+                // 型付きのダウンロード失敗は文字列へ潰さずに伝播させる。
+                // 上流の429/5xxはUpstreamUnavailableとなり、HTTPでは再試行可能な503になる
+                return e.toMpmError(pluginName).left()
             } catch (e: Exception) {
-                return "プラグインのダウンロードに失敗しました: ${e.message}".left()
+                return installFailure(pluginName, "プラグインのダウンロードに失敗しました: ${e.message}").left()
             }
 
         if (downloadedFile == null) {
-            return "プラグインファイルのダウンロードに失敗しました。".left()
+            return installFailure(pluginName, "プラグインファイルのダウンロードに失敗しました。").left()
         }
 
         // frozenインストール時は、ロックファイルに記録されたsha256を最優先で照合する。
@@ -1516,7 +1595,8 @@ class PluginUpdateServiceImpl :
             val actualSha256 = integrityVerifier.computeSha256(downloadedFile)
             if (!actualSha256.equals(expectedSha256, ignoreCase = true)) {
                 downloadedFile.delete()
-                return (
+                return installFailure(
+                    pluginName,
                     "ロックファイルのハッシュと一致しません (sha256): " +
                         "expected=$expectedSha256, actual=$actualSha256。" +
                         "アーティファクトが差し替えられた可能性があります。"
@@ -1538,33 +1618,25 @@ class PluginUpdateServiceImpl :
                 fileNamePattern = firstRepository.fileNamePattern,
                 skipIntegrity = skipIntegrity,
                 pluginName = pluginName
-            ).getOrElse { return it.left() }
+            ).getOrElse { return installFailure(pluginName, it).left() }
 
         // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
         // チェックに失敗した場合はtempファイルを削除して早期リターン
         validateDownloadedPlugin(downloadedFile, pluginName, force).onLeft { error ->
             downloadedFile.delete()
-            return error.left()
+            return installFailure(pluginName, error).left()
         }
 
         // ファイル名を生成
         val template = firstRepository.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
         val newFileName = generateFileName(template, pluginName, metadata.mpmInfo.version.current.normalized)
 
-        // staged copy: 一時ファイル経由で安全にファイルを置換する
+        // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
+        // 途中で失敗しても既存JARが壊れず、中間ファイルも残らない
         val pluginsDir = pluginDirectory.getPluginsDirectory()
         val targetFile = File(pluginsDir, newFileName)
-        val stagedFile = File(pluginsDir, "$newFileName.tmp")
-        try {
-            downloadedFile.copyTo(stagedFile, overwrite = true)
-            downloadedFile.delete()
-            if (!stagedFile.renameTo(targetFile)) {
-                stagedFile.copyTo(targetFile, overwrite = true)
-                stagedFile.delete()
-            }
-        } catch (e: Exception) {
-            stagedFile.delete()
-            return "プラグインファイルの移動に失敗しました: ${e.message}".left()
+        replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
+            return installFailure(pluginName, reason).left()
         }
 
         // 新しいファイルの配置が成功してから古いファイルを削除する
@@ -1596,7 +1668,16 @@ class PluginUpdateServiceImpl :
             )
         pluginMetadataManager
             .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
-            .getOrElse { return it.left() }
+            .getOrElse {
+                // ここに到達した時点でjarは既に新バージョンへ差し替わっているため、
+                // メタデータだけが旧バージョンのまま残る。手動確認が必要であることを明示する
+                return MpmError.PluginError
+                    .MetadataSaveFailed(
+                        pluginName,
+                        "jarは既に $newFileName へ差し替え済みですが、メタデータの保存に失敗しました" +
+                            "（plugins/ と metadata の内容を手動で確認してください）: $it"
+                    ).left()
+            }
 
         // インストール結果を返す
         val installInfo =

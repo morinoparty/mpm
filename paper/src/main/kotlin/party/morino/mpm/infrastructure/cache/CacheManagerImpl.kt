@@ -23,6 +23,12 @@ import party.morino.mpm.api.model.cache.CacheEntryInfo
 import party.morino.mpm.api.model.cache.CacheSizeInfo
 import party.morino.mpm.api.shared.error.MpmError
 import java.io.File
+import java.io.IOException
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -99,9 +105,8 @@ class CacheManagerImpl :
      */
     override fun size(): Either<MpmError, CacheSizeInfo> =
         try {
-            val cacheDir = pluginDirectory.getCacheDirectory()
             // メタデータ以外のサブディレクトリも含めて集計する
-            val allFiles = cacheDir.walkTopDown().filter { it.isFile }.toList()
+            val allFiles = cacheFiles()
             val ttlSeconds =
                 configManager
                     .getConfig()
@@ -145,11 +150,7 @@ class CacheManagerImpl :
                         entry == null || isExpired(entry.fetchedAtEpochSeconds, now, ttlSeconds)
                     }
                 } else {
-                    pluginDirectory
-                        .getCacheDirectory()
-                        .walkTopDown()
-                        .filter { it.isFile }
-                        .toList()
+                    cacheFiles()
                 }
 
             var removedEntries = 0
@@ -171,12 +172,100 @@ class CacheManagerImpl :
 
     /**
      * メタデータキャッシュのエントリファイル一覧を返す
+     *
+     * metadataディレクトリ自体がシンボリックリンクの場合はキャッシュ外のJSONを指しうるため、
+     * 対象から外す（--expired経由で外部ファイルを削除しないようにするため）。
      */
     private fun metadataFiles(): List<File> {
-        val metadataDir = File(pluginDirectory.getCacheDirectory(), CacheDirectories.METADATA)
+        val root = cacheRoot()
+        val metadataDir = File(root, CacheDirectories.METADATA)
+        if (Files.isSymbolicLink(metadataDir.toPath())) {
+            logger.warning(
+                "メタデータキャッシュディレクトリがシンボリックリンクのため処理をスキップしました: ${metadataDir.absolutePath}"
+            )
+            return emptyList()
+        }
         if (!metadataDir.isDirectory) return emptyList()
-        return metadataDir.listFiles()?.filter { it.isFile && it.extension == "json" } ?: emptyList()
+        return metadataDir
+            .listFiles()
+            // File.isFileはリンクを辿るため、シンボリックリンクは明示的に除外する
+            ?.filter {
+                it.isFile &&
+                    it.extension == "json" &&
+                    !Files.isSymbolicLink(it.toPath()) &&
+                    isInsideCache(it, root)
+            } ?: emptyList()
     }
+
+    /**
+     * キャッシュディレクトリのcanonicalパスを返す
+     *
+     * キャッシュディレクトリ自体をシンボリックリンクにする運用は管理者の意図なので、
+     * 解決後のパスを境界の基準にする。
+     */
+    private fun cacheRoot(): File = pluginDirectory.getCacheDirectory().canonicalFile
+
+    /**
+     * キャッシュディレクトリ配下の通常ファイルを列挙する
+     *
+     * File.walkTopDownはシンボリックリンク先のディレクトリも辿るため、
+     * `cache/link -> /srv/data` のようなリンクがあると外部のファイルまで削除対象になる。
+     * これを避けるためリンクを辿らないFiles.walkFileTreeを使い、
+     * さらにcanonicalパスがキャッシュディレクトリ配下かを検証する（二重の防御）。
+     * なお、シンボリックリンクそのものは削除もサイズ集計もしない。
+     */
+    private fun cacheFiles(): List<File> {
+        val root = cacheRoot()
+        // 走査対象が無い場合はwalkFileTreeが例外を投げるため先に返す
+        if (!root.isDirectory) return emptyList()
+
+        val files = mutableListOf<File>()
+        // FOLLOW_LINKSを渡さないwalkFileTreeはシンボリックリンクを辿らない
+        Files.walkFileTree(
+            root.toPath(),
+            object : SimpleFileVisitor<Path>() {
+                override fun visitFile(
+                    file: Path,
+                    attrs: BasicFileAttributes
+                ): FileVisitResult {
+                    // リンクを辿らない属性なので、シンボリックリンクはisRegularFileがfalseになる
+                    if (attrs.isRegularFile) {
+                        val candidate = file.toFile()
+                        if (isInsideCache(candidate, root)) files.add(candidate)
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(
+                    file: Path,
+                    exc: IOException
+                ): FileVisitResult {
+                    // 読み取れないファイルは無視して走査を続ける
+                    logger.warning("キャッシュファイルの走査に失敗しました: $file")
+                    return FileVisitResult.CONTINUE
+                }
+            }
+        )
+        return files
+    }
+
+    /**
+     * 対象ファイルがキャッシュディレクトリのcanonicalパス配下にあるかを判定する
+     *
+     * @param file 判定対象のファイル
+     * @param root キャッシュディレクトリ（canonical済み）
+     */
+    private fun isInsideCache(
+        file: File,
+        root: File
+    ): Boolean =
+        try {
+            file.canonicalPath.startsWith(root.canonicalPath + File.separator)
+        } catch (e: IOException) {
+            // パスを解決できない場合は安全側に倒して対象外にする
+            logger.warning("キャッシュファイルのパス解決に失敗しました: ${file.absolutePath}")
+            false
+        }
 
     /**
      * キャッシュファイルをデコードする（失敗時はnull）

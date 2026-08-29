@@ -15,6 +15,12 @@ import party.morino.mineauth.api.http.HttpStatus
 import party.morino.mpm.api.model.dependency.DependencyError
 import party.morino.mpm.api.shared.error.MpmError
 
+// ダウンロード時のHTTPステータス判定に使う定数
+private const val NOT_FOUND = 404
+private const val GONE = 410
+private const val TOO_MANY_REQUESTS = 429
+private const val SERVER_ERROR_MIN = 500
+
 /**
  * [MpmError] を対応する HTTP ステータスに変換する
  *
@@ -59,6 +65,12 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         // リクエスト自体は正当なため 400 とは区別し、クライアントに再試行の余地を伝える。
         is MpmError.PluginError.UpstreamUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
 
+        // --- ダウンロード先のHTTPステータスはコードごとに振り分ける ---
+        // リトライを尽くしても 429 / 5xx だった場合は上流の一時障害として 503 を返し、
+        // アーティファクトが存在しない 404 / 410 は 404 として返す（サーバー側の不具合ではないため）。
+        // 認証エラーなどそれ以外はサーバー側の設定不備とみなして 500 のままにする。
+        is MpmError.DownloadError.HttpStatus -> downloadStatusToHttpStatus(statusCode)
+
         // --- 500 Internal Server Error: サーバー側の処理失敗・設定不備 ---
         // クライアントが送り直しても直らない類のエラーはすべてここに集約する。
         is MpmError.PluginError.OperationCancelled,
@@ -76,13 +88,30 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         is MpmError.ProjectError.InitializationFailed,
         is MpmError.ProjectError.SaveFailed,
         is MpmError.DownloadError.Failed,
-        is MpmError.DownloadError.HttpStatus,
         is MpmError.DownloadError.InvalidContentType,
         is MpmError.DownloadError.SizeMismatch,
         is MpmError.BackupError.Failed,
         is MpmError.BackupError.RestoreFailed,
         is MpmError.CacheError.Failed,
         is MpmError.Unknown -> HttpStatus.INTERNAL_SERVER_ERROR
+    }
+
+/**
+ * ダウンロード時のHTTPステータスコードを、APIが返すHTTPステータスへ振り分ける
+ *
+ * 上流のレート制限（429）とサーバーエラー（5xx）は時間を置けば成功しうるため、
+ * リトライ可能であることが伝わる 503 を返す。
+ *
+ * @param statusCode ダウンロード時に上流から返されたステータスコード
+ */
+private fun downloadStatusToHttpStatus(statusCode: Int): HttpStatus =
+    when {
+        // レート制限・上流のサーバーエラーは一時的な障害として扱う
+        statusCode == TOO_MANY_REQUESTS || statusCode >= SERVER_ERROR_MIN -> HttpStatus.SERVICE_UNAVAILABLE
+        // アーティファクトが存在しない（削除された等）
+        statusCode == NOT_FOUND || statusCode == GONE -> HttpStatus.NOT_FOUND
+        // 401/403 などはトークン設定の不備であり、クライアントが直せるものではない
+        else -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 
 /**

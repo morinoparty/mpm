@@ -281,6 +281,45 @@ class GithubDownloaderTest {
     }
 
     @Test
+    @DisplayName("getAllVersions follows pagination beyond one page")
+    fun getAllVersionsFollowsPagination() {
+        // 1ページ目は満杯(100件)、2ページ目に残り2件を返すモック
+        val firstPage =
+            (1..100).joinToString(",", prefix = "[", postfix = "]") { index ->
+                """{"id":"$index","tag_name":"v9.$index.0"}"""
+            }
+        val secondPage =
+            """[{"id":"101","tag_name":"v1.2.3"},{"id":"102","tag_name":"v1.2.2"}]"""
+
+        val mockEngine =
+            MockEngine { request ->
+                // pageクエリに応じて対応するページを返す
+                val body = if (request.url.parameters["page"] == "1") firstPage else secondPage
+                respond(
+                    content = ByteReadChannel(body),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+
+        val testDownloader =
+            object : GithubDownloader() {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking {
+            val versions = testDownloader.getAllVersions(UrlData.GithubUrlData("owner", "repository"))
+
+            // 2ページ分がすべて連結されること
+            assertEquals(102, versions.size)
+            // 2ページ目(31件目以降)のタグも解決対象に含まれること
+            assertTrue(versions.any { it.version == "v1.2.3" })
+        }
+    }
+
+    @Test
     @DisplayName("token client keeps the retry plugin")
     fun tokenClientKeepsRetryPlugin() {
         // トークン設定時もリトライ設定を持つクライアントが使われること
