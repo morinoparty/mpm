@@ -402,8 +402,9 @@ class PluginLifecycleServiceImpl :
                     )
                 }
             } catch (e: Exception) {
+                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
                 return MpmError.PluginError
-                    .VersionResolutionFailed(
+                    .UpstreamUnavailable(
                         pluginName,
                         "Failed to get latest version: ${e.message}"
                     ).left()
@@ -1002,7 +1003,8 @@ class PluginLifecycleServiceImpl :
                         .resolveLatest(downloaderRepository, urlData, repoConfig)
                         .right()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Fixed -> {
@@ -1010,7 +1012,8 @@ class PluginLifecycleServiceImpl :
                     // 指定されたバージョンのdownloadIdを正しく取得する
                     downloaderRepository.getVersionByName(urlData, version.version).right()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Tag -> {
@@ -1029,7 +1032,8 @@ class PluginLifecycleServiceImpl :
                                 "tag '${version.tag}' に該当するバージョンが見つかりません"
                             ).left()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Pattern -> {

@@ -9,8 +9,6 @@
 
 package party.morino.mpm.infrastructure.downloader.github
 
-import io.ktor.client.*
-import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -46,13 +44,10 @@ open class GithubDownloader(
             // 親クラスの初期化子で生成された未認証クライアントは以後使わないため、
             // 差し替え前に明示的にクローズしてコネクション/セレクタリソースのリークを防ぐ
             httpClient.close()
+            // クライアントを手書きするとリトライ設定が失われるため、
+            // 共通設定を持つbuildHttpClientに認証ヘッダーだけを追加する
             httpClient =
-                HttpClient(CIO) {
-                    install(HttpTimeout) {
-                        requestTimeoutMillis = 60000
-                        connectTimeoutMillis = 60000
-                        socketTimeoutMillis = 60000
-                    }
+                buildHttpClient {
                     defaultRequest {
                         header(HttpHeaders.Authorization, "Bearer $githubToken")
                     }

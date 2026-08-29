@@ -11,6 +11,7 @@ package party.morino.mpm.infrastructure.downloader.github
 
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
+import io.ktor.client.plugins.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.runBlocking
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
@@ -276,5 +278,21 @@ class GithubDownloaderTest {
     fun downloadLatest() {
         // downloadLatest は getLatestVersion と downloadByVersion を組み合わせたものなので
         // 個別のテストで十分カバーされている
+    }
+
+    @Test
+    @DisplayName("token client keeps the retry plugin")
+    fun tokenClientKeepsRetryPlugin() {
+        // トークン設定時もリトライ設定を持つクライアントが使われること
+        val authenticated =
+            object : GithubDownloader("dummy-token") {
+                fun client(): HttpClient = httpClient
+            }
+
+        try {
+            assertNotNull(authenticated.client().pluginOrNull(HttpRequestRetry))
+        } finally {
+            authenticated.close()
+        }
     }
 }

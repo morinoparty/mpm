@@ -166,8 +166,9 @@ class PluginInfoServiceImpl :
             try {
                 downloaderRepository.getAllVersions(urlData)
             } catch (e: Exception) {
+                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
                 return MpmError.PluginError
-                    .VersionResolutionFailed(
+                    .UpstreamUnavailable(
                         name.value,
                         "バージョン情報の取得に失敗しました: ${e.message}"
                     ).left()
@@ -234,42 +235,54 @@ class PluginInfoServiceImpl :
             createUrlData(firstRepository.type, firstRepository.repositoryId)
                 ?: return MpmError.PluginError.UnsupportedRepository(firstRepository.type).left()
 
-        // tag:指定の場合は該当チャンネルの最新、それ以外は絶対的な最新を取得
-        // チャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
+        // 比較対象となる「あるべきバージョン」を決める
+        // - Fixed: mpm.jsonが指定するバージョンそのもの（pin / rollback の固定をリポジトリ最新で巻き戻さない）
+        // - Tag: 該当チャンネルの最新
+        // - それ以外: 絶対的な最新
+        // Tag/latestではチャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
         val pluginSpec = project.getPluginSpec(name)
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
-        val latestVersion =
-            try {
-                if (versionSpecifier is VersionSpecifier.Tag) {
-                    ChannelVersionResolver.resolveTag(
-                        downloaderRepository,
-                        urlData,
-                        firstRepository,
-                        versionSpecifier.tag
-                    ) ?: return MpmError.PluginError
-                        .VersionResolutionFailed(
+        val latestVersionName =
+            if (versionSpecifier is VersionSpecifier.Fixed) {
+                // 固定指定はリポジトリを参照しない。installAll側のresolveExpectedVersionと同じ方針
+                versionSpecifier.version
+            } else {
+                try {
+                    if (versionSpecifier is VersionSpecifier.Tag) {
+                        ChannelVersionResolver
+                            .resolveTag(
+                                downloaderRepository,
+                                urlData,
+                                firstRepository,
+                                versionSpecifier.tag
+                            )?.version
+                            ?: return MpmError.PluginError
+                                .VersionResolutionFailed(
+                                    name.value,
+                                    "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                                ).left()
+                    } else {
+                        ChannelVersionResolver
+                            .resolveLatest(
+                                downloaderRepository,
+                                urlData,
+                                firstRepository
+                            ).version
+                    }
+                } catch (e: Exception) {
+                    // 上流の一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    return MpmError.PluginError
+                        .UpstreamUnavailable(
                             name.value,
-                            "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                            "最新バージョンの取得に失敗しました: ${e.message}"
                         ).left()
-                } else {
-                    ChannelVersionResolver.resolveLatest(
-                        downloaderRepository,
-                        urlData,
-                        firstRepository
-                    )
                 }
-            } catch (e: Exception) {
-                return MpmError.PluginError
-                    .VersionResolutionFailed(
-                        name.value,
-                        "最新バージョンの取得に失敗しました: ${e.message}"
-                    ).left()
             }
 
         // 現在のバージョンと最新バージョンを正規化して比較
         val versionPattern = metadata.mpmInfo.versionPattern
         val currentNormalized = VersionDetail.fromRaw(metadata.mpmInfo.version.current.raw, versionPattern).normalized
-        val latestNormalized = VersionDetail.fromRaw(latestVersion.version, versionPattern).normalized
+        val latestNormalized = VersionDetail.fromRaw(latestVersionName, versionPattern).normalized
         val currentVersion = metadata.mpmInfo.version.current.raw
         val needsUpdate = currentNormalized != latestNormalized
 
@@ -281,7 +294,7 @@ class PluginInfoServiceImpl :
                 PluginOutdatedEvent(
                     installedPlugin = InstalledPlugin(name.value),
                     currentVersion = currentVersion,
-                    latestVersion = latestVersion.version
+                    latestVersion = latestVersionName
                 )
             )
         }
@@ -289,7 +302,7 @@ class PluginInfoServiceImpl :
         return OutdatedInfo(
             pluginName = name.value,
             currentVersion = currentVersion,
-            latestVersion = latestVersion.version,
+            latestVersion = latestVersionName,
             needsUpdate = needsUpdate
         ).right()
     }

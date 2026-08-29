@@ -54,6 +54,11 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         is MpmError.PluginError.VersionResolutionFailed,
         is MpmError.PluginError.UnsupportedRepository -> HttpStatus.BAD_REQUEST
 
+        // --- 503 Service Unavailable: 上流リポジトリの一時障害 ---
+        // タイムアウトやレート制限で上流（Modrinth/Hangar/GitHub等）が応答しない状態。
+        // リクエスト自体は正当なため 400 とは区別し、クライアントに再試行の余地を伝える。
+        is MpmError.PluginError.UpstreamUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
+
         // --- 500 Internal Server Error: サーバー側の処理失敗・設定不備 ---
         // クライアントが送り直しても直らない類のエラーはすべてここに集約する。
         is MpmError.PluginError.OperationCancelled,

@@ -17,11 +17,16 @@ import kotlinx.serialization.Serializable
  * バージョン一覧などのメタデータ取得は同一セッション中に何度も繰り返されるため、
  * 短いTTLのキャッシュを挟むことでネットワーク往復とレート制限の消費を抑える。
  *
+ * 検索のようにキーワードごとに別エントリとなるリクエストがあるため、
+ * エントリ数の上限を設けて古いものから自動的に退避する。
+ *
  * @property enabled メタデータキャッシュを有効にするかどうか
  * @property metadataTtlSeconds キャッシュエントリの有効期間（秒）。0以下の場合はキャッシュを使用しない
+ * @property maxMetadataEntries 保持するメタデータエントリ数の上限。0以下の場合は上限なし
  */
 @Serializable
 data class CacheSettings(
     val enabled: Boolean = true,
-    val metadataTtlSeconds: Long = 300
+    val metadataTtlSeconds: Long = 300,
+    val maxMetadataEntries: Int = 200
 )

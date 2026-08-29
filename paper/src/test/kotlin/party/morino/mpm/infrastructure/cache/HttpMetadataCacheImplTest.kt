@@ -38,6 +38,9 @@ class HttpMetadataCacheImplTest {
     // テストごとに変更できるTTL（秒）
     private var ttlSeconds: Long = 300
 
+    // テストごとに変更できるエントリ数の上限
+    private var maxEntries: Int = 200
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val requestUrl = "https://hangar.papermc.io/api/v1/projects/kennytv/Maintenance/versions"
@@ -56,7 +59,12 @@ class HttpMetadataCacheImplTest {
                             ConfigData(
                                 settings =
                                     GlobalSettings(
-                                        cache = CacheSettings(enabled = true, metadataTtlSeconds = ttlSeconds)
+                                        cache =
+                                            CacheSettings(
+                                                enabled = true,
+                                                metadataTtlSeconds = ttlSeconds,
+                                                maxMetadataEntries = maxEntries
+                                            )
                                     )
                             )
 
@@ -106,6 +114,32 @@ class HttpMetadataCacheImplTest {
 
         assertTrue(metadataFiles().isEmpty())
         assertTrue(cache.get(requestUrl).isNone())
+    }
+
+    @Test
+    @DisplayName("put replaces an existing entry in place")
+    fun putReplacesExistingEntry() {
+        val cache = HttpMetadataCacheImpl()
+        cache.put(requestUrl, "{\"result\":\"first\"}")
+        cache.put(requestUrl, "{\"result\":\"second\"}")
+
+        // 一時ファイルが残らず、エントリが上書きされていること
+        assertEquals(1, metadataFiles().size)
+        assertEquals("{\"result\":\"second\"}", cache.get(requestUrl).getOrNull())
+    }
+
+    @Test
+    @DisplayName("put evicts entries beyond the configured maximum")
+    fun putEvictsEntriesOverTheLimit() {
+        maxEntries = 5
+        val cache = HttpMetadataCacheImpl()
+
+        // 検索のようにURLが毎回変わるリクエストを繰り返し、退避が動作することを確認する
+        repeat(HttpMetadataCacheImpl.CLEANUP_INTERVAL.toInt()) { index ->
+            cache.put("https://example.com/search?q=$index", "{\"index\":$index}")
+        }
+
+        assertEquals(maxEntries, metadataFiles().size)
     }
 
     /**

@@ -18,7 +18,7 @@ import party.morino.mpm.api.shared.error.MpmError
 /**
  * MpmError から HTTP ステータスへのマッピングを検証する
  *
- * 404 / 409 / 400 / 500 の代表的な分岐のみを対象とする。
+ * 404 / 409 / 400 / 503 / 500 の代表的な分岐のみを対象とする。
  */
 @DisplayName("MpmError to HttpStatus mapping")
 class MpmErrorHttpMappingTest {
@@ -49,6 +49,16 @@ class MpmErrorHttpMappingTest {
         assertEquals(
             HttpStatus.BAD_REQUEST,
             MpmError.PluginError.VersionResolutionFailed("a", "no such version").toHttpStatus()
+        )
+    }
+
+    @Test
+    @DisplayName("upstream outages map to 503")
+    fun upstreamUnavailableErrors() {
+        // 上流リポジトリの一時障害は、クライアント起因の400ではなく503として返す
+        assertEquals(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            MpmError.PluginError.UpstreamUnavailable("a", "timeout").toHttpStatus()
         )
     }
 

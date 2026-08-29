@@ -20,6 +20,7 @@ import kotlinx.coroutines.sync.Mutex
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.model.UpdateResult
 import party.morino.mpm.api.application.model.install.BulkInstallResult
 import party.morino.mpm.api.application.model.install.InstallResult
@@ -59,6 +60,7 @@ import party.morino.mpm.event.state.PluginUnlockEvent
 import party.morino.mpm.event.state.PluginUpdateEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
+import party.morino.mpm.utils.regenerateQuietly
 import java.io.File
 
 /**
@@ -103,6 +105,10 @@ class PluginUpdateServiceImpl :
 
     // ロックファイル（mpm-lock.yaml）の読み込み（frozenインストールで使用）
     private val lockRepository: LockRepository by inject()
+
+    // バージョン切り替え後にロックファイルを実インストール状態へ追従させる
+    // コマンド経路とHTTP経路の両方から再生成されるよう、サービス層で呼び出す
+    private val lockService: LockService by inject()
 
     // 並行更新を防止するためのMutex（スケジューラーとコマンドの競合回避）
     private val updateMutex = Mutex()
@@ -589,6 +595,37 @@ class PluginUpdateServiceImpl :
             // mpm.jsonのバージョン指定をFixedへ書き換え、次回のmpm updateで巻き戻らないようにする
             rewriteSpecToFixed(name, resolvedVersion).getOrElse { return it.left() }
 
+            // sync: で追従している子プラグインを親の新バージョンへ揃える（update(name)と同じ連動更新）。
+            // 親だけを切り替えると、アドオンと本体のバージョンが食い違ったまま残ってしまうため。
+            val syncResults = mutableListOf<UpdateResult>()
+            loadMpmConfig()?.let { config ->
+                updateSyncPlugins(
+                    mpmConfig = config,
+                    syncChildren = config.getPluginsSyncingTo(pluginName),
+                    updateResults = syncResults,
+                    force = force,
+                    skipIntegrity = skipIntegrity
+                )
+            }
+            // 戻り値は親1件のみのため、子の連動結果はログに残して追跡できるようにする
+            syncResults.forEach { syncResult ->
+                if (syncResult.success) {
+                    plugin.logger.info(
+                        "[$action] 連動更新: ${syncResult.pluginName} " +
+                            "${syncResult.oldVersion} -> ${syncResult.newVersion}"
+                    )
+                } else {
+                    plugin.logger.warning(
+                        "[$action] 連動更新に失敗: ${syncResult.pluginName}: ${syncResult.errorMessage}"
+                    )
+                }
+            }
+
+            // ロックファイルを実インストール状態へ追従させる。
+            // サービス層で行うことで、コマンド経路とHTTP経路の双方が再生成の恩恵を受ける
+            // （再生成はメタデータから作り直す冪等な処理のため、呼び出しが重なっても害はない）。
+            lockService.regenerateQuietly(plugin.logger)
+
             return UpdateResult(
                 pluginName = pluginName,
                 oldVersion = currentVersion,
@@ -604,20 +641,19 @@ class PluginUpdateServiceImpl :
     /**
      * 履歴から「直前にインストールされていたバージョン」を解決する
      *
-     * 履歴は同一バージョンの再インストールで重複エントリが積まれるため、
-     * 末尾から遡って現在バージョンと異なる最初のエントリを採用する。
+     * 解決規則は純粋関数 [resolveRollbackTargetVersion] に委譲する
+     * （rollbackが必ずより過去へ進むための規則はそちらのKDocを参照）。
      * 履歴に記録されるのは正規化済みバージョンのため、戻り値も正規化済みとなる
      * （実バージョン名への解決は [resolveSwitchTargetVersion] が行う）。
      *
      * @param metadata 対象プラグインのメタデータ
      * @return 直前のバージョン（見つからない場合はnull）
      */
-    private fun resolvePreviousVersionFromHistory(metadata: ManagedPluginDto): String? {
-        val currentNormalized = metadata.mpmInfo.version.current.normalized
-        return metadata.mpmInfo.history
-            .lastOrNull { it.version != currentNormalized }
-            ?.version
-    }
+    private fun resolvePreviousVersionFromHistory(metadata: ManagedPluginDto): String? =
+        resolveRollbackTargetVersion(
+            history = metadata.mpmInfo.history,
+            currentNormalized = metadata.mpmInfo.version.current.normalized
+        )
 
     /**
      * 要求されたバージョン文字列をリポジトリ上の実バージョン名（raw）へ解決する
@@ -661,8 +697,9 @@ class PluginUpdateServiceImpl :
             try {
                 downloaderRepository.getAllVersions(urlData)
             } catch (e: Exception) {
+                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
                 return MpmError.PluginError
-                    .VersionResolutionFailed(
+                    .UpstreamUnavailable(
                         pluginName,
                         "バージョン一覧の取得に失敗しました: ${e.message}"
                     ).left()
@@ -1173,6 +1210,14 @@ class PluginUpdateServiceImpl :
         val versionString = mpmConfig?.plugins?.get(pluginName)
         val tagChannelForPlugin = versionString?.let { VersionSpecifierParser.extractTag(it) }
 
+        // mpm.jsonがFixed指定の場合、更新時もリポジトリの最新ではなくその指定バージョンへ揃える。
+        // pin / rollback で固定したバージョンを尊重するための扱いで、
+        // Fixedを動的解決の対象外とする checkOutdated / resolveExpectedVersion と方針を揃える。
+        val fixedVersionForPlugin =
+            versionString
+                ?.let { VersionSpecifierParser.parse(it) as? VersionSpecifier.Fixed }
+                ?.version
+
         // チャンネル設定(versionMatcher/useUpstreamLabel)を取得するためリポファイルを参照。
         // metadata.repositoryに対応する RepositoryConfig を厳密マッチで特定する（見つからなければ先頭）
         val repositoryFile = repositoryManager.getRepositoryFile(pluginName)
@@ -1206,10 +1251,19 @@ class PluginUpdateServiceImpl :
                 return "最新バージョン情報の取得に失敗しました: ${e.message}".left()
             }
 
-        // useLatestの場合は最新バージョンでDL、そうでなければメタデータの現在バージョンでDL
+        // useLatestの場合は最新バージョン（Fixed指定時はその固定バージョン）でDL、
+        // そうでなければメタデータの現在バージョンでDL
         val versionData =
             if (useLatest) {
-                latestVersionData
+                if (fixedVersionForPlugin != null) {
+                    try {
+                        downloaderRepository.getVersionByName(urlData, fixedVersionForPlugin)
+                    } catch (e: Exception) {
+                        return "指定されたバージョン '$fixedVersionForPlugin' の取得に失敗しました: ${e.message}".left()
+                    }
+                } else {
+                    latestVersionData
+                }
             } else {
                 VersionData(mpmInfoDto.download.downloadId, mpmInfoDto.version.current.raw)
             }
@@ -1328,7 +1382,9 @@ class PluginUpdateServiceImpl :
                             )
                     )
             )
-        pluginMetadataManager.saveMetadata(pluginName, updatedMetadata).getOrElse { return it.left() }
+        pluginMetadataManager
+            .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
+            .getOrElse { return it.left() }
 
         // インストール結果を返す
         val installInfo =
@@ -1538,7 +1594,9 @@ class PluginUpdateServiceImpl :
                             )
                     )
             )
-        pluginMetadataManager.saveMetadata(pluginName, updatedMetadata).getOrElse { return it.left() }
+        pluginMetadataManager
+            .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
+            .getOrElse { return it.left() }
 
         // インストール結果を返す
         val installInfo =
@@ -1552,6 +1610,33 @@ class PluginUpdateServiceImpl :
             installed = installInfo,
             removed = removedInfo
         ).right()
+    }
+
+    /**
+     * 保存直前に最新のメタデータを読み直し、設定（lock等）だけを引き継ぐ
+     *
+     * メタデータはファイル全体を上書き保存するため、ダウンロード開始前に読み込んだスナップショットを
+     * そのまま保存すると、数十秒かかるダウンロードの最中に実行された `mpm lock` / `mpm unlock` の
+     * 結果を消してしまう（HTTPは200を返したのにロックされていない状態になる）。
+     * mpm.jsonに対して [rewriteSpecToFixed] が採っているのと同じ方針で、保存直前に読み直す。
+     * バージョンやダウンロード情報は本処理が確定させた値が正しいため、マージ対象は設定のみとする。
+     *
+     * @param pluginName プラグイン名
+     * @param metadata 保存しようとしているメタデータ
+     * @return 最新の設定を反映したメタデータ（読み直しに失敗した場合は元のメタデータ）
+     */
+    private fun mergeLatestSettings(
+        pluginName: String,
+        metadata: ManagedPluginDto
+    ): ManagedPluginDto {
+        val latestSettings =
+            pluginMetadataManager
+                .loadMetadata(pluginName)
+                .getOrNull()
+                ?.mpmInfo
+                ?.settings
+                ?: return metadata
+        return metadata.copy(mpmInfo = metadata.mpmInfo.copy(settings = latestSettings))
     }
 
     /**

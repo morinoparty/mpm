@@ -109,6 +109,17 @@ sealed class MpmError {
             override val message: String = "Failed to resolve version for $pluginName: $reason"
         }
 
+        // 上流リポジトリ（Modrinth/Hangar/GitHub等）が一時的に応答しない
+        // タイムアウトやレート制限など、時間を置いて再試行すれば成功しうる障害を表す
+        // （クライアントの指定値が誤っている VersionResolutionFailed とは区別する）
+        data class UpstreamUnavailable(
+            val pluginName: String,
+            val reason: String
+        ) : PluginError() {
+            override val message: String =
+                "Upstream repository is temporarily unavailable for $pluginName: $reason"
+        }
+
         // インストールエラー
         data class InstallFailed(
             val pluginName: String,

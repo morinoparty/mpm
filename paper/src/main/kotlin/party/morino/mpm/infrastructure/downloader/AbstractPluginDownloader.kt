@@ -54,7 +54,7 @@ abstract class AbstractPluginDownloader :
         // レート制限を示すHTTPステータスコード
         private const val TOO_MANY_REQUESTS = 429
 
-        // タイムアウト（ミリ秒）
+        // 個々の通信（接続確立 / 無応答）に対するタイムアウト（ミリ秒）
         private const val TIMEOUT_MILLIS = 60_000L
     }
 
@@ -64,14 +64,28 @@ abstract class AbstractPluginDownloader :
      * リトライ設定はプロダクションと同じ経路でテストできるよう、
      * エンジンを差し替えられる形にしている（テストからはMockEngineを渡す）。
      *
+     * 認証ヘッダーなどダウンローダー固有の設定は[additionalConfig]で追加する。
+     * 各ダウンローダーがHttpClientを手書きするとリトライ設定が失われるため、
+     * 生成経路は必ずこのメソッドに集約する。
+     *
      * @param engine 使用するHTTPエンジン。nullの場合はCIOエンジンを使用する
+     * @param additionalConfig 共通設定の後に適用する追加設定
      * @return 設定済みのHttpClient
      */
-    protected fun buildHttpClient(engine: HttpClientEngine? = null): HttpClient =
+    protected fun buildHttpClient(
+        engine: HttpClientEngine? = null,
+        additionalConfig: HttpClientConfig<*>.() -> Unit = {}
+    ): HttpClient =
         if (engine == null) {
-            HttpClient(CIO) { configureCommonPlugins() }
+            HttpClient(CIO) {
+                configureCommonPlugins()
+                additionalConfig()
+            }
         } else {
-            HttpClient(engine) { configureCommonPlugins() }
+            HttpClient(engine) {
+                configureCommonPlugins()
+                additionalConfig()
+            }
         }
 
     /**
@@ -82,7 +96,11 @@ abstract class AbstractPluginDownloader :
      */
     private fun HttpClientConfig<*>.configureCommonPlugins() {
         install(HttpTimeout) {
-            requestTimeoutMillis = TIMEOUT_MILLIS
+            // requestTimeoutMillisはリトライのバックオフを含むリクエスト全体に掛かるため、
+            // 有効にすると`Retry-After: 60`のようなレート制限応答でリトライ前に打ち切られてしまう。
+            // また大きなjarのダウンロードが遅い回線で中断される原因にもなるため無効化し、
+            // 接続確立と無応答の検出はconnect/socketタイムアウトで行う。
+            requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS
             connectTimeoutMillis = TIMEOUT_MILLIS
             socketTimeoutMillis = TIMEOUT_MILLIS
         }
