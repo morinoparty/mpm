@@ -7,7 +7,7 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.infrastructure.mineauth.model
+package party.morino.mpm.infrastructure.mineauth.model.lifecycle
 
 import kotlinx.serialization.Serializable
 import party.morino.mpm.api.application.model.install.InstallResult

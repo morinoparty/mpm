@@ -59,6 +59,11 @@ dependencies {
     // Test dependencies
     testImplementation(libs.kotlinx.coroutines.test)
 
+    // MineAuth API はプロダクションでは compileOnly だが、
+    // HTTP ハンドラーの登録契約（アノテーション・シリアライズ可能性）を検証するため
+    // テストではクラスパスに載せる
+    testImplementation(libs.mineauth.api)
+
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.koin.test)
     testImplementation(libs.bundles.ktor.client)

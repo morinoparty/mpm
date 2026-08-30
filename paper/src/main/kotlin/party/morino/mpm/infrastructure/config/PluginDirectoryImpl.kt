@@ -36,6 +36,9 @@ class PluginDirectoryImpl :
     private val metadataDirectoryFile: File by lazy { File(rootDirectoryFile, "metadata") }
     private val backupsDirectoryFile: File by lazy { File(rootDirectoryFile, "backups") }
 
+    // HTTPメタデータ等のキャッシュを保存するディレクトリをlazyで初期化
+    private val cacheDirectoryFile: File by lazy { File(rootDirectoryFile, "cache") }
+
     /**
      * プラグインのルートディレクトリを取得する
      * ディレクトリが存在しない場合は作成する
@@ -99,5 +102,18 @@ class PluginDirectoryImpl :
             backupsDirectoryFile.mkdirs()
         }
         return backupsDirectoryFile
+    }
+
+    /**
+     * キャッシュディレクトリを取得する
+     * ディレクトリが存在しない場合は作成する
+     * @return キャッシュディレクトリ
+     */
+    override fun getCacheDirectory(): File {
+        // ディレクトリが存在しない場合は作成
+        if (!cacheDirectoryFile.exists()) {
+            cacheDirectoryFile.mkdirs()
+        }
+        return cacheDirectoryFile
     }
 }

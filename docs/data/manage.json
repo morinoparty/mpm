@@ -152,6 +152,31 @@
             "description": "新しいバージョンがあるプラグインを更新します"
         },
         {
+            "command": "mpm rollback <plugin> [[version]]",
+            "status": "newly",
+            "category": "manage",
+            "section": "更新管理",
+            "description": "プラグインを過去のバージョンへ切り戻します。バージョンを省略した場合はインストール履歴から直前のバージョンを解決します",
+            "arguments": [
+                {
+                    "name": "plugin",
+                    "required": true
+                },
+                {
+                    "name": "version",
+                    "required": false
+                },
+                {
+                    "name": "--force",
+                    "required": false
+                },
+                {
+                    "name": "--skip-integrity",
+                    "required": false
+                }
+            ]
+        },
+        {
             "command": "mpm pin <plugin>",
             "status": "newly",
             "category": "manage",

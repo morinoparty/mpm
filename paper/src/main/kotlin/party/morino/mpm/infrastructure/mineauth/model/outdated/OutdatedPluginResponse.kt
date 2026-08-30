@@ -7,22 +7,25 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.infrastructure.mineauth.model
+package party.morino.mpm.infrastructure.mineauth.model.outdated
 
 import kotlinx.serialization.Serializable
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 
 /**
- * 更新可能プラグインの情報レスポンス
+ * 更新チェックが成功したプラグイン1件分の情報レスポンス
+ *
+ * @property name プラグイン名
+ * @property currentVersion 現在のバージョン
+ * @property latestVersion 利用可能な最新バージョン
+ * @property needsUpdate 更新が必要かどうか（正規化済みバージョンで比較した結果）
  */
 @Serializable
 data class OutdatedPluginResponse(
-    // プラグイン名
     val name: String,
-    // 現在のバージョン
     val currentVersion: String,
-    // 利用可能な最新バージョン
-    val latestVersion: String
+    val latestVersion: String,
+    val needsUpdate: Boolean
 ) {
     companion object {
         /**
@@ -32,7 +35,8 @@ data class OutdatedPluginResponse(
             OutdatedPluginResponse(
                 name = info.pluginName,
                 currentVersion = info.currentVersion,
-                latestVersion = info.latestVersion
+                latestVersion = info.latestVersion,
+                needsUpdate = info.needsUpdate
             )
     }
 }

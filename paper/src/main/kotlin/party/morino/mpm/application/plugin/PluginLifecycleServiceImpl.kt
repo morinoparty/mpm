@@ -53,9 +53,11 @@ import party.morino.mpm.event.lifecycle.PluginAddEvent
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.lifecycle.PluginRemoveEvent
 import party.morino.mpm.event.lifecycle.PluginUninstallEvent
+import party.morino.mpm.infrastructure.downloader.PluginDownloadException
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
 import party.morino.mpm.utils.PluginDataUtils
+import party.morino.mpm.utils.replaceJarAtomically
 import java.io.File
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier as LegacyVersionSpecifier
 
@@ -402,8 +404,9 @@ class PluginLifecycleServiceImpl :
                     )
                 }
             } catch (e: Exception) {
+                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
                 return MpmError.PluginError
-                    .VersionResolutionFailed(
+                    .UpstreamUnavailable(
                         pluginName,
                         "Failed to get latest version: ${e.message}"
                     ).left()
@@ -446,6 +449,10 @@ class PluginLifecycleServiceImpl :
                     versionData,
                     mpmInfo.fileNamePattern
                 )
+            } catch (e: PluginDownloadException) {
+                // 型付きのダウンロード失敗はInstallFailed（HTTP 500）へ潰さず、原因を保ったまま返す。
+                // 上流の429/5xxはUpstreamUnavailableとなり、HTTPでは再試行可能な503になる
+                return e.toMpmError(pluginName).left()
             } catch (e: Exception) {
                 return MpmError.PluginError
                     .InstallFailed(
@@ -505,23 +512,15 @@ class PluginLifecycleServiceImpl :
         val template = mpmInfo.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
         val newFileName = generateFileName(template, pluginInfo.name, mpmInfo.version.current.normalized)
 
-        // staged copy: 一時ファイル経由で安全にファイルを置換する
+        // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
+        // （失敗時も既存JARが壊れず、中間ファイルも残らない）
         val pluginsDir = pluginDirectory.getPluginsDirectory()
         val targetFile = File(pluginsDir, newFileName)
-        val stagedFile = File(pluginsDir, "$newFileName.tmp")
-        try {
-            downloadedFile.copyTo(stagedFile, overwrite = true)
-            downloadedFile.delete()
-            if (!stagedFile.renameTo(targetFile)) {
-                stagedFile.copyTo(targetFile, overwrite = true)
-                stagedFile.delete()
-            }
-        } catch (e: Exception) {
-            stagedFile.delete()
+        replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
             return MpmError.PluginError
                 .InstallFailed(
                     pluginName,
-                    "Failed to move file: ${e.message}"
+                    "Failed to move file: $reason"
                 ).left()
         }
 
@@ -1002,7 +1001,8 @@ class PluginLifecycleServiceImpl :
                         .resolveLatest(downloaderRepository, urlData, repoConfig)
                         .right()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Fixed -> {
@@ -1010,7 +1010,8 @@ class PluginLifecycleServiceImpl :
                     // 指定されたバージョンのdownloadIdを正しく取得する
                     downloaderRepository.getVersionByName(urlData, version.version).right()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Tag -> {
@@ -1029,7 +1030,8 @@ class PluginLifecycleServiceImpl :
                                 "tag '${version.tag}' に該当するバージョンが見つかりません"
                             ).left()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Pattern -> {

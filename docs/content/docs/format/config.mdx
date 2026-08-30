@@ -32,6 +32,7 @@ your-server/
 │       ├── config.json    ← このファイル
 │       ├── repository/    ← ローカルリポジトリ
 │       ├── metadata/      ← 個別プラグインの詳細情報
+│       ├── cache/         ← HTTPメタデータキャッシュ
 │       └── temp/          ← ダウンロード用一時ディレクトリ
 └── ...
 ```
@@ -72,6 +73,11 @@ your-server/
             "cron": "0 4 * * *",
             "checkOnStartup": true,
             "dryRun": false
+        },
+        "cache": {
+            "enabled": true,
+            "metadataTtlSeconds": 300,
+            "maxMetadataEntries": 200
         }
     }
 }
@@ -182,13 +188,15 @@ mpm全体の動作設定を定義します。
 | `githubToken` | GitHub APIの認証トークン（レート制限回避用） | `null` |
 | `webhook` | Discord Webhook通知の設定（後述） | デフォルト値 |
 | `schedule` | スケジュール自動更新の設定（後述） | デフォルト値 |
+| `backup` | [バックアップ](/docs/commands/backup)の設定 | デフォルト値 |
+| `cache` | HTTPメタデータキャッシュの設定（後述） | デフォルト値 |
 
 <Callout type="info" title="優先順位">
 個別プラグインのメタデータ（`metadata/*.yaml`）で設定が指定されている場合、そちらがこのグローバル設定より優先されます。
 </Callout>
 
 <Callout type="warn" title="githubTokenの扱い">
-`githubToken` は個人アクセストークンなど機密情報なのだ。`config.json` を公開リポジトリにコミットしないよう、`.gitignore` に追加するか環境変数経由で管理することをおすすめします。
+`githubToken` は個人アクセストークンなどの機密情報です。`config.json` を公開リポジトリにコミットしないよう、`.gitignore` に追加するか環境変数経由で管理することをおすすめします。
 </Callout>
 
 #### ⏰ schedule（スケジュール自動更新）
@@ -238,6 +246,41 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
 <Callout type="info" title="タイムゾーン">
 cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づきます。
 必要に応じてサーバー起動時に `-Duser.timezone=Asia/Tokyo` で変更してください。
+</Callout>
+
+#### 🗄️ cache（HTTPメタデータキャッシュ）
+
+バージョン一覧やプロジェクト情報の取得結果を、`plugins/mpm/cache/metadata/` に一時保存します。
+`mpm outdated` や `mpm versions` のように同じ情報を繰り返し取得する操作で、
+ネットワーク往復とAPIレート制限の消費を抑えるための仕組みです。
+
+```json
+{
+    "settings": {
+        "cache": {
+            "enabled": true,
+            "metadataTtlSeconds": 300,
+            "maxMetadataEntries": 200
+        }
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | メタデータキャッシュの有効/無効 | `true` |
+| `metadataTtlSeconds` | キャッシュエントリの有効期間（秒）。`0` 以下を指定するとキャッシュを使用しません | `300` |
+| `maxMetadataEntries` | 保持するメタデータエントリ数の上限。`0` 以下を指定すると上限なしになります | `200` |
+
+<Callout type="info" title="自動的な整理">
+キャッシュへの書き込みが一定回数（20回）に達するたびに、TTLを超過したエントリが削除されます。
+さらにエントリ数が `maxMetadataEntries` を超えている場合は、最終更新が古いものから順に削除されます。
+検索のようにキーワードごとに別エントリとなるリクエストがあるため、この上限で際限なく増えることを防いでいます。
+</Callout>
+
+<Callout type="info" title="キャッシュされないもの">
+キャッシュ対象はメタデータのみです。プラグインのJARファイルはキャッシュされません。
+現在のキャッシュ状況の確認や手動削除は [`mpm cache`](/docs/commands/cache) コマンドで行えます。
 </Callout>
 
 #### 🔔 webhook（Discord Webhook通知）
@@ -426,3 +469,4 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 - [mpm.json](/docs/format/mpm-config) - プロジェクト設定ファイル（プラグイン依存関係）
 - [repository](/docs/format/repository) - リポジトリファイルの形式
 - [metadata/*.yaml](/docs/format/managed) - 個別プラグインの詳細情報
+- [キャッシュコマンド](/docs/commands/cache) - `settings.cache` で設定したキャッシュの確認・削除

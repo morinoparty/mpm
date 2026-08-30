@@ -7,17 +7,20 @@
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
  */
 
-package party.morino.mpm.infrastructure.mineauth.model
+package party.morino.mpm.infrastructure.mineauth.model.lifecycle
 
 import kotlinx.serialization.Serializable
 
 /**
- * プラグインアンインストール結果レスポンス
+ * プラグインのロック / アンロック結果レスポンス
+ *
+ * @property name 対象プラグイン名
+ * @property isLocked 操作後のロック状態
+ * @property message 処理結果メッセージ
  */
 @Serializable
-data class UninstallResponse(
-    // アンインストールされたプラグイン名
+data class LockStateResponse(
     val name: String,
-    // 処理結果メッセージ
+    val isLocked: Boolean,
     val message: String
 )

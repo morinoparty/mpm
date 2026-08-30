@@ -99,6 +99,13 @@ your-server/
 | `"sync:PluginName"` | 別プラグインと同期 | `"sync:QuickShop"` |
 | `"unmanaged"` | 手動管理 | `"unmanaged"` |
 
+<Callout type="info" title="固定バージョンは更新で巻き戻りません">
+`"X.Y.Z"` のように固定バージョンを指定したプラグインは、`mpm update` やスケジュール自動更新の比較対象が
+リポジトリ上の最新バージョンではなく、この固定バージョンになります。
+`mpm pin` や [`mpm rollback`](/docs/commands/plugin-management/lifecycle) はこの形式に書き換えるため、
+固定したバージョンが次の更新で勝手に巻き戻ることはありません。
+</Callout>
+
 #### 🏷️ tag指定（リリースチャンネル）
 
 `tag:チャンネル名` 形式を使用すると、特定のリリースチャンネル（安定版、ベータ版など）の最新バージョンを自動的に取得できます。
@@ -162,6 +169,7 @@ GitHubは `prerelease` の2値（true/false）しか持たないため、`tag:be
 - 同期の連鎖（sync:A → sync:B）はサポートされていません
 - 循環依存（A → B → A）は検出されエラーになります
 - `sync:` 指定のプラグインは [`mpm pin` / `mpm pin-all`](/docs/commands/plugin-management/lifecycle) で固定できません（固定すると同期関係が壊れるため、対象から除外されます）
+- 同じ理由から、`sync:` 指定のプラグインは [`mpm rollback`](/docs/commands/plugin-management/lifecycle) の対象にもできません（親プラグインを切り戻すと、子も連動して切り戻されます）
 
 <Callout type="info" title="ユースケース">
 QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで特に便利です。

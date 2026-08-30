@@ -11,6 +11,7 @@ package party.morino.mpm.infrastructure.downloader.github
 
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
+import io.ktor.client.plugins.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.runBlocking
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
@@ -124,8 +126,9 @@ class GithubDownloaderTest {
                         "https://github.com/EssentialsX/Essentials/releases/download/"
                     ) -> {
                         // ファイルダウンロードのモックレスポンス
+                        // releases_assets.json の size と一致させ、ダウンロードサイズ検証を通す
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(4734714)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )
@@ -185,8 +188,9 @@ class GithubDownloaderTest {
                         "https://github.com/EssentialsX/Essentials/releases/download/"
                     ) -> {
                         // ファイルダウンロードのモックレスポンス
+                        // releases_assets.json の EssentialsXChat の size と一致させる
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(21626)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )
@@ -274,5 +278,60 @@ class GithubDownloaderTest {
     fun downloadLatest() {
         // downloadLatest は getLatestVersion と downloadByVersion を組み合わせたものなので
         // 個別のテストで十分カバーされている
+    }
+
+    @Test
+    @DisplayName("getAllVersions follows pagination beyond one page")
+    fun getAllVersionsFollowsPagination() {
+        // 1ページ目は満杯(100件)、2ページ目に残り2件を返すモック
+        val firstPage =
+            (1..100).joinToString(",", prefix = "[", postfix = "]") { index ->
+                """{"id":"$index","tag_name":"v9.$index.0"}"""
+            }
+        val secondPage =
+            """[{"id":"101","tag_name":"v1.2.3"},{"id":"102","tag_name":"v1.2.2"}]"""
+
+        val mockEngine =
+            MockEngine { request ->
+                // pageクエリに応じて対応するページを返す
+                val body = if (request.url.parameters["page"] == "1") firstPage else secondPage
+                respond(
+                    content = ByteReadChannel(body),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+
+        val testDownloader =
+            object : GithubDownloader() {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking {
+            val versions = testDownloader.getAllVersions(UrlData.GithubUrlData("owner", "repository"))
+
+            // 2ページ分がすべて連結されること
+            assertEquals(102, versions.size)
+            // 2ページ目(31件目以降)のタグも解決対象に含まれること
+            assertTrue(versions.any { it.version == "v1.2.3" })
+        }
+    }
+
+    @Test
+    @DisplayName("token client keeps the retry plugin")
+    fun tokenClientKeepsRetryPlugin() {
+        // トークン設定時もリトライ設定を持つクライアントが使われること
+        val authenticated =
+            object : GithubDownloader("dummy-token") {
+                fun client(): HttpClient = httpClient
+            }
+
+        try {
+            assertNotNull(authenticated.client().pluginOrNull(HttpRequestRetry))
+        } finally {
+            authenticated.close()
+        }
     }
 }

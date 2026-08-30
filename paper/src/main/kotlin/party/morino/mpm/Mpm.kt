@@ -25,12 +25,15 @@ import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
+import party.morino.mpm.api.domain.cache.CacheManager
+import party.morino.mpm.api.domain.cache.HttpMetadataCache
 import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
@@ -51,19 +54,24 @@ import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
+import party.morino.mpm.infrastructure.cache.CacheManagerImpl
+import party.morino.mpm.infrastructure.cache.HttpMetadataCacheImpl
 import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
 import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
+import party.morino.mpm.infrastructure.mineauth.MpmApiPermission
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.control.BackupCommand
+import party.morino.mpm.ui.command.manage.control.CacheCommand
 import party.morino.mpm.ui.command.manage.control.InitCommand
 import party.morino.mpm.ui.command.manage.control.LockCommand
 import party.morino.mpm.ui.command.manage.control.PinCommand
@@ -79,6 +87,7 @@ import party.morino.mpm.ui.command.manage.lifecycle.AddCommand
 import party.morino.mpm.ui.command.manage.lifecycle.AdoptCommand
 import party.morino.mpm.ui.command.manage.lifecycle.InstallCommand
 import party.morino.mpm.ui.command.manage.lifecycle.RemoveCommand
+import party.morino.mpm.ui.command.manage.lifecycle.RollbackCommand
 import party.morino.mpm.ui.command.manage.lifecycle.UninstallCommand
 import party.morino.mpm.ui.command.manage.lifecycle.UpdateCommand
 import party.morino.mpm.ui.command.repo.RepositoryCommands
@@ -161,6 +170,10 @@ open class Mpm :
     /**
      * パーミッション階層の登録
      * mpm.commandが全子パーミッションを含むように設定する（後方互換性）
+     *
+     * HTTP API のパーミッションは `mpm.api.read` / `mpm.api.write` に分割されており、
+     * 従来の `mpm.api` は両方を子に持つ親として登録する。これにより既存の
+     * `mpm.api` 付与はそのまま全エンドポイントへのアクセスを維持する。
      */
     private fun registerPermissions() {
         val childPermissions =
@@ -170,13 +183,15 @@ open class Mpm :
                 "mpm.command.install",
                 "mpm.command.uninstall",
                 "mpm.command.update",
+                "mpm.command.rollback",
                 "mpm.command.list",
                 "mpm.command.backup",
+                "mpm.command.cache",
                 "mpm.command.lock",
                 "mpm.command.init",
                 "mpm.command.reload",
                 // MineAuth HTTP API 権限（mpm.command の子として OP に自動付与）
-                "mpm.api"
+                MpmApiPermission.ROOT
             )
         // 子パーミッションを登録（OP は親経由で全子権限を持つ）
         val children = childPermissions.associateWith { true }
@@ -188,6 +203,21 @@ open class Mpm :
                 children
             )
         server.pluginManager.addPermission(parentPermission)
+
+        // HTTP API の read/write を mpm.api の子として登録する。
+        // mpm.api 自体のデフォルトは付与しない（OP は mpm.command 経由で継承する）ため、
+        // 「mpm.api を持つ = read と write の両方を持つ」という従来の意味が保たれる。
+        val apiPermission =
+            org.bukkit.permissions.Permission(
+                MpmApiPermission.ROOT,
+                "All mpm HTTP API endpoints",
+                org.bukkit.permissions.PermissionDefault.FALSE,
+                mapOf(
+                    MpmApiPermission.READ to true,
+                    MpmApiPermission.WRITE to true
+                )
+            )
+        server.pluginManager.addPermission(apiPermission)
     }
 
     /**
@@ -218,6 +248,13 @@ open class Mpm :
 
                 // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
+
+                // plugins ディレクトリのライブスキャン（unmanaged 判定・init で共用）
+                single<InstalledJarScanner> { InstalledJarScannerImpl() }
+
+                // HTTPメタデータキャッシュとキャッシュ管理（mpm cache コマンドから利用）
+                single<HttpMetadataCache> { HttpMetadataCacheImpl() }
+                single<CacheManager> { CacheManagerImpl() }
 
                 // バックアップ管理の登録
                 single<ServerBackupManager> { ServerBackupManagerImpl() }
@@ -280,6 +317,7 @@ open class Mpm :
         lamp.register(AddCommand())
         lamp.register(AdoptCommand())
         lamp.register(BackupCommand())
+        lamp.register(CacheCommand())
         lamp.register(DependencyCommand())
         lamp.register(InitCommand())
         lamp.register(InstallCommand())
@@ -287,6 +325,7 @@ open class Mpm :
         lamp.register(LockCommand())
         lamp.register(OutdatedCommand())
         lamp.register(RemoveCommand())
+        lamp.register(RollbackCommand())
         lamp.register(UninstallCommand())
         lamp.register(PinCommand())
         lamp.register(UpdateCommand())

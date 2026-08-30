@@ -30,12 +30,16 @@ import party.morino.mpm.api.application.plugin.model.detail.PluginDetail
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
+import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
+import party.morino.mpm.api.domain.plugin.scan.model.InstalledJar
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
+import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
@@ -61,6 +65,9 @@ class PluginInfoServiceImpl :
     private val integrityVerifier: IntegrityVerifier by inject()
     private val plugin: JavaPlugin by inject()
 
+    // pluginsディレクトリの実態を走査するスキャナー（unmanagedのライブスキャンに使用）
+    private val installedJarScanner: InstalledJarScanner by inject()
+
     /**
      * プラグイン一覧を取得する
      *
@@ -71,49 +78,88 @@ class PluginInfoServiceImpl :
         // ProjectRepositoryを通じてプロジェクトを取得
         val project = projectRepository.find() ?: return emptyList()
 
+        // UNMANAGEDはmpm.jsonのスナップショットではなくpluginsディレクトリの実態を返す
+        if (filter == PluginFilter.UNMANAGED) {
+            return listUnmanaged(project)
+        }
+
         // 各プラグインのメタデータを読み込んでManagedPluginに変換
         val managedPlugins =
             project.plugins.mapNotNull { (pluginName, spec) ->
-                // unmanagedの場合はスキップ（フィルタ次第で含める）
-                val isUnmanaged = spec is PluginSpec.Unmanaged
+                // unmanagedはメタデータを持たないため、UNMANAGED以外のフィルタでは対象外
+                if (spec is PluginSpec.Unmanaged) return@mapNotNull null
 
-                // フィルタに応じた処理
-                when (filter) {
-                    PluginFilter.UNMANAGED -> {
-                        // unmanagedのみを対象
-                        if (!isUnmanaged) return@mapNotNull null
-                        // unmanagedプラグインはメタデータがないので、最小限のManagedPluginを作成
-                        return@mapNotNull ManagedPlugin.createUnmanaged(pluginName.value)
-                    }
-                    PluginFilter.MANAGED -> {
-                        // managedのみを対象
-                        if (isUnmanaged) return@mapNotNull null
-                    }
-                    PluginFilter.ALL -> {
-                        // unmanagedはスキップ（メタデータがないため）
-                        if (isUnmanaged) return@mapNotNull null
-                    }
-                    PluginFilter.OUTDATED, PluginFilter.LOCKED -> {
-                        // 後でフィルタするのでスキップしない
-                        if (isUnmanaged) return@mapNotNull null
-                    }
-                }
-
-                // メタデータを読み込む
-                val metadataResult = pluginMetadataManager.loadMetadata(pluginName.value)
-                val dto = metadataResult.getOrElse { return@mapNotNull null }
+                // メタデータを読み込む。読み込みに失敗しても黙って捨てず、
+                // 「登録済みだがメタデータ不明」として残す（未登録と区別できるようにするため）
+                val dto =
+                    pluginMetadataManager.loadMetadata(pluginName.value).getOrNull()
+                        ?: return@mapNotNull ManagedPlugin.createMetadataUnavailable(pluginName.value)
 
                 // DTOからドメインエンティティに変換
                 ManagedPlugin.fromDto(dto)
             }
 
         // フィルタに応じた絞り込み
+        // メタデータ不明のエントリはisOutdated()もisLockedもfalseになるため、
+        // OUTDATED/LOCKEDからは条件式によって自然に除外される
         return when (filter) {
             PluginFilter.OUTDATED -> managedPlugins.filter { it.isOutdated() }
             PluginFilter.LOCKED -> managedPlugins.filter { it.isLocked }
             else -> managedPlugins
         }
     }
+
+    /**
+     * pluginsディレクトリを走査して管理外プラグインの一覧を返す
+     *
+     * mpm.jsonのスナップショットではなく、現在ディレクトリに置かれているJARを反映する。
+     * init後に追加されたJARも検出できる。
+     *
+     * 判定は「mpm.jsonのキーとの名前一致」だけでなく「メタデータに記録されたJARファイル名との一致」でも行う。
+     * mpm.jsonの管理名（リポジトリのslug等）とJAR内のplugin.ymlの名前は必ずしも一致しないため、
+     * 名前だけで突き合わせると管理済みのJARを管理外と誤判定してしまう。
+     *
+     * @param project 現在のmpm.json
+     * @return 管理外プラグインの一覧
+     */
+    private fun listUnmanaged(project: MpmProject): List<ManagedPlugin> {
+        // mpm.jsonのキーは大文字小文字を無視して突き合わせる（removeUnmanagedの既存挙動に合わせる）
+        val specsByLowerName =
+            project.plugins.entries.associate { (pluginName, spec) ->
+                pluginName.value.lowercase() to spec
+            }
+
+        return selectUnmanaged(
+            installedJars = installedJarScanner.scan(),
+            specsByLowerName = specsByLowerName,
+            managedJarFileNames = collectManagedJarFileNames(project)
+        ).map { installedJar -> ManagedPlugin.createUnmanaged(installedJar.name) }
+    }
+
+    /**
+     * 管理下プラグインのメタデータに記録された、配置済みJARのファイル名を集める
+     *
+     * メタデータを読めないプラグイン（METADATA_UNAVAILABLE相当）やfileName未記録のものは
+     * 突き合わせに使えないため単に除外する。
+     *
+     * @param project 現在のmpm.json
+     * @return 小文字化したJARファイル名の集合
+     */
+    private fun collectManagedJarFileNames(project: MpmProject): Set<String> =
+        project.plugins
+            // unmanagedはメタデータを持たないため対象外
+            .filterValues { it !is PluginSpec.Unmanaged }
+            .keys
+            .mapNotNull { pluginName ->
+                pluginMetadataManager
+                    .loadMetadata(pluginName.value)
+                    .getOrNull()
+                    ?.mpmInfo
+                    ?.download
+                    ?.fileName
+                    ?.takeIf { it.isNotBlank() }
+                    ?.lowercase()
+            }.toSet()
 
     /**
      * プラグインの利用可能なバージョン一覧を取得する
@@ -146,8 +192,9 @@ class PluginInfoServiceImpl :
             try {
                 downloaderRepository.getAllVersions(urlData)
             } catch (e: Exception) {
+                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
                 return MpmError.PluginError
-                    .VersionResolutionFailed(
+                    .UpstreamUnavailable(
                         name.value,
                         "バージョン情報の取得に失敗しました: ${e.message}"
                     ).left()
@@ -161,6 +208,22 @@ class PluginInfoServiceImpl :
             .map { versionData ->
                 VersionDetail.fromRaw(versionData.version, versionPattern)
             }.right()
+    }
+
+    /**
+     * プラグインのインストール履歴を取得する
+     *
+     * メタデータに記録された履歴をそのまま（古い順で）返す。
+     * ネットワークアクセスは行わず、ローカルのメタデータのみを参照する。
+     */
+    override suspend fun getHistory(name: PluginName): Either<MpmError, List<HistoryEntryDto>> {
+        // メタデータが読めない場合は履歴を辿れないためエラーとする
+        val metadata =
+            pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                return MpmError.PluginError.MetadataNotFound(name.value).left()
+            }
+
+        return metadata.mpmInfo.history.right()
     }
 
     /**
@@ -198,42 +261,54 @@ class PluginInfoServiceImpl :
             createUrlData(firstRepository.type, firstRepository.repositoryId)
                 ?: return MpmError.PluginError.UnsupportedRepository(firstRepository.type).left()
 
-        // tag:指定の場合は該当チャンネルの最新、それ以外は絶対的な最新を取得
-        // チャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
+        // 比較対象となる「あるべきバージョン」を決める
+        // - Fixed: mpm.jsonが指定するバージョンそのもの（pin / rollback の固定をリポジトリ最新で巻き戻さない）
+        // - Tag: 該当チャンネルの最新
+        // - それ以外: 絶対的な最新
+        // Tag/latestではチャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
         val pluginSpec = project.getPluginSpec(name)
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
-        val latestVersion =
-            try {
-                if (versionSpecifier is VersionSpecifier.Tag) {
-                    ChannelVersionResolver.resolveTag(
-                        downloaderRepository,
-                        urlData,
-                        firstRepository,
-                        versionSpecifier.tag
-                    ) ?: return MpmError.PluginError
-                        .VersionResolutionFailed(
+        val latestVersionName =
+            if (versionSpecifier is VersionSpecifier.Fixed) {
+                // 固定指定はリポジトリを参照しない。installAll側のresolveExpectedVersionと同じ方針
+                versionSpecifier.version
+            } else {
+                try {
+                    if (versionSpecifier is VersionSpecifier.Tag) {
+                        ChannelVersionResolver
+                            .resolveTag(
+                                downloaderRepository,
+                                urlData,
+                                firstRepository,
+                                versionSpecifier.tag
+                            )?.version
+                            ?: return MpmError.PluginError
+                                .VersionResolutionFailed(
+                                    name.value,
+                                    "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                                ).left()
+                    } else {
+                        ChannelVersionResolver
+                            .resolveLatest(
+                                downloaderRepository,
+                                urlData,
+                                firstRepository
+                            ).version
+                    }
+                } catch (e: Exception) {
+                    // 上流の一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    return MpmError.PluginError
+                        .UpstreamUnavailable(
                             name.value,
-                            "tag '${versionSpecifier.tag}' に該当するバージョンが見つかりません"
+                            "最新バージョンの取得に失敗しました: ${e.message}"
                         ).left()
-                } else {
-                    ChannelVersionResolver.resolveLatest(
-                        downloaderRepository,
-                        urlData,
-                        firstRepository
-                    )
                 }
-            } catch (e: Exception) {
-                return MpmError.PluginError
-                    .VersionResolutionFailed(
-                        name.value,
-                        "最新バージョンの取得に失敗しました: ${e.message}"
-                    ).left()
             }
 
         // 現在のバージョンと最新バージョンを正規化して比較
         val versionPattern = metadata.mpmInfo.versionPattern
         val currentNormalized = VersionDetail.fromRaw(metadata.mpmInfo.version.current.raw, versionPattern).normalized
-        val latestNormalized = VersionDetail.fromRaw(latestVersion.version, versionPattern).normalized
+        val latestNormalized = VersionDetail.fromRaw(latestVersionName, versionPattern).normalized
         val currentVersion = metadata.mpmInfo.version.current.raw
         val needsUpdate = currentNormalized != latestNormalized
 
@@ -245,7 +320,7 @@ class PluginInfoServiceImpl :
                 PluginOutdatedEvent(
                     installedPlugin = InstalledPlugin(name.value),
                     currentVersion = currentVersion,
-                    latestVersion = latestVersion.version
+                    latestVersion = latestVersionName
                 )
             )
         }
@@ -253,7 +328,7 @@ class PluginInfoServiceImpl :
         return OutdatedInfo(
             pluginName = name.value,
             currentVersion = currentVersion,
-            latestVersion = latestVersion.version,
+            latestVersion = latestVersionName,
             needsUpdate = needsUpdate
         ).right()
     }
@@ -455,6 +530,49 @@ class PluginInfoServiceImpl :
                 }
             }
             else -> null
+        }
+    }
+
+    internal companion object {
+        /**
+         * 走査結果から管理外のJARだけを選び出す（副作用のない純粋なロジック）
+         *
+         * 次のいずれかに一致するJARは管理済みとみなして除外する。
+         * - mpm.jsonのキーとプラグイン名が一致する（大文字小文字は無視、unmanaged登録は除く）
+         * - 管理下プラグインのメタデータに記録されたJARファイル名と実ファイル名が一致する
+         *
+         * ファイル名照合は、mpm.jsonの管理名とplugin.ymlの名前が食い違う場合の誤検出を防ぐためのもの。
+         *
+         * @param installedJars 走査で見つかったJARの一覧
+         * @param specsByLowerName 小文字化したmpm.jsonのキー -> プラグイン指定
+         * @param managedJarFileNames 管理下プラグインのメタデータに記録された小文字のJARファイル名
+         * @return 管理外と判定されたJARの一覧（同名のJARは1件に集約される）
+         */
+        internal fun selectUnmanaged(
+            installedJars: List<InstalledJar>,
+            specsByLowerName: Map<String, PluginSpec>,
+            managedJarFileNames: Set<String>
+        ): List<InstalledJar> {
+            // ファイル名で管理済みと判明したJARのプラグイン名を集める。
+            // 集約(distinctBy)より前に全件から集めることで、旧バージョンのJARが残っていて
+            // そちらが代表に選ばれた場合でも管理済みと判定できる。
+            val managedJarNames =
+                installedJars
+                    .filter { it.file.name.lowercase() in managedJarFileNames }
+                    .map { it.name.lowercase() }
+                    .toSet()
+
+            return installedJars
+                // 旧バージョンのJARが残っているなど同名JARが複数ある場合は1件に集約する
+                .distinctBy { it.name.lowercase() }
+                .filter { installedJar ->
+                    val lowerName = installedJar.name.lowercase()
+                    // メタデータのファイル名と一致したものは管理済み
+                    if (lowerName in managedJarNames) return@filter false
+                    // mpm.jsonに未登録、またはunmanagedとして登録されているものが管理外
+                    val spec = specsByLowerName[lowerName]
+                    spec == null || spec is PluginSpec.Unmanaged
+                }
         }
     }
 }

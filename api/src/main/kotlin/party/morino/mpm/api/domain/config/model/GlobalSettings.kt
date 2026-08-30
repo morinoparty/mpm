@@ -37,4 +37,6 @@ data class GlobalSettings(
     val schedule: ScheduleConfig = ScheduleConfig(),
     // バックアップ設定
     val backup: BackupSettings = BackupSettings(),
+    // HTTPメタデータキャッシュ設定
+    val cache: CacheSettings = CacheSettings(),
 )

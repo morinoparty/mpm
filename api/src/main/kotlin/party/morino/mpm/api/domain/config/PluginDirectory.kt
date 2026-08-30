@@ -44,4 +44,10 @@ interface PluginDirectory {
      * @return バックアップディレクトリ
      */
     fun getBackupsDirectory(): File
+
+    /**
+     * HTTPメタデータ等のキャッシュを保存するディレクトリを取得する
+     * @return キャッシュディレクトリ
+     */
+    fun getCacheDirectory(): File
 }

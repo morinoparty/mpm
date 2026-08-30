@@ -217,22 +217,23 @@ open class HangarDownloader : AbstractPluginDownloader() {
         val response = getRequest(url, "application/json")
         val versionInfo = json.decodeFromString<HangarVersion>(response)
 
-        // ダウンロード可能なプラットフォームを選択（url, fileName）
-        val (downloadUrl, fileName) = selectDownload(versionInfo, fileNamePattern)
-        return downloadFile(downloadUrl, fileName)
+        // ダウンロード可能なプラットフォームを選択（url, fileName, 期待サイズ）
+        val (downloadUrl, fileName, expectedSizeBytes) = selectDownload(versionInfo, fileNamePattern)
+        // Hangarはファイルサイズを提供するため、ダウンロード後にバイト数を検証する
+        return downloadFileOrThrow(downloadUrl, fileName, expectedSizeBytes)
     }
 
     /**
-     * ダウンロード対象のプラットフォームを選択し、URLとファイル名を返す
+     * ダウンロード対象のプラットフォームを選択し、URL・ファイル名・期待サイズを返す
      *
      * @param version バージョン情報
      * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション）
-     * @return ダウンロードURLとファイル名のペア
+     * @return ダウンロードURL、ファイル名、期待するファイルサイズ（不明な場合はnull）
      */
     private fun selectDownload(
         version: HangarVersion,
         fileNamePattern: String?
-    ): Pair<String, String> {
+    ): Triple<String, String, Long?> {
         // ダウンロード対象のプラットフォームを選択（見つからなければ例外）
         val chosenPlatform =
             selectPlatform(version, fileNamePattern)
@@ -248,7 +249,9 @@ open class HangarDownloader : AbstractPluginDownloader() {
                 ?: throw Exception("ダウンロードURLが見つかりません")
         // ファイル名はfileInfoから、無ければバージョン名から生成
         val fileName = download.fileInfo?.name ?: "${version.name}.jar"
-        return downloadUrl to fileName
+        // 外部ホストの場合などfileInfoが無い、または0の場合はサイズ不明として扱う
+        val expectedSizeBytes = download.fileInfo?.sizeBytes?.takeIf { it > 0 }
+        return Triple(downloadUrl, fileName, expectedSizeBytes)
     }
 
     /**

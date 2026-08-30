@@ -27,6 +27,12 @@ mpm doctor
 - **更新があります** — 新しいバージョンが利用可能です（→ `mpm update`）
 - **管理外のプラグイン** — mpm 管理下にない JAR があります（→ `mpm adopt`）
 
+<Callout type="info" title="管理外プラグインはライブスキャンで判定されます">
+「管理外のプラグイン」は、`mpm init` を実行した時点のスナップショットではなく、その場で `plugins/` ディレクトリを走査した結果です。
+init の後に手動で置かれた JAR も検出され、削除された JAR は表示されません。
+`plugins/mpm/local/` に置いた JAR は走査の対象外です。`mpm list --unmanaged` と同じ判定を使っています。
+</Callout>
+
 <Callout type="info" title="読み取り専用">
 `mpm doctor` は診断のみを行い、プラグインのインストールや変更は一切行いません。表示されるヒントに従って、必要なコマンドを実行してください。
 </Callout>
@@ -36,3 +42,4 @@ mpm doctor
 - [🔒 整合性の検証](/docs/usage/integrity) - `mpm verify` の詳細
 - [依存関係コマンド](/docs/commands/dependency) - `mpm deps check` の詳細
 - [📌 ロックファイル](/docs/format/mpm-lock) - `mpm-lock.yaml` の仕様
+- [ライフサイクル管理コマンド](/docs/commands/plugin-management/lifecycle) - `mpm list` のフィルタと表示される状態

@@ -109,6 +109,17 @@ sealed class MpmError {
             override val message: String = "Failed to resolve version for $pluginName: $reason"
         }
 
+        // 上流リポジトリ（Modrinth/Hangar/GitHub等）が一時的に応答しない
+        // タイムアウトやレート制限など、時間を置いて再試行すれば成功しうる障害を表す
+        // （クライアントの指定値が誤っている VersionResolutionFailed とは区別する）
+        data class UpstreamUnavailable(
+            val pluginName: String,
+            val reason: String
+        ) : PluginError() {
+            override val message: String =
+                "Upstream repository is temporarily unavailable for $pluginName: $reason"
+        }
+
         // インストールエラー
         data class InstallFailed(
             val pluginName: String,
@@ -186,6 +197,14 @@ sealed class MpmError {
             override val message: String =
                 "Plugin '$pluginName' requires api-version $pluginApiVersion, " +
                     "but the server supports $serverApiVersion"
+        }
+
+        // バージョン切り替えが許可されない状態（sync:指定など、Fixedへの書き換えが破壊的になる場合）
+        data class VersionSwitchNotAllowed(
+            val pluginName: String,
+            val reason: String
+        ) : PluginError() {
+            override val message: String = "Cannot switch version of $pluginName: $reason"
         }
     }
 
@@ -266,6 +285,34 @@ sealed class MpmError {
         ) : DownloadError() {
             override val message: String = "Repository not found: $repoType:$pluginId"
         }
+
+        // HTTPステータスがエラーを示している（リトライを尽くしても成功しなかった場合）
+        data class HttpStatus(
+            val url: String,
+            val statusCode: Int
+        ) : DownloadError() {
+            override val message: String = "Download failed from $url: HTTP $statusCode"
+        }
+
+        // 期待しないContent-Type（HTMLのエラーページ等）が返された
+        data class InvalidContentType(
+            val url: String,
+            val contentType: String
+        ) : DownloadError() {
+            override val message: String =
+                "Download from $url returned an unexpected content type: $contentType. " +
+                    "The server may have responded with an error page instead of the plugin jar."
+        }
+
+        // ダウンロードしたバイト数が期待サイズと一致しない（途中で切れたレスポンス）
+        data class SizeMismatch(
+            val url: String,
+            val expectedBytes: Long,
+            val actualBytes: Long
+        ) : DownloadError() {
+            override val message: String =
+                "Download from $url is incomplete: expected $expectedBytes bytes, got $actualBytes bytes."
+        }
     }
 
     // バックアップ関連のエラー
@@ -289,6 +336,16 @@ sealed class MpmError {
             val backupId: String
         ) : BackupError() {
             override val message: String = "Backup not found: $backupId"
+        }
+    }
+
+    // キャッシュ関連のエラー
+    sealed class CacheError : MpmError() {
+        // キャッシュ操作の失敗（読み書き・削除など）
+        data class Failed(
+            val reason: String
+        ) : CacheError() {
+            override val message: String = "Cache operation failed: $reason"
         }
     }
 
