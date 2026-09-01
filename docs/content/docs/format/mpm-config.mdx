@@ -23,12 +23,12 @@ mpmの設定は、**プロジェクト設定** と **プラグイン設定** の
 
 ```
 your-server/
-├── mpm.json          ← このファイル（プロジェクト設定）
-├── mpm-lock.yaml     ← 自動生成されるロックファイル
 ├── plugins/
 │   └── mpm/
-│       ├── config.json  ← サーバー固有のmpm設定
-│       └── metadata/    ← 個別プラグインの詳細情報
+│       ├── mpm.json      ← このファイル（プロジェクト設定）
+│       ├── mpm-lock.yaml ← 自動生成されるロックファイル
+│       ├── config.json   ← サーバー固有のmpm設定
+│       └── metadata/     ← 個別プラグインの詳細情報
 └── ...
 ```
 
@@ -36,6 +36,7 @@ your-server/
 
 ```jsonc title="mpm.json"
 {
+    "schemaVersion": 2,                  // ファイルのスキーマ版数
     "name": "main-server",               // プロジェクト名
     "version": "1.0.0",                  // プロジェクトのバージョン
     "plugins": {
@@ -46,6 +47,31 @@ your-server/
 ```
 
 ## フィールド詳細
+
+### 📐 schemaVersion（スキーマ版数）
+
+`mpm.json` というファイル自体の構造の版数です。現在の版数は `2` です。
+
+```json
+{
+    "schemaVersion": 2
+}
+```
+
+- **デフォルト値:** `1`（記載がない場合は旧形式として扱われます）
+- mpmが `mpm.json` を書き込むたびに現行の版数が記録されるため、手で編集する必要はありません
+- 版数が古いファイルは、サーバー起動時に自動で現行の構造へ移行されます
+
+<Callout type="warn" title="version との違い">
+`version` は「あなたのプロジェクトのバージョン」で、自由に付けられる値です。
+一方 `schemaVersion` は「mpmが定めるファイル形式の版数」で、mpmが管理します。
+名前は似ていますが役割はまったく異なるため、混同しないようご注意ください。
+</Callout>
+
+<Callout type="info" title="自動移行について">
+版数の扱いと起動時の自動移行の詳細は
+[スキーマ版数と自動移行](/docs/format/schema-migration) をご覧ください。
+</Callout>
 
 ### name（プロジェクト名）
 
@@ -184,6 +210,7 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 
 ```json
 {
+    "schemaVersion": 2,
     "name": "my-server",
     "version": "1.0.0",
     "plugins": {
@@ -197,6 +224,7 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 
 ```json
 {
+    "schemaVersion": 2,
     "name": "production-server",
     "version": "2.0.0",
     "plugins": {
@@ -215,3 +243,4 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 - [config.json](/docs/format/config) - mpm本体の設定ファイル（リポジトリ・Webhook・スケジュールなど）
 - [mpm-lock.yaml](/docs/format/mpm-lock) - ロックファイル（自動生成）
 - [metadata/*.yaml](/docs/format/managed) - 個別プラグインの詳細情報
+- [スキーマ版数と自動移行](/docs/format/schema-migration) - schemaVersionと起動時の自動移行

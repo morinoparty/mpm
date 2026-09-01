@@ -46,6 +46,22 @@ interface ProjectRepository {
     suspend fun save(project: MpmProject)
 
     /**
+     * mpm.json を保存してよいかを事前に判定する（副作用なし）
+     *
+     * ディスク上の mpm.json が現行スキーマ版数より新しい場合、[save] は必ず失敗する。
+     * ところが `uninstall` のように「JARを削除してから mpm.json を保存する」経路では、
+     * 保存地点で初めて拒否されるとJARだけが消えて mpm.json にはプラグインが残る、という
+     * 中途半端な状態になってしまう。
+     *
+     * そのため呼び出し側は「まだ何も壊していない段階」でこれを呼び、
+     * 破壊的操作に入る前に中止できるようにする。
+     * [save] 側のガードは最終防御として残してあり、この事前判定は早期中断のためのものである。
+     *
+     * @return 保存してよい場合はUnit、未来版数のため中止すべき場合はその理由
+     */
+    suspend fun ensureSavable(): Either<String, Unit>
+
+    /**
      * プロジェクトが存在するかどうかを確認
      *
      * @return 存在する場合はtrue

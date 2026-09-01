@@ -53,9 +53,69 @@ your-server/
 これは意図しないディレクトリへのファイル書き込み（パストラバーサル）を防ぐための仕様です。
 </Callout>
 
+### 🗃️ 壊れたメタデータの退避
+
+メタデータファイルが壊れていて読み込めない場合の扱いは、操作の種類によって異なります。
+
+| 操作 | 動作 |
+|------|------|
+| `mpm install` / `mpm add` / `mpm adopt` | 原本を `.corrupt` に退避してから、新しいメタデータを作り直します |
+| `mpm update`（一括・単体とも） | 何も変更せず、そのプラグインの更新を中断します |
+| cron自動更新・`sync:` の連動更新 | 何も変更せず処理を中断します（無人実行のため作り直しません） |
+
+`mpm update` は、メタデータを新しく作り直すのではなく既存の内容を書き換える操作のため、
+退避も作り直しも行いません。壊れたメタデータを作り直したい場合は `mpm install` を実行してください。
+
+<Callout type="info" title="未来のスキーマ版数のファイルは退避しません">
+`schemaVersion` が現行版数より新しいメタデータは、壊れているのではなく
+このmpmでは解釈できないだけです。これを退避して作り直すと、
+[スキーマ版数と自動移行](/docs/format/schema-migration) のダウングレード防止が
+退避経由で迂回されてしまいます。
+そのため、この場合は退避も作り直しも行わず、操作そのものを中止します。
+</Callout>
+
+退避先のファイル名は `LuckPerms.yaml.corrupt` です。
+既に同名の退避ファイルがある場合は `LuckPerms.yaml.corrupt.1`、`LuckPerms.yaml.corrupt.2` と
+連番が振られるため、過去に退避したファイルが上書きされることはありません。
+
+退避が実際に行われるのは、ダウンロードや検証を含むインストール処理がすべて成功し、
+新しいメタデータを保存する直前になった時点です。
+その手前で処理が失敗した場合、原本は退避されずにその場へ残ります。
+これは「原本は退避済みなのに作り直したメタデータは保存されていない」という
+メタデータが存在しない状態を作らないための仕様です。
+
+退避の後で保存そのものが失敗した場合（書き込み権限がない、容量が足りない、
+原子的なファイル置換に対応していない、など）は、退避した原本を元の場所へ戻します。
+そのため、操作が失敗しても `metadata/<プラグイン名>.yaml` が消えてしまうことはありません。
+万一その巻き戻しにも失敗した場合は、退避先の絶対パスを添えたエラーがコンソールへ出力されます。
+表示されたファイル名から `.corrupt` 以降（`.corrupt.1` のように連番が付いている場合はそれも含めて）を
+取り除き、`<プラグイン名>.yaml` という名前に戻してください。
+`.corrupt` だけを取り除いて `LuckPerms.yaml.1` のような名前にすると、
+mpmは `<プラグイン名>.yaml` しか読み込まないため、そのファイルは認識されません。
+
+退避が行われるとコンソールに警告が出力され、退避先のパスが表示されます。
+
+```log
+[mpm] WARNING メタデータを読み込めないため退避して作り直します: LuckPerms (メタデータの読み込みに失敗しました: ...) -> /path/to/plugins/mpm/metadata/LuckPerms.yaml.corrupt
+```
+
+<Callout type="warn" title="lock などの設定は引き継がれません">
+作り直されたメタデータの `settings` は初期値に戻ります。
+`lock: true` を設定していた場合は、退避されたファイルの内容を確認したうえで
+`/mpm lock` で設定し直してください。
+
+なお、これは「メタデータが読み込めない」場合に限った話です。
+メタデータが読める状態で `lock: true` が設定されている場合は、
+`mpm add` / `mpm adopt` は設定を捨てて作り直すのではなく、その場で中止します
+（`/mpm unlock <プラグイン名>` で解除してから実行してください）。
+</Callout>
+
 ## 基本構造
 
 ```yaml title="plugins/mpm/metadata/LuckPerms.yaml"
+# ファイルのスキーマ版数
+schemaVersion: 2
+
 # プラグイン基本情報（plugin.ymlまたはpaper-plugin.ymlから抽出）
 pluginInfo:
   name: "LuckPerms"
@@ -68,6 +128,10 @@ pluginInfo:
 
 # MPMによる管理情報
 mpmInfo:
+  repository:
+    type: github
+    id: LuckPerms/LuckPerms
+
   version:
     current:
       raw: "v5.4.102"
@@ -80,7 +144,7 @@ mpmInfo:
   download:
     url: "https://github.com/LuckPerms/LuckPerms/releases/download/v5.4.102/LuckPerms-Bukkit-5.4.102.jar"
     downloadId: "v5.4.102"
-    currenFileName: "LuckPerms-Bukkit-5.4.102.jar"
+    fileName: "LuckPerms-Bukkit-5.4.102.jar"
     sha256: "abc123def456..."
 
   settings:
@@ -95,6 +159,25 @@ mpmInfo:
 ```
 
 ## フィールド詳細
+
+### 📐 schemaVersion
+
+メタデータファイル自体の構造の版数です。現在の版数は `2` です。
+
+```yaml
+schemaVersion: 2
+```
+
+- **デフォルト値:** `1`（記載がない場合は旧形式として扱われます）
+- mpmがメタデータを保存するたびに現行の版数が記録されるため、手で編集する必要はありません
+- 版数が古いファイルは、サーバー起動時に自動で現行の構造へ移行されます
+
+<Callout type="info" title="自動移行について">
+`metadata/` 配下のYAMLは1ファイルずつ移行されます。
+あるプラグインのメタデータの移行に失敗しても、他のファイルの処理やサーバーの起動は止まりません。
+
+移行の仕組みの詳細は [スキーマ版数と自動移行](/docs/format/schema-migration) をご覧ください。
+</Callout>
 
 ### pluginInfo
 
@@ -210,13 +293,15 @@ mpmInfo:
     autoCheck: false     # 自動バージョンチェック
 ```
 
-各フィールドは省略可能（`null`）で、省略された場合は`mpm.json`の`settings`（グローバル設定）の値が使用されます。
+各フィールドは省略可能（`null`）です。省略された場合は `false` として扱われ、
+`config.json` のグローバル設定へのフォールバックは行われません。
 
-<Callout type="info" title="優先順位">
-- メタデータで設定が指定されている場合：その値を使用
-- メタデータで`null`の場合：`mpm.json`のグローバル設定を使用
+<Callout type="warn" title="グローバル設定へのフォールバックはありません">
+ロックの有無は、このファイルの `settings.lock` だけで決まります。
+`config.json` の `settings.lock` を `true` にしても、個別プラグインがロックされることはありません。
 
-この仕組みにより、プロジェクト全体のデフォルト設定を保ちつつ、個別プラグインごとに設定を上書きできます。
+`autoUpdate` / `autoCheck` は現在の実装からは参照されていない予約フィールドです。
+自動更新を行うかどうかは `config.json` の `schedule`（スケジュール自動更新）の設定で決まります。
 </Callout>
 
 #### history
@@ -248,6 +333,9 @@ mpmInfo:
 ### GitHubからインストールしたプラグイン
 
 ```yaml title="plugins/mpm/metadata/LuckPerms.yaml"
+# ファイルのスキーマ版数
+schemaVersion: 2
+
 # プラグイン基本情報
 pluginInfo:
   name: "LuckPerms"
@@ -298,6 +386,9 @@ mpmInfo:
 ### Spigotからインストールしたプラグイン
 
 ```yaml title="plugins/mpm/metadata/Vault.yaml"
+# ファイルのスキーマ版数
+schemaVersion: 2
+
 # プラグイン基本情報
 pluginInfo:
   name: "Vault"
@@ -423,3 +514,4 @@ mpmInfo:
 
 - [mpm.json](/docs/format/mpm-config) - プロジェクト設定ファイル
 - [mpm-lock.yaml](/docs/format/mpm-lock) - ロックファイル
+- [スキーマ版数と自動移行](/docs/format/schema-migration) - schemaVersionと起動時の自動移行

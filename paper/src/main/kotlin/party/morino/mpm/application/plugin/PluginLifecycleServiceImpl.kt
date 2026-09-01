@@ -49,6 +49,7 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.application.plugin.metadata.restoreQuarantinedMetadataOrWarn
 import party.morino.mpm.event.lifecycle.PluginAddEvent
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.lifecycle.PluginRemoveEvent
@@ -135,6 +136,30 @@ class PluginLifecycleServiceImpl :
             return MpmError.PluginError.AlreadyExists(pluginName).left()
         }
 
+        // 既存メタデータを1度だけ読み、ロック状態の判定と「退避が必要か」の判定に使い回す
+        val existingMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
+
+        // lock は唯一の拒否権なので、読めるメタデータがロック中なら追加せずに中止する。
+        // mpm.json 上の spec が unmanaged（`mpm init --overwrite` 後など）でも、
+        // あるいは spec が消えていても metadata の lock は生きており、
+        // `/mpm update` は同じ状態でも Locked で拒否する。ここを素通りさせると、
+        // add / adopt だけが lock=true を無音で捨てて最新版へ差し替え、旧JARまで削除してしまう。
+        // 追加したい場合は先に unlock してもらう（update の --force のような迂回は用意しない）。
+        if (existingMetadata?.mpmInfo?.settings?.lock == true) {
+            return MpmError.PluginError.Locked(pluginName).left()
+        }
+
+        // 書き込み先（metadata と mpm.json）が保存可能かを、何かを書き換える前にまとめて検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれたファイルは読み込みには成功してしまうため、
+        // ここで見ておかないと「metadataは保存したが mpm.json の保存で失敗しロールバック」という
+        // 無駄な往復が起きる。破壊的操作の前に中止するのが安全側。
+        metadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+            return MpmError.PluginError.AddFailed(pluginName, it).left()
+        }
+        projectRepository.ensureSavable().onLeft { reason ->
+            return MpmError.PluginError.AddFailed(pluginName, reason).left()
+        }
+
         // VersionSpecifierに応じてバージョンデータを決定
         // firstRepositoryを渡すことで、リポファイル側のchannel.versionMatcherを尊重する
         val versionData: VersionData =
@@ -153,6 +178,21 @@ class PluginLifecycleServiceImpl :
                 is LegacyVersionSpecifier.Tag -> legacyVersion.tag
                 else -> "latest"
             }
+
+        // 読み込めないメタデータが残っている場合は、作り直して lock などの設定を無音で失う前に退避する
+        // （ファイルが無い通常の追加では何も起きない）。
+        // ただしこの時点では退避せず、退避が必要かどうかの記録だけに留める。
+        // ここで原本を消すと、この後のキャンセル可能なイベントや mpm.json の更新で中断した際に
+        // 「原本は退避済み・作り直しは未保存」というメタデータ不在の状態が残ってしまうため、
+        // 実際の退避は saveMetadata の直前まで遅延させる。
+        val needsQuarantine = existingMetadata == null
+        if (needsQuarantine) {
+            // 未来のスキーマ版数で書かれたファイルは「破損」ではなく「このmpmでは解釈できないだけ」なので、
+            // 退避も作り直しもせずここで中止する（退避経由でのダウングレードを防ぐ）
+            metadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+                return MpmError.PluginError.AddFailed(pluginName, it).left()
+            }
+        }
 
         // メタデータを作成（チャンネル固有のversionModifierを尊重する）
         val metadata =
@@ -203,10 +243,40 @@ class PluginLifecycleServiceImpl :
         // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
         val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
 
+        // 読み込めなかった原本の退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
+        // 退避に失敗した場合は原本を上書きせずに中止する。
+        // 退避先は、この後の保存に失敗したときに戻すため保持しておく。
+        var quarantinedFile: File? = null
+        if (needsQuarantine) {
+            metadataManager.quarantineMetadata(pluginName).fold(
+                { quarantineError ->
+                    return MpmError.PluginError
+                        .AddFailed(pluginName, "破損したメタデータを退避できませんでした: $quarantineError")
+                        .left()
+                },
+                { quarantined ->
+                    quarantinedFile = quarantined
+                    quarantined?.let {
+                        plugin.logger.warning(
+                            "メタデータを読み込めないため退避して作り直します: $pluginName -> ${it.absolutePath}"
+                        )
+                    }
+                }
+            )
+        }
+
         // メタデータを先に保存（mpm.jsonより先に保存することで、メタデータ保存失敗時の不整合を防ぐ）
-        metadataManager
-            .saveMetadata(pluginName, metadata)
-            .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
+        metadataManager.saveMetadata(pluginName, metadata).onLeft { saveError ->
+            // 退避したまま保存に失敗すると `metadata/<名前>.yaml` が不在になるため、原本を戻す
+            val restoreNote =
+                restoreQuarantinedMetadataOrWarn(
+                    metadataManager = metadataManager,
+                    logger = plugin.logger,
+                    pluginName = pluginName,
+                    quarantinedFile = quarantinedFile
+                )
+            return MpmError.PluginError.AddFailed(pluginName, "$saveError$restoreNote").left()
+        }
 
         // メタデータ保存成功後にProjectRepositoryを通じて保存
         try {
@@ -221,8 +291,29 @@ class PluginLifecycleServiceImpl :
                     )
                 } else {
                     metadataManager.deleteMetadata(pluginName).fold(
-                        { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
-                        { "" }
+                        { rollbackMsg ->
+                            // 作り直したメタデータを消せなかった場合、退避した原本は `.corrupt` に
+                            // 置き去りのまま戻せない。原本の所在が起動ログにしか残らないと
+                            // 利用者が復旧できないため、退避先の絶対パスをエラー文にも載せる
+                            val restoreNote =
+                                restoreQuarantinedMetadataOrWarn(
+                                    metadataManager = metadataManager,
+                                    logger = plugin.logger,
+                                    pluginName = pluginName,
+                                    quarantinedFile = quarantinedFile
+                                )
+                            " (rollback also failed: $rollbackMsg)$restoreNote"
+                        },
+                        {
+                            // 作り直したメタデータを消しただけでは、退避した原本があると
+                            // `metadata/<名前>.yaml` が不在のまま残ってしまうため元に戻す
+                            restoreQuarantinedMetadataOrWarn(
+                                metadataManager = metadataManager,
+                                logger = plugin.logger,
+                                pluginName = pluginName,
+                                quarantinedFile = quarantinedFile
+                            )
+                        }
                     )
                 }
             return MpmError.PluginError
@@ -259,6 +350,14 @@ class PluginLifecycleServiceImpl :
         // プラグインが管理対象に含まれているか確認
         if (project.getPluginSpec(name) == null) {
             return MpmError.PluginError.NotFound(pluginName).left()
+        }
+
+        // mpm.json を保存できるかを、イベントを発火する前に検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれた mpm.json は保存が必ず拒否されるため、先にイベントを発火すると
+        // 「mpm.json は何も変わっていないのに、通知を受けた外部システムだけが削除済みだと認識する」
+        // という食い違いが残る。add / uninstall / lock / unlock と同じ順序に揃える。
+        projectRepository.ensureSavable().onLeft { reason ->
+            return MpmError.PluginError.RemoveFailed(pluginName, reason).left()
         }
 
         // 逆依存関係チェック（このプラグインにsyncしているプラグインがあるか）
@@ -322,6 +421,14 @@ class PluginLifecycleServiceImpl :
             metadataManager.loadMetadata(pluginName).getOrElse {
                 return MpmError.PluginError.MetadataNotFound(pluginName).left()
             }
+
+        // メタデータを保存できるかを、ダウンロードやJARの差し替えより前に検査する（副作用なし）。
+        // schemaVersion は単なるIntフィールドなので、未来版数のファイルでも読み込みは成功してしまう。
+        // 保存地点のガードだけに頼ると「JARは更新されたのにメタデータは旧版のまま」になるため、
+        // 何も壊していない段階で中止する。
+        metadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+            return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
+        }
 
         val mpmInfo = metadata.mpmInfo
         val pluginInfo = metadata.pluginInfo
@@ -632,6 +739,14 @@ class PluginLifecycleServiceImpl :
         // プラグインが管理対象に含まれているか確認
         if (project.getPluginSpec(name) == null) {
             return MpmError.PluginError.NotFound(pluginName).left()
+        }
+
+        // mpm.json を保存できるかを、JARを削除する前に検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれた mpm.json は保存が必ず拒否されるため、
+        // 先にJARを消してしまうと「コマンドは失敗したのにJARだけ消え、mpm.jsonには残る」
+        // という復旧しづらい状態になる。破壊的操作もイベント通知も始める前に中止する。
+        projectRepository.ensureSavable().onLeft { reason ->
+            return MpmError.PluginError.UninstallFailed(pluginName, reason).left()
         }
 
         // pluginsディレクトリから対象のJARファイルを特定
