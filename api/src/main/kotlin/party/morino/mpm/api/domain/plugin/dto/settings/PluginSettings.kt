@@ -14,17 +14,17 @@ import kotlinx.serialization.Serializable
 /**
  * プラグイン固有の設定
  *
- * 各フィールドがnullの場合、GlobalSettingsの値が使用される
+ * 各フィールドは省略可能（null）だが、GlobalSettings へのフォールバックは行われない。
+ * 判定はいずれも `== true` で行うため、null は false と同じ扱いになる。
  */
 @Serializable
 data class PluginSettings(
     // バージョンをロックするか（trueの場合、updateコマンドでも更新されない）
-    // nullの場合はGlobalSettings.lockの値を使用
+    // nullの場合はfalseと同じ扱い（GlobalSettings.lockは参照されない）
     val lock: Boolean? = null,
-    // 自動更新を有効にするか（将来実装予定）
-    // nullの場合はGlobalSettings.autoUpdateの値を使用
+    // 自動更新を有効にするか（現在は未使用の予約フィールド）
+    // 自動更新の対象判定は ScheduleConfig と mpm.json のバージョン指定で行う
     val autoUpdate: Boolean? = null,
-    // 自動バージョンチェックを有効にするか（将来実装予定）
-    // nullの場合はGlobalSettings.autoCheckの値を使用
+    // 自動バージョンチェックを有効にするか（現在は未使用の予約フィールド）
     val autoCheck: Boolean? = null
 )

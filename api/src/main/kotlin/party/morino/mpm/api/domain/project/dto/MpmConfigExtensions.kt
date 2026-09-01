@@ -38,7 +38,14 @@ fun MpmConfig.withSortedPlugins(): MpmConfig {
  *
  * 以下のエラーをチェックする:
  * - ターゲットプラグインが存在しない
- * - 循環依存がある
+ * - ターゲットがunmanagedである
+ * - 循環依存がある（自己参照を含む）
+ *
+ * `A <- sync:A の B <- sync:B の C` のような多段 sync は**エラーにしない**。
+ * 更新経路（[getSyncDescendants] のBFS）は多段でも親から順に追従を伝播できるため、
+ * ここで拒否すると `mpm install` だけが失敗して更新経路と挙動が食い違ってしまう。
+ * 多段が破綻するのは循環している場合だけなので、その判定は
+ * [detectCircularDependencies] に一本化している。
  *
  * @return 成功時はUnit、失敗時はSyncDependencyError
  */
@@ -53,15 +60,9 @@ fun MpmConfig.validateSyncDependencies(): Either<SyncDependencyError, Unit> {
             plugins[targetPlugin]
                 ?: return SyncDependencyError.TargetNotFound(pluginName, targetPlugin).left()
 
-        // ターゲットがunmanagedの場合はエラー
+        // ターゲットがunmanagedの場合はエラー（追従すべきバージョンが管理されていない）
         if (targetVersion == "unmanaged") {
             return SyncDependencyError.TargetIsUnmanaged(pluginName, targetPlugin).left()
-        }
-
-        // ターゲットもSync指定の場合はエラー
-        if (VersionSpecifierParser.isSyncFormat(targetVersion)) {
-            val nestedTarget = VersionSpecifierParser.extractSyncTarget(targetVersion) ?: "unknown"
-            return SyncDependencyError.TargetIsSync(pluginName, targetPlugin, nestedTarget).left()
         }
     }
 
@@ -74,7 +75,9 @@ fun MpmConfig.validateSyncDependencies(): Either<SyncDependencyError, Unit> {
 /**
  * Sync依存関係における循環依存を検出する
  *
- * DFS（深さ優先探索）を使用して循環を検出する
+ * DFS（深さ優先探索）を使用して循環を検出する。
+ * 多段 sync が許可されたため、`A -> B -> A` だけでなく `A -> A`（自己参照）も
+ * ここで唯一検出される（探索パスに再訪した時点で循環と判定するため）。
  *
  * @return 循環が見つかった場合は循環を構成するプラグイン名のリスト、見つからない場合はnull
  */
@@ -143,7 +146,9 @@ fun MpmConfig.detectCircularDependencies(): List<String>? {
  * Sync依存関係を考慮したトポロジカルソートを行う
  *
  * Kahnのアルゴリズムを使用して、依存先が先に来るようにプラグインをソートする
- * これにより、インストール時に正しい順序でプラグインを処理できる
+ * これにより、インストール時に正しい順序でプラグインを処理できる。
+ * `A <- sync:A の B <- sync:B の C` のような多段 sync でも、
+ * 入次数が親の処理後に0になるため 親 -> 子 -> 孫 の順に並ぶ。
  *
  * @return ソートされたプラグイン名のリスト
  */
@@ -226,3 +231,34 @@ fun MpmConfig.getPluginsSyncingTo(targetPluginName: String): List<String> =
             VersionSpecifierParser.extractSyncTarget(versionString) == targetPluginName
         }.keys
         .toList()
+
+/**
+ * 指定されたプラグインに直接・間接的に同期しているプラグインをすべて取得する
+ *
+ * `A <- sync:A の B <- sync:B の C` のような多段 sync でも、
+ * 親から近い順（幅優先＝トポロジカル順）に列挙するため、
+ * この順序で追従更新すれば孫まで正しく伝播する。
+ *
+ * mpm.json を手編集すると多段 sync や循環 sync が実在しうるため、
+ * 訪問済み集合で重複と無限ループの双方を防いでいる。
+ *
+ * @param targetPluginName 起点となるプラグイン名
+ * @return 追従更新すべきプラグイン名のリスト（親に近い順）
+ */
+fun MpmConfig.getSyncDescendants(targetPluginName: String): List<String> {
+    // 追従対象の集合（挿入順＝親に近い順を保つ）
+    val descendants = LinkedHashSet<String>()
+    val queue = ArrayDeque<String>()
+    queue.add(targetPluginName)
+
+    while (queue.isNotEmpty()) {
+        val current = queue.removeFirst()
+        for (child in getPluginsSyncingTo(current)) {
+            // 循環 sync（起点に戻る場合を含む）でも無限ループにならないよう、既出の子は辿らない
+            if (child == targetPluginName || !descendants.add(child)) continue
+            queue.add(child)
+        }
+    }
+
+    return descendants.toList()
+}

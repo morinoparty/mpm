@@ -139,8 +139,9 @@ class MpmConfigExtensionsTest {
         }
 
         @Test
-        @DisplayName("Returns error when target is also sync")
-        fun testTargetIsSync() {
+        @DisplayName("Allows multi-level sync chains")
+        fun testMultiLevelSyncIsAllowed() {
+            // A <- sync:A の B <- sync:B の C。更新経路は多段でも追従を伝播できるため許可する
             val config =
                 MpmConfig(
                     name = "test-project",
@@ -154,9 +155,66 @@ class MpmConfigExtensionsTest {
                 )
 
             val result = config.validateSyncDependencies()
-            assertTrue(result.isLeft(), "Should return error when target is also sync")
+            assertTrue(result.isRight(), "Multi-level sync should pass validation")
+        }
+
+        @Test
+        @DisplayName("Returns error when target is unmanaged")
+        fun testTargetIsUnmanaged() {
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins =
+                        mapOf(
+                            "PluginA" to "unmanaged",
+                            "PluginB" to "sync:PluginA"
+                        )
+                )
+
+            val result = config.validateSyncDependencies()
+            assertTrue(result.isLeft(), "Should return error when target is unmanaged")
             result.onLeft { error ->
-                assertTrue(error is SyncDependencyError.TargetIsSync)
+                assertTrue(error is SyncDependencyError.TargetIsUnmanaged)
+            }
+        }
+
+        @Test
+        @DisplayName("Returns error on circular sync")
+        fun testCircularSyncIsRejected() {
+            // 多段を許可しても循環は追従の起点が無いためエラーのままにする
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins =
+                        mapOf(
+                            "PluginA" to "sync:PluginB",
+                            "PluginB" to "sync:PluginA"
+                        )
+                )
+
+            val result = config.validateSyncDependencies()
+            assertTrue(result.isLeft(), "Circular sync should still be an error")
+            result.onLeft { error ->
+                assertTrue(error is SyncDependencyError.CircularDependency)
+            }
+        }
+
+        @Test
+        @DisplayName("Returns error on self-referencing sync")
+        fun testSelfSyncIsRejected() {
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins = mapOf("PluginA" to "sync:PluginA")
+                )
+
+            val result = config.validateSyncDependencies()
+            assertTrue(result.isLeft(), "Self-referencing sync should still be an error")
+            result.onLeft { error ->
+                assertTrue(error is SyncDependencyError.CircularDependency)
             }
         }
     }
@@ -225,6 +283,28 @@ class MpmConfigExtensionsTest {
             val quickShopIndex = sorted.indexOf("QuickShop")
             val addonIndex = sorted.indexOf("QuickShop-Addon")
             assertTrue(quickShopIndex < addonIndex, "QuickShop should come before QuickShop-Addon")
+        }
+
+        @Test
+        @DisplayName("Orders multi-level sync as parent -> child -> grandchild")
+        fun testMultiLevelTopologicalSort() {
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins =
+                        mapOf(
+                            // 宣言順をわざと逆にしても、依存順に並ぶことを確認する
+                            "C" to "sync:B",
+                            "B" to "sync:A",
+                            "A" to "latest"
+                        )
+                )
+
+            val sorted = config.topologicalSortPlugins()
+
+            assertTrue(sorted.indexOf("A") < sorted.indexOf("B"), "A should come before B")
+            assertTrue(sorted.indexOf("B") < sorted.indexOf("C"), "B should come before C")
         }
 
         @Test
@@ -339,6 +419,65 @@ class MpmConfigExtensionsTest {
             val syncingPlugins = config.getPluginsSyncingTo("QuickShop")
 
             assertTrue(syncingPlugins.isEmpty(), "Should return empty list")
+        }
+    }
+
+    @Nested
+    @DisplayName("getSyncDescendants")
+    inner class GetSyncDescendantsTest {
+        @Test
+        @DisplayName("Returns direct children")
+        fun testDirectChildren() {
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins =
+                        mapOf(
+                            "Parent" to "latest",
+                            "Child" to "sync:Parent",
+                            "Other" to "1.0.0"
+                        )
+                )
+
+            assertEquals(listOf("Child"), config.getSyncDescendants("Parent"))
+        }
+
+        @Test
+        @DisplayName("Propagates through multi-level sync in parent-first order")
+        fun testMultiLevelSync() {
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins =
+                        mapOf(
+                            "A" to "latest",
+                            "C" to "sync:B",
+                            "B" to "sync:A"
+                        )
+                )
+
+            // 孫まで伝播し、親に近い順（B -> C）で列挙される
+            assertEquals(listOf("B", "C"), config.getSyncDescendants("A"))
+        }
+
+        @Test
+        @DisplayName("Does not loop on circular sync")
+        fun testCircularSync() {
+            val config =
+                MpmConfig(
+                    name = "test-project",
+                    version = "1.0.0",
+                    plugins =
+                        mapOf(
+                            "A" to "sync:B",
+                            "B" to "sync:A"
+                        )
+                )
+
+            // 起点自身は含まれず、無限ループにもならない
+            assertEquals(listOf("A"), config.getSyncDescendants("B"))
         }
     }
 }

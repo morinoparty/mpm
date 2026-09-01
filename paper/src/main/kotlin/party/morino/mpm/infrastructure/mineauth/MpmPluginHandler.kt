@@ -348,7 +348,7 @@ class MpmPluginHandler : KoinComponent {
      *
      * @param name 更新対象のプラグイン名
      * @param params クエリパラメータ（force=true で強制更新）
-     * @return 更新結果一覧（親＋連動更新した子）
+     * @return 更新結果一覧（親＋連動更新した子孫。ロック中などでスキップした結果は skipped = true）
      */
     @Post("/plugins/{name}/update")
     @Authenticated(permission = MpmApiPermission.WRITE, callers = [CallerType.USER, CallerType.SERVICE])

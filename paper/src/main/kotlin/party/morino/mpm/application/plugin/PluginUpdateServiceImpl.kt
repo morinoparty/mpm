@@ -44,7 +44,7 @@ import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.dto.MpmConfig
-import party.morino.mpm.api.domain.project.dto.getPluginsSyncingTo
+import party.morino.mpm.api.domain.project.dto.getSyncDescendants
 import party.morino.mpm.api.domain.project.dto.topologicalSortPlugins
 import party.morino.mpm.api.domain.project.dto.validateSyncDependencies
 import party.morino.mpm.api.domain.project.lock.LockRepository
@@ -54,6 +54,8 @@ import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.application.plugin.install.InstallCandidate
+import party.morino.mpm.application.plugin.install.planInstallTargets
 import party.morino.mpm.application.plugin.metadata.restoreQuarantinedMetadataOrWarn
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.state.PluginLockEvent
@@ -77,6 +79,10 @@ class PluginUpdateServiceImpl :
     companion object {
         // ロック中プラグインをスキップした際の共通エラーメッセージ
         private const val LOCKED_ERROR_MESSAGE = "プラグインがロックされています"
+
+        // メタデータを読めずロック状態を判定できないためスキップした際のエラーメッセージ
+        private const val METADATA_UNREADABLE_ERROR_MESSAGE =
+            "メタデータを読み込めないためロック状態を確認できず、連動更新をスキップしました"
 
         // バージョン切り替え時に履歴へ記録するアクション名
         private const val ACTION_SWITCH = "switch"
@@ -344,10 +350,11 @@ class PluginUpdateServiceImpl :
         // 一括更新では全ての sync: プラグインを対象に、それぞれの親の（更新後）バージョンへ追従させる。
         // 既に同期済みの子は再取得せずスキップされる。
         mpmConfig?.let { config ->
+            // 多段sync（親 <- 子 <- 孫）でも親から順に追従できるよう、トポロジカル順に並べ替える
             val allSyncChildren =
-                config.plugins
-                    .filterValues { VersionSpecifierParser.isSyncFormat(it) }
-                    .keys
+                config.topologicalSortPlugins().filter { name ->
+                    config.plugins[name]?.let { VersionSpecifierParser.isSyncFormat(it) } == true
+                }
             updateSyncPlugins(config, allSyncChildren, updateResults, force, progressCallback, skipIntegrity)
         }
 
@@ -380,13 +387,14 @@ class PluginUpdateServiceImpl :
                 val syncResults = mutableListOf<UpdateResult>()
                 updateSyncPlugins(
                     mpmConfig = mpmConfig,
-                    syncChildren = listOf(name.value),
+                    // 自身に続けて、自身に同期している子孫も追従させる（多段syncの伝播）
+                    syncChildren = listOf(name.value) + mpmConfig.getSyncDescendants(name.value),
                     updateResults = syncResults,
                     force = force,
                     skipIntegrity = skipIntegrity
                 )
                 // 既に親と同期済みで更新が発生しなかった場合は現状維持の成功結果を返す
-                if (syncResults.isEmpty()) {
+                if (syncResults.none { it.pluginName == name.value }) {
                     val current =
                         pluginMetadataManager.loadMetadata(name.value).fold(
                             { "unknown" },
@@ -486,11 +494,12 @@ class PluginUpdateServiceImpl :
                 }
             )
 
-            // 連動更新: この親に同期している sync: プラグイン（子）を親の新バージョンに追従させる
+            // 連動更新: この親に同期している sync: プラグイン（子・孫）を親の新バージョンに追従させる
+            // 多段syncでも伝播するよう、直接の子だけでなく子孫全体を親に近い順で処理する
             mpmConfig?.let { config ->
                 updateSyncPlugins(
                     mpmConfig = config,
-                    syncChildren = config.getPluginsSyncingTo(name.value),
+                    syncChildren = config.getSyncDescendants(name.value),
                     updateResults = updateResults,
                     force = force,
                     skipIntegrity = skipIntegrity
@@ -672,11 +681,12 @@ class PluginUpdateServiceImpl :
 
             // sync: で追従している子プラグインを親の新バージョンへ揃える（update(name)と同じ連動更新）。
             // 親だけを切り替えると、アドオンと本体のバージョンが食い違ったまま残ってしまうため。
+            // 直接の子だけでなく子孫全体を親に近い順（BFS）で渡し、多段syncでも切り替えを伝播させる。
             val syncResults = mutableListOf<UpdateResult>()
             loadMpmConfig()?.let { config ->
                 updateSyncPlugins(
                     mpmConfig = config,
-                    syncChildren = config.getPluginsSyncingTo(pluginName),
+                    syncChildren = config.getSyncDescendants(pluginName),
                     updateResults = syncResults,
                     force = force,
                     skipIntegrity = skipIntegrity
@@ -866,6 +876,12 @@ class PluginUpdateServiceImpl :
      * mpm.jsonのlatest/tag指定は無視し、ロックファイルのバージョンをそのまま導入する。
      * ロックファイルが存在しない場合、および管理下プラグインがロックに含まれていない場合（ドリフト）は
      * エラーとして扱う。
+     *
+     * ただし `lock` は唯一の拒否権であり、再現インストールでもこれを覆さない。
+     * ロック中のプラグインはロックファイルの版と食い違っていても差し替えず、据え置きとして報告する
+     * （他サーバーで生成した mpm-lock.yaml を持ち込んだ場合に、ロック中のプラグインだけが
+     * 黙って別の版へ動いてしまうのを防ぐため）。この扱いは通常の一括インストール
+     * （[planInstallTargets]）と同一で、`--force` でも迂回できない。
      */
     private suspend fun executeFrozenInstall(
         force: Boolean,
@@ -898,6 +914,13 @@ class PluginUpdateServiceImpl :
         val removed = mutableListOf<PluginRemovalInfo>()
         val failed = mutableMapOf<String, String>()
 
+        // ロックファイルの版に到達しなかったプラグインを記録し、そこへ sync: している子孫を打ち切る。
+        // 再現インストールでも「親が動かなければ子も動かない」という sync の不変条件は変わらない。
+        // 打ち切らないと、据え置かれた親（1.0.0）に対して子だけがロックの版（2.0.0）へ進み、
+        // ロックファイルが記録している整合ペアとも据え置き状態とも一致しない組み合わせが残ってしまう。
+        // sortedPlugins はトポロジカル順なので、子を判定する時点で親の結果は必ず確定している。
+        val blocklist = SyncFollowBlocklist()
+
         for (pluginName in sortedPlugins) {
             val expectedVersion = mpmConfig.plugins[pluginName] ?: continue
             // unmanagedはロック対象外なのでスキップ
@@ -907,6 +930,35 @@ class PluginUpdateServiceImpl :
             val lockEntry = lock.plugins[pluginName]
             if (lockEntry == null) {
                 failed[pluginName] = "ロックファイルにエントリがありません（mpm install で再生成してください）"
+                // 版が確定しないため、ここへ追従する子孫も止める
+                blocklist.block(pluginName)
+                continue
+            }
+
+            // 同期先がロックの版に到達しなかった場合は、インストールする前に打ち切る（多段でも伝播する）
+            val syncTarget = VersionSpecifierParser.extractSyncTarget(expectedVersion)
+            val blockedTarget = blocklist.blockingTargetOf(syncTarget)
+            if (blockedTarget != null) {
+                failed[pluginName] =
+                    "同期先 '$blockedTarget' がロックファイルの版に到達しなかったため、追従インストールをスキップしました"
+                blocklist.block(pluginName)
+                continue
+            }
+
+            // lockは唯一の拒否権なので、再現インストールでもロック中のプラグインには触れない。
+            // メタデータを読めない場合はロック状態を判定できないため、通常の一括インストールで
+            // 使う InstallCandidate と同じく「ロックされていない」と扱って続行する。
+            val installedMetadata = pluginMetadataManager.loadMetadata(pluginName)
+            if (installedMetadata.fold({ false }, { it.mpmInfo.settings.lock == true })) {
+                val installedVersion = installedMetadata.fold({ null }, { it.mpmInfo.version.current.raw })
+                // 版が食い違っている場合だけ報告する。既にロックの版と一致しているなら
+                // 何も変わらないため、毎回スキップとして報告しない（planInstallTargets と同じ扱い）
+                if (installedVersion != lockEntry.version.raw) {
+                    failed[pluginName] = LOCKED_ERROR_MESSAGE
+                    // ロックの版に到達していないので、ここへ追従する子孫も止める。
+                    // 既にロックの版と一致している場合は「着地済み」なので打ち切らない。
+                    blocklist.block(pluginName)
+                }
                 continue
             }
 
@@ -919,7 +971,11 @@ class PluginUpdateServiceImpl :
                 skipIntegrity = skipIntegrity,
                 expectedSha256 = lockEntry.download.sha256
             ).fold(
-                { failed[pluginName] = it.message },
+                {
+                    failed[pluginName] = it.message
+                    // 失敗したプラグインの版は確定しないため、追従する子孫も止める
+                    blocklist.block(pluginName)
+                },
                 { result ->
                     installed.add(result.installed)
                     result.removed?.let { removed.add(it) }
@@ -952,78 +1008,89 @@ class PluginUpdateServiceImpl :
         // トポロジカルソートでプラグインを並べ替え（依存先が先に来るように）
         val sortedPlugins = mpmConfig.topologicalSortPlugins()
 
-        // 解決済みバージョンを追跡（Syncプラグインのバージョン解決に使用）
-        val resolvedVersions = mutableMapOf<String, String>()
+        // インストール計画の入力を組み立てる。
+        // ディスクI/O（メタデータの読み込み）はここで済ませ、判定そのものは純粋関数に委ねる。
+        val candidates =
+            sortedPlugins.mapNotNull { pluginName ->
+                val expectedVersion = mpmConfig.plugins[pluginName] ?: return@mapNotNull null
+                // unmanagedはmpmが版を決めないため、計画にも予定バージョンにも含めない
+                if (expectedVersion == "unmanaged") return@mapNotNull null
 
-        // インストールが必要なプラグインを検出
-        val pluginsToInstall = mutableListOf<String>()
-        // ロック中のため更新をスキップしたプラグイン（executeUpdateと同様にlockを尊重する）
-        val lockedSkipped = mutableListOf<String>()
-        for (pluginName in sortedPlugins) {
-            val expectedVersion = mpmConfig.plugins[pluginName] ?: continue
-            if (expectedVersion == "unmanaged") continue
-
-            val resolvedVersion = resolveExpectedVersion(pluginName, expectedVersion, resolvedVersions)
-            val metadataResult = pluginMetadataManager.loadMetadata(pluginName)
-
-            // インストールが必要かを判定
-            // latestとtag:は動的にバージョンが決まるため、installPluginWithVersionに委譲する
-            val isDynamic = expectedVersion == "latest" || VersionSpecifierParser.isTagFormat(expectedVersion)
-            val isLocked = metadataResult.fold({ false }, { it.mpmInfo.settings.lock == true })
-            val needsUpdate =
-                metadataResult.fold(
-                    { true }, // メタデータなし → インストール必要
-                    { metadata ->
-                        // latest/tag: は動的なため常に installPluginWithVersion に委譲する（#283）
-                        isDynamic || metadata.mpmInfo.version.current.raw != resolvedVersion
-                    }
+                val metadataResult = pluginMetadataManager.loadMetadata(pluginName)
+                InstallCandidate(
+                    pluginName = pluginName,
+                    expectedVersion = expectedVersion,
+                    installedVersion = metadataResult.fold({ null }, { it.mpmInfo.version.current.raw }),
+                    locked = metadataResult.fold({ false }, { it.mpmInfo.settings.lock == true })
                 )
-
-            // ロック中のプラグインは上書きせずスキップする（mpm.jsonのバージョン変更を無視）
-            if (isLocked && needsUpdate) {
-                lockedSkipped.add(pluginName)
             }
-            val shouldInstall = needsUpdate && !isLocked
-
-            // 解決済みバージョンを記録（Sync以外のプラグイン）
-            if (!VersionSpecifierParser.isSyncFormat(expectedVersion)) {
-                resolvedVersions[pluginName] =
-                    metadataResult.fold(
-                        { resolvedVersion },
-                        { it.mpmInfo.version.current.raw }
-                    )
-            }
-
-            if (shouldInstall) pluginsToInstall.add(pluginName)
-        }
+        // インストール対象・ロックによる据え置き・予定バージョンをまとめて決める
+        // （多段syncが1回のinstallで収束する理由は planInstallTargets のKDocを参照）
+        val plan = planInstallTargets(candidates)
+        val pluginsToInstall = plan.pluginsToInstall
+        val lockedSkipped = plan.lockedSkipped
+        // 実際にインストールしたバージョンで更新していくため可変マップへ移す
+        val resolvedVersions = plan.resolvedVersions.toMutableMap()
+        // 「同期済みなら何もしない」判定でディスク上のバージョンを引くための索引
+        val candidatesByName = candidates.associateBy { it.pluginName }
 
         // インストール結果を記録
         val installed = mutableListOf<PluginInstallInfo>()
         val removed = mutableListOf<PluginRemovalInfo>()
         val failed = mutableMapOf<String, String>()
-        // ロックによりスキップしたプラグインもfailedとして報告する（executeUpdateのUpdateResultと同様の扱い）
+        // ロックによりスキップしたプラグインもfailedとして報告する。
+        // BulkInstallResult には executeUpdate の UpdateResult のような「スキップ」区分が無いため、
+        // 現状は failed に載せるしかない（公開APIのバイナリ互換性を保つため区分は追加しない）。
+        // そのぶん「実際には何も変わらないのに毎回報告される」ことが無いよう、
+        // 据え置きが確定しているロック中のプラグインは planInstallTargets 側で
+        // 本当に版がずれている場合だけ lockedSkipped に入れている。
         lockedSkipped.forEach { failed[it] = LOCKED_ERROR_MESSAGE }
+
+        // インストールに失敗したプラグイン名。
+        // ここに sync: している子孫は追従すべきバージョンが確定しないため、
+        // 誤ったバージョンを入れずにスキップし、その判断を孫まで伝播させる。
+        // （ロックでスキップしたプラグインは「現在の版のまま」という確定状態なので含めない）
+        val unresolvableSyncTargets = mutableSetOf<String>()
 
         // 各プラグインをトポロジカルソート順にインストール
         for (pluginName in sortedPlugins) {
             val versionString = mpmConfig.plugins[pluginName] ?: continue
 
-            if (pluginName !in pluginsToInstall) {
-                // ロックによりスキップした場合は検出ループで実インストール済みバージョンを記録済みのため、
-                // mpm.json上の未インストールターゲットバージョンで上書きしない（Sync解決の破損を防ぐ）
-                if (pluginName in lockedSkipped) {
-                    continue
-                }
-                // インストール不要でもバージョンを記録（後続のSyncプラグインのため）
-                if (versionString != "unmanaged" && !VersionSpecifierParser.isSyncFormat(versionString)) {
-                    resolvedVersions[pluginName] = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
-                }
+            // 対象外のプラグインの予定バージョンは計画時点で記録済みなので、ここでは何もしない
+            if (pluginName !in pluginsToInstall) continue
+
+            val syncTarget = VersionSpecifierParser.extractSyncTarget(versionString)
+            val versionToInstall = resolveExpectedVersion(versionString, resolvedVersions)
+
+            // 同期先が latest / tag: の場合、計画時点では着地バージョンが分からないため
+            // 子孫を保守的にインストール対象へ入れている。ここまで来れば親の実際のバージョンが
+            // 確定しているので、既に同期済みだと分かった子は何もせずに済ませる
+            // （毎回 sync ツリー全体を再取得しないため。連動更新の updateSyncPlugins と同じ扱い）。
+            //
+            // この判定は同期先の失敗判定より必ず前に置く。後ろに置くと、保守的に対象へ入れただけで
+            // 「そもそもインストール不要（＝親と同じ版で既に同期済み）」な子まで失敗として報告され、
+            // その偽の失敗が孫にまで連鎖してしまう。
+            // 親が失敗しても resolvedVersions[親] は計画時点のディスク上バージョンのままなので、
+            // ここで一致する子は本当に何もする必要が無い子だけである。
+            if (syncTarget != null && candidatesByName[pluginName]?.installedVersion == versionToInstall) {
+                resolvedVersions[pluginName] = versionToInstall
                 continue
             }
 
-            val versionToInstall = resolveExpectedVersion(pluginName, versionString, resolvedVersions)
+            // 同期先が確定していない場合は追従インストールを行わない（多段でも打ち切る）。
+            // ここに来るのは「親が動くはずなのに動かなかったため、追うべき版が分からない」子だけである。
+            if (syncTarget != null && syncTarget in unresolvableSyncTargets) {
+                failed[pluginName] = "同期先 '$syncTarget' のインストールに失敗したため、追従インストールをスキップしました"
+                unresolvableSyncTargets.add(pluginName)
+                continue
+            }
+
             installPluginWithVersion(pluginName, versionToInstall, force, skipIntegrity).fold(
-                { failed[pluginName] = it.message },
+                {
+                    failed[pluginName] = it.message
+                    // 失敗したプラグインのバージョンは確定しないため、追従する子孫も止める
+                    unresolvableSyncTargets.add(pluginName)
+                },
                 { result ->
                     installed.add(
                         PluginInstallInfo(
@@ -1171,8 +1238,14 @@ class PluginUpdateServiceImpl :
      * 一致していなければ [installPluginWithVersion] で親のバージョンを子のリポジトリから取得して置換する。
      * 1件の失敗は該当プラグインの失敗結果として記録し、残りの処理は継続する。
      *
+     * 多段 sync では、途中のノードがロック・破損・失敗で据え置かれた場合、
+     * その先の子孫も追従させない（[SyncFollowBlocklist]）。
+     * 中間ノードのバージョンが動いていない以上、孫だけを進めると
+     * 「親が更新されなければ子も更新されない」という仕様に反するためである。
+     *
      * @param mpmConfig mpm.json の設定（sync ターゲット解決に使用）
-     * @param syncChildren 連動更新の対象とする sync: プラグイン名の集合
+     * @param syncChildren 連動更新の対象とする sync: プラグイン名の集合。
+     *   打ち切り判定が成立するよう、親に近い順（BFS / トポロジカル順）で渡すこと。
      */
     private suspend fun updateSyncPlugins(
         mpmConfig: MpmConfig,
@@ -1187,23 +1260,112 @@ class PluginUpdateServiceImpl :
         }
         progressCallback?.invoke("<gray>連動更新を確認しています...")
 
+        // 追従しなかったノードを記録し、その先の子孫まで打ち切るための状態
+        val blocklist = SyncFollowBlocklist()
+
         for (childName in syncChildren) {
             // 子の同期先（親プラグイン名）を mpm.json の sync: 指定から特定する
             val syncTarget =
                 mpmConfig.plugins[childName]?.let { VersionSpecifierParser.extractSyncTarget(it) }
+
+            // 同期先が追従しなかった場合は、バージョン比較より前に打ち切る。
+            // ここを先頭で判定することで、たまたま版が一致していても孫へ伝播させない。
+            val blockedTarget = blocklist.blockingTargetOf(syncTarget)
+            if (blockedTarget != null) {
+                val heldVersion =
+                    pluginMetadataManager
+                        .loadMetadata(childName)
+                        .fold({ "unknown" }, { it.mpmInfo.version.current.raw })
+                progressCallback?.invoke("<gray>[$childName] <yellow>同期先が更新されなかったためスキップ")
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = childName,
+                        oldVersion = heldVersion,
+                        newVersion = heldVersion,
+                        success = false,
+                        errorMessage = "同期先 '$blockedTarget' が更新されなかったため",
+                        skipped = true
+                    )
+                )
+                // 自身も追従しなかったので、さらに下の子孫も打ち切る
+                blocklist.block(childName)
+                continue
+            }
+
+            // 同期先が mpm.json の管理下にあるかを、メタデータを読むより前に確かめる。
+            // mpm.json から消えた（あるいは unmanaged になった）同期先のメタデータは
+            // アンインストール後もディスクに残るため、これを見てしまうと
+            // 「管理対象から外れたプラグインの古い版に、生きているプラグインを引きずり込む」ことになる。
+            // cron の警告（warnBrokenSyncGraph）が「追従更新は行われません」と伝えている状態と挙動を揃える
+            val syncTargetSpec = syncTarget?.let { mpmConfig.plugins[it] }
+            val syncTargetIsManaged = syncTargetSpec != null && syncTargetSpec != "unmanaged"
+
             // 親の（更新後の）インストール済みバージョンを解決する
             val targetVersion =
-                syncTarget?.let { parent ->
-                    pluginMetadataManager.loadMetadata(parent).fold({ null }, { it.mpmInfo.version.current.raw })
-                }
+                syncTarget
+                    ?.takeIf { syncTargetIsManaged }
+                    ?.let { parent ->
+                        pluginMetadataManager.loadMetadata(parent).fold({ null }, { it.mpmInfo.version.current.raw })
+                    }
 
             // 子の現在バージョンとロック状態を取得
             val childMetadata = pluginMetadataManager.loadMetadata(childName)
             val currentVersion = childMetadata.fold({ "unknown" }, { it.mpmInfo.version.current.raw })
-            val isLocked = childMetadata.fold({ false }, { it.mpmInfo.settings.lock == true })
+
+            // 親のバージョンを解決できない場合はスキップ（管理外の同期先、親のメタデータ欠落など）
+            if (targetVersion == null) {
+                // 原因が分かるよう「管理外」と「解決できない」を区別して伝える
+                val reason =
+                    if (syncTarget != null && !syncTargetIsManaged) {
+                        "同期先 '$syncTarget' がmpm.jsonに存在しないため、追従更新を行いませんでした"
+                    } else {
+                        "同期先 '${syncTarget ?: "?"}' のバージョンを解決できませんでした"
+                    }
+                progressCallback?.invoke("<gray>[$childName] <yellow>$reason")
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = childName,
+                        oldVersion = currentVersion,
+                        newVersion = currentVersion,
+                        success = false,
+                        errorMessage = reason
+                    )
+                )
+                // 追従先が分からない以上この子は据え置かれるため、その先の子孫も打ち切る
+                blocklist.block(childName)
+                continue
+            }
+
+            // メタデータファイルが在るのに読めない場合はロック状態を判定できない。
+            // 「読めない＝ロックされていない」と楽観視するとロック済みプラグインを無人更新してしまうため、
+            // スケジューラのLockState.UNKNOWNと同じく安全側（更新しない）に倒す。
+            if (childMetadata.isLeft() && metadataFileExists(childName)) {
+                progressCallback?.invoke("<gray>[$childName] <yellow>メタデータを読み込めないためスキップ")
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = childName,
+                        oldVersion = currentVersion,
+                        newVersion = currentVersion,
+                        success = false,
+                        errorMessage = METADATA_UNREADABLE_ERROR_MESSAGE
+                    )
+                )
+                // ロック状態を確認できず据え置いたため、その先の子孫も打ち切る
+                blocklist.block(childName)
+                continue
+            }
+
+            // 既に親のバージョンに同期済みなら再取得しない
+            // （ロック判定より前に行うことで、更新不要なロック済みの子を誤って失敗扱いにしない）
+            // これは「追従が完了している正常な状態」であり据え置きではないため、blocklistには入れない。
+            // ここで打ち切ると、中間ノードがたまたま親と一致していた場合に孫が永久に取り残される。
+            if (targetVersion == currentVersion) {
+                continue
+            }
 
             // ロックされている場合はスキップ（現状維持）
-            if (isLocked) {
+            // lockは唯一の拒否権であり、親が更新されても子は更新しない
+            if (childMetadata.fold({ false }, { it.mpmInfo.settings.lock == true })) {
                 progressCallback?.invoke("<gray>[$childName] <yellow>ロック中のためスキップ")
                 updateResults.add(
                     UpdateResult(
@@ -1211,29 +1373,13 @@ class PluginUpdateServiceImpl :
                         oldVersion = currentVersion,
                         newVersion = currentVersion,
                         success = false,
-                        errorMessage = LOCKED_ERROR_MESSAGE
+                        errorMessage = LOCKED_ERROR_MESSAGE,
+                        skipped = true
                     )
                 )
-                continue
-            }
-
-            // 親のバージョンを解決できない場合はスキップ（親のメタデータ欠落など）
-            if (targetVersion == null) {
-                progressCallback?.invoke("<gray>[$childName] <yellow>同期先のバージョンを解決できませんでした")
-                updateResults.add(
-                    UpdateResult(
-                        pluginName = childName,
-                        oldVersion = currentVersion,
-                        newVersion = currentVersion,
-                        success = false,
-                        errorMessage = "同期先 '${syncTarget ?: "?"}' のバージョンを解決できませんでした"
-                    )
-                )
-                continue
-            }
-
-            // 既に親のバージョンに同期済みなら再取得しない
-            if (targetVersion == currentVersion) {
+                // lockは唯一の拒否権であり、この子は旧バージョンのまま据え置かれる。
+                // その先の孫まで更新すると孫だけが先行してしまうため、打ち切る。
+                blocklist.block(childName)
                 continue
             }
 
@@ -1241,10 +1387,19 @@ class PluginUpdateServiceImpl :
             progressCallback?.invoke(
                 "<gray>[$childName] $currentVersion → $targetVersion 連動更新をダウンロード中..."
             )
-            installPluginWithVersion(childName, targetVersion, force, skipIntegrity).fold(
+            // sync連動更新は無人実行のため、破損メタデータを作り直して lock を失うことがないよう中断させる
+            installPluginWithVersion(
+                pluginName = childName,
+                expectedVersion = targetVersion,
+                force = force,
+                skipIntegrity = skipIntegrity,
+                abortOnUnreadableMetadata = true
+            ).fold(
                 // インストール失敗時
                 { error ->
                     progressCallback?.invoke("<gray>[$childName] <red>連動更新失敗: ${error.message}")
+                    // 失敗した子は旧バージョンのままなので、その先の子孫も打ち切る
+                    blocklist.block(childName)
                     updateResults.add(
                         UpdateResult(
                             pluginName = childName,
@@ -1946,23 +2101,24 @@ class PluginUpdateServiceImpl :
     /**
      * バージョン指定文字列を実際のバージョンに解決する
      *
-     * tag:指定の場合はlatestと同様にメタデータから現在バージョンを返す
-     * （実際のタグ解決はinstallPluginWithVersionで行う）
+     * latest / tag: のような動的指定は、ここでは解決せず指定文字列のまま返す。
+     * 解決先は問い合わせのたびに変わりうるため、実際のチャンネル解決は
+     * [installPluginWithVersion]（[ChannelVersionResolver]）に一本化する。
+     * ここでメタデータの現在バージョンへ潰してしまうと、`mpm install` が
+     * 常に「今入っている版」を取り直すだけになり、動的指定が永久に上がらなくなる（#283）。
+     *
+     * sync:指定は [resolved] に記録済みの同期先の解決値を引く。多段syncでも
+     * トポロジカル順に処理していれば同期先は必ず先に記録されているため、
+     * 文字列 "sync:X" がそのまま返るのは呼び出し順が壊れている場合だけである。
      */
     private fun resolveExpectedVersion(
-        pluginName: String,
         expected: String,
         resolved: Map<String, String>
     ): String {
         val syncTarget = VersionSpecifierParser.extractSyncTarget(expected)
         return when {
             syncTarget != null -> resolved[syncTarget] ?: expected
-            // latestとtag:はどちらも動的解決が必要なため、メタデータの現在バージョンを返す
-            expected == "latest" || VersionSpecifierParser.isTagFormat(expected) ->
-                pluginMetadataManager.loadMetadata(pluginName).fold(
-                    { expected },
-                    { it.mpmInfo.version.current.raw }
-                )
+            // latest / tag: は動的解決が必要なため、指定文字列のまま委譲する
             else -> expected
         }
     }

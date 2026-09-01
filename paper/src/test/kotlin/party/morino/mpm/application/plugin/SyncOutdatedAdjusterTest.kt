@@ -60,6 +60,42 @@ class SyncOutdatedAdjusterTest {
     }
 
     @Test
+    @DisplayName("Grandchild in a three-level chain follows the root's latest")
+    fun multiLevelSyncFollowsRoot() {
+        // 根: 1.0.0 → 2.0.0、中間と孫はそれぞれ自身のリポジトリに別の最新版を持つ。
+        // 中間の 3.0.0 を引いてしまうと、孫だけが実際には入らない版を追うことになる。
+        val outdated =
+            listOf(
+                OutdatedInfo("Root", currentVersion = "1.0.0", latestVersion = "2.0.0", needsUpdate = true),
+                OutdatedInfo("Middle", currentVersion = "1.0.0", latestVersion = "3.0.0", needsUpdate = true),
+                OutdatedInfo("Leaf", currentVersion = "1.0.0", latestVersion = "5.0.0", needsUpdate = true)
+            )
+
+        val adjusted = adjustSyncOutdated(outdated, mapOf("Middle" to "Root", "Leaf" to "Middle"))
+
+        // 中間も孫も根のlatestに揃う
+        assertEquals("2.0.0", adjusted.first { it.pluginName == "Middle" }.latestVersion)
+        assertEquals("2.0.0", adjusted.first { it.pluginName == "Leaf" }.latestVersion)
+        assertTrue(adjusted.first { it.pluginName == "Leaf" }.needsUpdate)
+    }
+
+    @Test
+    @DisplayName("Circular sync targets are left unchanged instead of looping")
+    fun circularSyncIsLeftUnchanged() {
+        // 手で編集されたmpm.jsonの循環sync。この経路はバリデーションを通らないため実際に流れてくる
+        val outdated =
+            listOf(
+                OutdatedInfo("A", currentVersion = "1.0.0", latestVersion = "2.0.0", needsUpdate = true),
+                OutdatedInfo("B", currentVersion = "1.0.0", latestVersion = "3.0.0", needsUpdate = true)
+            )
+
+        val adjusted = adjustSyncOutdated(outdated, mapOf("A" to "B", "B" to "A"))
+
+        // 追従先が定まらないため補正せずそのまま返す（無限ループもしない）
+        assertEquals(outdated, adjusted)
+    }
+
+    @Test
     @DisplayName("Non-sync plugins and unresolved parents are left unchanged")
     fun leavesOthersUnchanged() {
         val outdated =
