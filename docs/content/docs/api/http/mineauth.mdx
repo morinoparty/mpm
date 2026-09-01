@@ -401,8 +401,10 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
 指定したプラグインを更新します。パスパラメータ `name` にはプラグイン名を指定します。
 プラグインが管理対象に存在しない場合は `404 Not Found` を返します。
 
-更新対象に同期している `sync:` プラグイン（子）がある場合、親の更新後バージョンに追従して連動更新します。
-レスポンスは配列で、先頭が親の更新結果、以降が連動更新した子の結果となります。
+更新対象に同期している `sync:` プラグイン（子孫）がある場合、親の更新後バージョンに追従して連動更新します。
+同期の連鎖（A ← `sync:A` の B ← `sync:B` の C）にも伝播するため、
+レスポンスは配列で、先頭が親の更新結果、以降が連動更新した子孫すべての結果となります。
+リクエストで指定していないプラグインの結果も含まれる点に注意してください。
 
 ```json title="レスポンス例"
 [
@@ -419,9 +421,24 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
     "newVersion": "0.2.33",
     "success": true,
     "errorMessage": null
+  },
+  {
+    "pluginName": "MineAuth-addon-luckperms",
+    "oldVersion": "0.2.30",
+    "newVersion": "0.2.30",
+    "success": false,
+    "errorMessage": "プラグインがロックされています",
+    "skipped": true
   }
 ]
 ```
+
+:::info
+`success: false` かつ `skipped: true` の要素は、ロック中である・同期先が更新されなかった、といった
+理由による意図的な据え置きであり、更新の失敗ではありません。
+更新の失敗として利用者へ通知するのは `success: false` かつ `skipped` が `true` でない要素だけにしてください。
+`skipped` が `false` の場合はレスポンスから省略されることがあるため、欠けていれば `false` として扱ってください。
+:::
 
 ### POST `/plugins/{name}/version`
 
@@ -455,6 +472,10 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/QuickShop-Hikari/versi
 ```
 
 `sync:` を指定しているプラグインは他プラグインへの追従が目的のため、切り替えを拒否し `409 Conflict` を返します。
+
+切り替えたプラグインに追従している `sync:` プラグイン（子孫）があれば、切り替え後のバージョンへ連動更新します。
+連動更新の結果はレスポンス本体ではなく `errorMessage` に要約として現れますが、
+ロック中などで意図的に据え置かれた子（`skipped: true` に相当するもの）は失敗として数えないため、要約には含まれません。
 
 指定されたバージョンは、まず表記そのままで解決を試み、見つからない場合は正規化して全バージョンと突き合わせます。
 それでも一致しない場合は `400 Bad Request` を返します。

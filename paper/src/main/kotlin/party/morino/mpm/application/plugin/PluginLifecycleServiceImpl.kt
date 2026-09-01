@@ -1189,16 +1189,12 @@ class PluginLifecycleServiceImpl :
         }
 
         // ターゲットのバージョン指定を取得
+        // 多段sync（A ← sync:A の B ← sync:B の C）は正式に許可しているため、
+        // ターゲットがsync指定であることを理由に拒否しない。
+        // ここで拒否すると、更新・インストール・cronが多段syncに対応しているのに
+        // 多段syncを作る唯一の正規コマンドである add だけが失敗する、という食い違いが残る。
+        // 循環は validateSyncDependencies / detectCircularDependencies が別途捕捉する
         val targetManaged = targetSpec as PluginSpec.Managed
-
-        // ターゲットもSync指定の場合はエラー
-        if (targetManaged.versionRequirement is VersionSpecifier.Sync) {
-            return MpmError.PluginError
-                .VersionResolutionFailed(
-                    pluginName,
-                    "Sync target '${version.targetPlugin}' is also sync"
-                ).left()
-        }
 
         // ターゲットのバージョンを解決
         val resolvedVersion =
@@ -1264,6 +1260,21 @@ class PluginLifecycleServiceImpl :
                 is VersionSpecifier.Fixed -> {
                     // Fixed: 指定されたバージョン文字列をそのまま使用
                     (targetManaged.versionRequirement as VersionSpecifier.Fixed).version
+                }
+                is VersionSpecifier.Sync -> {
+                    // 多段sync: 同期先が今ディスクに入っているバージョンへ追従する。
+                    // 連鎖の根まで遡って解決し直すのではなく、連動更新（updateSyncPlugins）と同じく
+                    // 「親の実際のインストール済みバージョン」を見ることで、両経路の結果が一致する。
+                    metadataManager.loadMetadata(version.targetPlugin).fold(
+                        {
+                            return MpmError.PluginError
+                                .VersionResolutionFailed(
+                                    pluginName,
+                                    "Sync target '${version.targetPlugin}' is not installed yet"
+                                ).left()
+                        },
+                        { it.mpmInfo.version.current.raw }
+                    )
                 }
                 else -> {
                     // Pattern等: DTO経由で取得

@@ -89,8 +89,12 @@ sealed class SyncDependencyError {
     /**
      * ターゲットがSync指定エラー
      *
-     * 同期対象のプラグインもSync指定になっている場合に発生
-     * （循環依存の一種だが、直接的なエラーとして扱う）
+     * 同期対象のプラグインもSync指定になっている場合に発生していた。
+     *
+     * 現在は多段 sync（`A <- sync:A の B <- sync:B の C`）を正式に許可しており、
+     * [validateSyncDependencies] はこのエラーを生成しない。
+     * 多段が破綻するのは循環している場合だけであり、それは [CircularDependency] が表す。
+     * 既存の `when` 網羅を壊さないため型としては残している。
      *
      * @property pluginName 同期を設定したプラグイン名
      * @property targetPlugin 同期対象のプラグイン名

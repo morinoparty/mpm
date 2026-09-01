@@ -14,6 +14,11 @@ import party.morino.mpm.api.domain.config.model.GlobalSettings
 /**
  * PluginSettingsの値をGlobalSettingsでフォールバックして解決済みの値を取得する
  *
+ * **現在mpm本体はこの関数を呼び出していない。**
+ * ロックの判定は `metadata/<プラグイン名>.yaml` の `settings.lock == true` だけで行っており、
+ * GlobalSettings へのフォールバックは存在しない（nullはfalseと同じ扱い）。
+ * この関数を配線するとcronの更新対象判定が変わるため、利用者の判断なしに有効化しないこと。
+ *
  * @param globalSettings グローバル設定
  * @return 解決済みのプラグイン設定
  */
