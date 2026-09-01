@@ -32,6 +32,7 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.config.model.ConfigData
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.migration.SchemaMigrator
 import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.lock.LockRepository
@@ -50,6 +51,7 @@ import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.migration.SchemaMigratorImpl
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
 import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
@@ -103,6 +105,9 @@ class MpmTest :
                         override suspend fun reload() { /* テストでは動的リロードは不要 */ }
                     }
                 }
+
+                // スキーマ移行の登録（本番のDIグラフと構成を揃えるため。テストからは呼び出さない）
+                single<SchemaMigrator> { SchemaMigratorImpl() }
 
                 // リポジトリマネージャーの登録
                 single<RepositoryManager> {

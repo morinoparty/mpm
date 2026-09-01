@@ -12,9 +12,15 @@
 package party.morino.mpm.api.domain.plugin.dto
 
 import kotlinx.serialization.Serializable
+import party.morino.mpm.api.domain.migration.SchemaVersions
 
+/**
+ * metadata/<プラグイン名>.yaml のデータ構造
+ */
 @Serializable
 data class ManagedPluginDto(
+    // ファイルのスキーマ版数（フィールドが無いレガシーファイルは1として扱う）
+    val schemaVersion: Int = SchemaVersions.LEGACY,
     val pluginInfo: PluginInfoDto,
     val mpmInfo: MpmInfoDto
 )

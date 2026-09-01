@@ -54,6 +54,7 @@ import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.application.plugin.metadata.restoreQuarantinedMetadataOrWarn
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.state.PluginLockEvent
 import party.morino.mpm.event.state.PluginUnlockEvent
@@ -242,6 +243,29 @@ class PluginUpdateServiceImpl :
                 continue
             }
 
+            // メタデータを置き換えられるかを、キャンセル可能なイベントを発火するより前に検査する（副作用なし）。
+            // 未来のスキーマ版数で書かれたファイルは読み込みに成功してしまうため、ここを通さないと
+            // 「中止が確定している更新」を他プラグインへ通知してしまう（Webhookの外部通知は取り消せない）。
+            // 単体更新 update(name) と同じく「破壊的操作・イベント発火の前に中止する」方へ揃える
+            // （installSinglePlugin 側の同じ判定は、他の呼び出し経路のための多重防御として残す）。
+            val preflightError =
+                pluginMetadataManager
+                    .ensureMetadataReplaceable(outdatedInfo.pluginName)
+                    .fold({ it }, { null })
+            if (preflightError != null) {
+                progressCallback?.invoke("<gray>[${outdatedInfo.pluginName}] <red>$preflightError")
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = outdatedInfo.pluginName,
+                        oldVersion = outdatedInfo.currentVersion,
+                        newVersion = outdatedInfo.latestVersion,
+                        success = false,
+                        errorMessage = preflightError
+                    )
+                )
+                continue
+            }
+
             // PluginUpdateEventを発火して、他のプラグインがキャンセルできるようにする
             // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
             val updateEvent =
@@ -405,6 +429,16 @@ class PluginUpdateServiceImpl :
                 return MpmError.PluginError.Locked(name.value).left()
             }
 
+            // メタデータを置き換えられるかを、イベント発火とバックアップ作成より前に検査する（副作用なし）。
+            // 未来のスキーマ版数で書かれたファイルは読み込みに成功するため、ここを通さないと
+            // 中止が確定している操作のために plugins/ ディレクトリ全体のZIPを作り、
+            // 起きるはずのない更新を他プラグインへ通知してしまう。
+            // add / uninstall / install と同じく「破壊的操作の前に中止する」方に揃える
+            // （installSinglePlugin 側の同じ判定は、他の呼び出し経路のための多重防御として残す）。
+            pluginMetadataManager.ensureMetadataReplaceable(name.value).onLeft {
+                return MpmError.PluginError.UpdateFailed(name.value, it).left()
+            }
+
             // PluginUpdateEventを発火して、キャンセル可能にする
             val updateEvent =
                 BukkitDispatcher.callEventSync(
@@ -558,6 +592,20 @@ class PluginUpdateServiceImpl :
                         pluginName,
                         "'${sync.targetPlugin}' に同期する設定のため個別にバージョンを変更できません"
                     ).left()
+            }
+
+            // メタデータと mpm.json を置き換えられるかを、イベント発火とバックアップ作成より前に検査する（副作用なし）。
+            // 未来のスキーマ版数で書かれたファイルは読み込みに成功してしまうため、ここを通さないと
+            // 中止が確定している切り替えのために plugins/ ディレクトリ全体のZIPを作り、
+            // 起きるはずのない更新を他プラグインへ通知してしまう（Webhookの外部通知は取り消せない）。
+            // さらに mpm.json の保存が必ず拒否されるため、末尾の rewriteSpecToFixed だけが失敗し
+            // 「jarとメタデータは新バージョン、mpm.json は旧指定」という中間状態が確定的に残る。
+            // update(name) / add / remove / uninstall / lock / unlock と同じ位置・同じ理屈で中止する。
+            pluginMetadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+                return MpmError.PluginError.UpdateFailed(pluginName, it).left()
+            }
+            projectRepository.ensureSavable().onLeft { reason ->
+                return MpmError.PluginError.UpdateFailed(pluginName, reason).left()
             }
 
             // 現在バージョン・ロック状態をメタデータから取得
@@ -1010,6 +1058,14 @@ class PluginUpdateServiceImpl :
             return MpmError.PluginError.AlreadyLocked(name.value).left()
         }
 
+        // メタデータを書き換えられるかをイベント発火より前に検査する（副作用なし）。
+        // 未来のスキーマ版数のファイルは読み込みには成功するため、保存時のガードだけに頼ると
+        // 「イベントは飛んだのに保存は拒否された」状態になり、通知を受けた外部システムだけが
+        // ロック済みだと認識する食い違いが残る。add / uninstall / install と同じ順序に揃える
+        pluginMetadataManager.ensureMetadataReplaceable(name.value).onLeft {
+            return MpmError.PluginError.MetadataSaveFailed(name.value, it).left()
+        }
+
         // PluginLockEventを発火して、他のプラグインがキャンセルできるようにする
         // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
         val lockEvent =
@@ -1058,6 +1114,12 @@ class PluginUpdateServiceImpl :
         // 既にロック解除されている場合はエラー
         if (metadata.mpmInfo.settings.lock != true) {
             return MpmError.PluginError.NotLocked(name.value).left()
+        }
+
+        // メタデータを書き換えられるかをイベント発火より前に検査する（副作用なし）。
+        // 理由は lock と同じで、保存が拒否されるのにイベントだけが飛ぶ食い違いを防ぐ
+        pluginMetadataManager.ensureMetadataReplaceable(name.value).onLeft {
+            return MpmError.PluginError.MetadataSaveFailed(name.value, it).left()
         }
 
         // PluginUnlockEventを発火して、他のプラグインがキャンセルできるようにする
@@ -1254,6 +1316,14 @@ class PluginUpdateServiceImpl :
             } catch (e: Exception) {
                 return updateFailure(pluginName, "メタデータの読み込みに失敗しました: ${e.message}").left()
             }
+
+        // メタデータを保存できるかを、ダウンロードやJARの差し替えより前に検査する（副作用なし）。
+        // schemaVersion は単なるIntフィールドなので、未来版数(v3など)のファイルでも読み込みは成功する。
+        // 保存地点のガードだけに頼ると、新JARを配置して旧JARを削除した後に保存が拒否され、
+        // 「JARだけ更新されメタデータは旧版のまま」という状態が残ってしまう（cron自動更新でも起こりうる）。
+        pluginMetadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+            return updateFailure(pluginName, it).left()
+        }
 
         val mpmInfoDto = metadata.mpmInfo
         val pluginInfoDto = metadata.pluginInfo
@@ -1473,6 +1543,13 @@ class PluginUpdateServiceImpl :
      * 指定バージョンでプラグインをインストールする
      *
      * @param action メタデータの履歴に記録するアクション名（"install" / "switch" / "rollback" など）
+     * @param abortOnUnreadableMetadata メタデータファイルが存在するのに読み込めない場合に処理を中断するか。
+     *   自動更新（cron / sync連動）のような無人実行では、破損メタデータを作り直すと
+     *   `lock: true` などの設定を無音で失うため true を指定して中断する。
+     *   一方 `mpm install` のようなユーザー起点の操作では、破損メタデータの作り直しが
+     *   復旧手段そのものになるため false（既定）のままにして続行させる。
+     *   ただし続行する場合も、原本は `.corrupt` へ退避してから作り直す
+     *   （[PluginMetadataManager.quarantineMetadata]）。
      */
     private suspend fun installPluginWithVersion(
         pluginName: String,
@@ -1480,8 +1557,16 @@ class PluginUpdateServiceImpl :
         force: Boolean = false,
         skipIntegrity: Boolean = false,
         expectedSha256: String? = null,
-        action: String = "install"
+        action: String = "install",
+        abortOnUnreadableMetadata: Boolean = false
     ): Either<MpmError, InstallResult> {
+        // メタデータを保存できるかを、ダウンロードやJARの差し替えより前に検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれたファイルは読み込みに成功してしまうため、
+        // 読み込み失敗時だけの判定では取りこぼす。破壊的操作に入る前に無条件で中止する。
+        pluginMetadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+            return installFailure(pluginName, it).left()
+        }
+
         // リポジトリファイルを取得
         val repositoryFile =
             repositoryManager.getRepositoryFile(pluginName)
@@ -1552,10 +1637,40 @@ class PluginUpdateServiceImpl :
         // メタデータが存在するか確認し、更新または作成
         // 新規作成時はチャンネル固有のversionModifierを尊重するため、解決チャンネルを渡す
         val resolvedChannel = tagChannel ?: "latest"
+
+        // 読み込めなかったメタデータを退避する必要がある場合、その原因を保持しておく。
+        // 実際の退避は最後の saveMetadata の直前まで遅延させる（理由は退避処理の箇所を参照）。
+        var pendingQuarantineReason: String? = null
+
         val metadata =
             pluginMetadataManager.loadMetadata(pluginName).fold(
                 // メタデータが存在しない場合は新規作成
-                {
+                { loadError ->
+                    // 未来のスキーマ版数で書かれたファイルは「破損」ではなく「このmpmでは解釈できないだけ」。
+                    // 退避して作り直すと有効な設定（lockなど）と未知フィールドを現行版数へ巻き戻すことになり、
+                    // saveMetadata のダウングレード防止ガードを退避経由で迂回してしまう。
+                    // ダウンロードやJARの差し替えより前に判定し、無条件に中断する。
+                    pluginMetadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+                        return installFailure(pluginName, it).left()
+                    }
+
+                    // ファイルが在るのに読めない場合は破損・未知フィールドなどが原因であり、
+                    // ここで作り直すと既存の settings（lockなど）を無音で失う。
+                    // 無人実行（自動更新・sync連動）ではデータを壊さないことを優先して中断するが、
+                    // ユーザー起点のインストールでは作り直しが復旧手段になるため続行する。
+                    if (abortOnUnreadableMetadata && metadataFileExists(pluginName)) {
+                        return installFailure(
+                            pluginName,
+                            "メタデータを読み込めないため処理を中断しました: $loadError"
+                        ).left()
+                    }
+                    // 続行する場合も、破損ファイルを黙って上書きすると lock などの設定が
+                    // 復旧不能になるため、作り直す前に必ず退避する。
+                    // ただしここでは退避せず、原因の記録だけに留める。
+                    // この時点で原本を消すと、後続のダウンロード失敗などで中断した際に
+                    // 「原本は退避済み・作り直しは未保存」というメタデータ不在の状態が残り、
+                    // メタデータファイルの存在を前提とする無人経路のロック判定が無効化されてしまう。
+                    pendingQuarantineReason = loadError
                     pluginMetadataManager
                         .createMetadata(pluginName, firstRepository, versionData, action, resolvedChannel)
                         .getOrElse { return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left() }
@@ -1666,16 +1781,55 @@ class PluginUpdateServiceImpl :
                             )
                     )
             )
+
+        // 破損メタデータの退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
+        // 退避できない場合は原本を守るためインストールを失敗として扱う。
+        // 退避先は保存に失敗したときに戻すため保持しておく。
+        var quarantinedFile: File? = null
+        pendingQuarantineReason?.let { loadError ->
+            pluginMetadataManager.quarantineMetadata(pluginName).fold(
+                { quarantineError ->
+                    return installFailure(
+                        pluginName,
+                        "破損したメタデータを退避できなかったため処理を中断しました: " +
+                            "$quarantineError (元のエラー: $loadError)"
+                    ).left()
+                },
+                { quarantined ->
+                    quarantinedFile = quarantined
+                    // 退避が発生した場合のみ、復旧できるように退避先を明示して警告する
+                    quarantined?.let {
+                        plugin.logger.warning(
+                            "メタデータを読み込めないため退避して作り直します: $pluginName " +
+                                "($loadError) -> ${it.absolutePath}"
+                        )
+                    }
+                }
+            )
+        }
+
+        // 長時間のダウンロード中に実行された lock/unlock を上書きで失わないよう、
+        // 保存直前に読み直した settings を引き継ぐ（mergeLatestSettings）。
+        // 直前に退避が起きていた場合は原本が無いため no-op に縮退するだけで害はない。
         pluginMetadataManager
             .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
-            .getOrElse {
+            .onLeft { saveError ->
+                // 退避した原本を戻さないと `metadata/<名前>.yaml` が不在のまま残り、
+                // ロック判定などが無音で無効化されてしまう（詳細は restoreQuarantinedMetadataOrWarn のKDoc）
+                val restoreNote =
+                    restoreQuarantinedMetadataOrWarn(
+                        metadataManager = pluginMetadataManager,
+                        logger = plugin.logger,
+                        pluginName = pluginName,
+                        quarantinedFile = quarantinedFile
+                    )
                 // ここに到達した時点でjarは既に新バージョンへ差し替わっているため、
                 // メタデータだけが旧バージョンのまま残る。手動確認が必要であることを明示する
                 return MpmError.PluginError
                     .MetadataSaveFailed(
                         pluginName,
                         "jarは既に $newFileName へ差し替え済みですが、メタデータの保存に失敗しました" +
-                            "（plugins/ と metadata の内容を手動で確認してください）: $it"
+                            "（plugins/ と metadata の内容を手動で確認してください）: $saveError$restoreNote"
                     ).left()
             }
 
@@ -1769,6 +1923,18 @@ class PluginUpdateServiceImpl :
      * mpm.jsonを読み込む（ProjectRepository経由）
      */
     private suspend fun loadMpmConfig(): MpmConfig? = projectRepository.find()?.toDto()
+
+    /**
+     * メタデータファイルが存在するかどうかを判定する
+     *
+     * [PluginMetadataManager.loadMetadata] は「ファイルが無い」と「読めない（破損・未知フィールド）」を
+     * 同じ失敗として返すため、この2つを区別するために使う。
+     *
+     * @param pluginName プラグイン名
+     * @return metadata/<プラグイン名>.yaml が存在する場合はtrue
+     */
+    private fun metadataFileExists(pluginName: String): Boolean =
+        File(pluginDirectory.getMetadataDirectory(), "$pluginName.yaml").exists()
 
     /**
      * バージョン指定文字列を実際のバージョンに解決する

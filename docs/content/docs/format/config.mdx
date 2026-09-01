@@ -26,14 +26,15 @@ mpmの設定ファイルは用途ごとに2つに分かれています。
 
 ```
 your-server/
-├── mpm.json
 ├── plugins/
 │   └── mpm/
 │       ├── config.json    ← このファイル
+│       ├── mpm.json       ← プロジェクト設定ファイル
+│       ├── mpm-lock.yaml  ← 自動生成されるロックファイル
 │       ├── repository/    ← ローカルリポジトリ
 │       ├── metadata/      ← 個別プラグインの詳細情報
 │       ├── cache/         ← HTTPメタデータキャッシュ
-│       └── temp/          ← ダウンロード用一時ディレクトリ
+│       └── backups/       ← サーバーバックアップの保存先
 └── ...
 ```
 
@@ -45,6 +46,7 @@ your-server/
 
 ```jsonc title="plugins/mpm/config.json"
 {
+    "schemaVersion": 2,                  // 設定ファイルのスキーマ版数
     "repositories": [                    // リポジトリソース（優先順位順）
         {
             "type": "local",
@@ -78,12 +80,37 @@ your-server/
             "enabled": true,
             "metadataTtlSeconds": 300,
             "maxMetadataEntries": 200
+        },
+        "backup": {
+            "enabled": true,
+            "maxBackups": 5,
+            "autoBackupOnUpdate": true,
+            "autoBackupOnInstall": false
         }
     }
 }
 ```
 
 ## フィールド詳細
+
+### 📐 schemaVersion（スキーマ版数）
+
+設定ファイルの構造の版数です。現在の版数は `2` です。
+
+```json
+{
+    "schemaVersion": 2
+}
+```
+
+- **デフォルト値:** `1`（記載がない場合は旧形式として扱われます）
+- mpmが `config.json` を保存するたびに現行の版数が記録されるため、手で編集する必要はありません
+- 版数が古いファイルは、サーバー起動時に自動で現行の構造へ移行されます
+
+<Callout type="info" title="自動移行について">
+版数の扱いと起動時の自動移行の詳細は
+[スキーマ版数と自動移行](/docs/format/schema-migration) をご覧ください。
+</Callout>
 
 ### 📦 repositories（リポジトリソース）
 
@@ -181,18 +208,24 @@ mpm全体の動作設定を定義します。
 
 | フィールド | 説明 | デフォルト |
 |-----------|------|-----------|
-| `autoUpdate` | 自動更新を有効にするか | `false` |
-| `autoCheck` | 自動バージョンチェックを有効にするか | `false` |
-| `lock` | デフォルトでバージョンをロックするか | `false` |
-| `tempDir` | 一時ファイルの保存ディレクトリ（`plugins/mpm/`配下） | `"temp"` |
+| `autoUpdate` | 現在は未使用（予約フィールド） | `false` |
+| `autoCheck` | 現在は未使用（予約フィールド） | `false` |
+| `lock` | 現在は未使用（予約フィールド） | `false` |
+| `tempDir` | 現在は未使用（予約フィールド） | `"temp"` |
 | `githubToken` | GitHub APIの認証トークン（レート制限回避用） | `null` |
 | `webhook` | Discord Webhook通知の設定（後述） | デフォルト値 |
 | `schedule` | スケジュール自動更新の設定（後述） | デフォルト値 |
-| `backup` | [バックアップ](/docs/commands/backup)の設定 | デフォルト値 |
+| `backup` | 更新前のサーバー[バックアップ](/docs/commands/backup)設定（後述） | デフォルト値 |
 | `cache` | HTTPメタデータキャッシュの設定（後述） | デフォルト値 |
 
-<Callout type="info" title="優先順位">
-個別プラグインのメタデータ（`metadata/*.yaml`）で設定が指定されている場合、そちらがこのグローバル設定より優先されます。
+<Callout type="warn" title="未使用の予約フィールド">
+`autoUpdate` / `autoCheck` / `lock` / `tempDir` は、設定ファイルには書き出されますが現在の実装からは参照されていません。
+値を変更しても動作は変わりません。
+
+- ロックの有無は、プラグインごとの `metadata/*.yaml` の `settings.lock` だけで決まります。
+  グローバル設定へのフォールバックは行われず、省略された場合は `false` として扱われます。
+- 自動更新を行うかどうかは `schedule`（スケジュール自動更新）の設定で決まります。
+- ダウンロード時の一時ファイルは `plugins/mpm/` の外、JVMのシステム一時ディレクトリに作成されます。
 </Callout>
 
 <Callout type="warn" title="githubTokenの扱い">
@@ -346,6 +379,41 @@ cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づ�
 Discord WebhookのURLはトークンを含む機密情報です。`config.json` を公開リポジトリにコミットしないように注意してください。
 </Callout>
 
+#### 💾 backup（サーバーバックアップ）
+
+プラグインの更新を行う前に、`plugins/` ディレクトリ全体のバックアップを自動作成できます。
+
+```json
+{
+    "settings": {
+        "backup": {
+            "enabled": true,
+            "maxBackups": 5,
+            "autoBackupOnUpdate": true,
+            "autoBackupOnInstall": false
+        }
+    }
+}
+```
+
+| フィールド | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | バックアップ機能全体の有効/無効 | `true` |
+| `maxBackups` | `/mpm backup cleanup` で保持するバックアップの件数 | `5` |
+| `autoBackupOnUpdate` | 更新の前に自動でバックアップを作成するか | `true` |
+| `autoBackupOnInstall` | 現在は未使用（予約フィールド） | `false` |
+
+<Callout type="warn" title="autoBackupOnInstall は未使用です">
+現在、`mpm install` / `mpm add` / `mpm adopt` などのインストール経路はバックアップを作成しません。
+`autoBackupOnInstall` を `true` にしても、インストール前のバックアップは行われません。
+インストール前にバックアップを取りたい場合は、`/mpm backup create` で手動作成してください。
+</Callout>
+
+<Callout type="info" title="スケジュール自動更新でのバックアップ">
+スケジュール自動更新では、対象プラグインが何件あっても、1回の実行につきバックアップは1つだけ作成されます。
+古いバックアップは自動では削除されないため、`/mpm backup cleanup` で定期的に整理してください。
+</Callout>
+
 ## 使用例
 
 ### デフォルト構成（自動生成）
@@ -354,6 +422,7 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 
 ```json
 {
+    "schemaVersion": 2,
     "repositories": [
         {
             "type": "local",
@@ -364,10 +433,33 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
         "autoUpdate": false,
         "autoCheck": false,
         "lock": false,
-        "tempDir": "temp"
+        "tempDir": "temp",
+        "githubToken": null,
+        "webhook": {
+            "enabled": false,
+            "endpoints": []
+        },
+        "schedule": {
+            "enabled": false,
+            "cron": "0 4 * * *",
+            "checkOnStartup": true,
+            "dryRun": false
+        },
+        "backup": {
+            "enabled": true,
+            "maxBackups": 5,
+            "autoBackupOnUpdate": true,
+            "autoBackupOnInstall": false
+        }
     }
 }
 ```
+
+<Callout type="info" title="すべての項目が書き出されます">
+mpmは設定を保存するとき、デフォルト値のままの項目も省略せずに書き出します。
+そのため自動生成された `config.json` には、上記のようにすべての項目が含まれます。
+不要に見える項目を手で削除しても、次回の保存時に再び書き戻されます。
+</Callout>
 
 ### 複数リポジトリソースの構成
 
@@ -375,6 +467,7 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 
 ```json
 {
+    "schemaVersion": 2,
     "repositories": [
         {
             "type": "local",
@@ -397,6 +490,7 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 
 ```json
 {
+    "schemaVersion": 2,
     "repositories": [
         {
             "type": "local",
@@ -411,8 +505,6 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
         }
     ],
     "settings": {
-        "autoUpdate": true,
-        "autoCheck": true,
         "githubToken": "ghp_xxxxxxxxxxxxxxxxxxxx"
     }
 }
@@ -424,6 +516,7 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 
 ```json
 {
+    "schemaVersion": 2,
     "repositories": [
         {
             "type": "local",
@@ -431,7 +524,6 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
         }
     ],
     "settings": {
-        "autoUpdate": true,
         "schedule": {
             "enabled": true,
             "cron": "0 4 * * *",
@@ -462,6 +554,11 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 ## 設定の再読み込み
 
 設定変更後、サーバーを再起動せずに `/mpm reload` コマンドで設定を再読み込みできます。
+
+`config.json` が壊れている、あるいは読み取れない場合、mpmはサーバーを止めずにデフォルト設定へ
+フォールバックします。このとき `config.json` そのものには手を加えません。
+`/mpm reload` を実行した場合は、成功ではなく黄色の警告として原因と対象パスがその場に表示されるため、
+設定が無言で失われたと誤解することはありません。内容を修正してから再度 `/mpm reload` を実行してください。
 リロード時にはリポジトリマネージャーとスケジューラーも新しい設定で再初期化されます。
 
 ## 関連ファイル
@@ -470,3 +567,4 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 - [repository](/docs/format/repository) - リポジトリファイルの形式
 - [metadata/*.yaml](/docs/format/managed) - 個別プラグインの詳細情報
 - [キャッシュコマンド](/docs/commands/cache) - `settings.cache` で設定したキャッシュの確認・削除
+- [スキーマ版数と自動移行](/docs/format/schema-migration) - schemaVersionと起動時の自動移行

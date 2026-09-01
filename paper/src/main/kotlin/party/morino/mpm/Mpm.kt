@@ -12,6 +12,7 @@ package party.morino.mpm
 import kotlinx.coroutines.runBlocking
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
+import org.koin.dsl.binds
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
@@ -32,6 +33,8 @@ import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.migration.SchemaMigrator
+import party.morino.mpm.api.domain.migration.SchemaVersions
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -57,10 +60,12 @@ import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
 import party.morino.mpm.infrastructure.cache.CacheManagerImpl
 import party.morino.mpm.infrastructure.cache.HttpMetadataCacheImpl
 import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
+import party.morino.mpm.infrastructure.config.ConfigLoadDiagnostics
 import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.migration.SchemaMigratorImpl
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
 import party.morino.mpm.infrastructure.mineauth.MpmApiPermission
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
@@ -125,6 +130,8 @@ open class Mpm :
         // DIコンテナの初期化
         setupKoin()
         runBlocking {
+            // 設定ファイルのスキーマ移行を最優先で行う（ConfigManagerがconfig.jsonを読むより前）
+            runSchemaMigration()
             _configManager.reload()
         }
 
@@ -165,6 +172,29 @@ open class Mpm :
         GlobalContext.stopKoin()
 
         logger.info("mpm has been disabled!")
+    }
+
+    /**
+     * 設定ファイル（mpm.json / config.json / metadata 配下の yaml）のスキーマ移行を実行し、結果をログに出力する
+     *
+     * 移行の失敗はプラグインの起動を止めない。該当ファイルはそのままの内容で扱われる
+     */
+    private suspend fun runSchemaMigration() {
+        val report = GlobalContext.get().get<SchemaMigrator>().migrateAll()
+
+        if (report.migratedCount > 0) {
+            logger.info("Migrated ${report.migratedCount} file(s) to schema v${SchemaVersions.CURRENT}.")
+        }
+        // 新しいmpmで書かれたファイルはダウングレードできないため、警告だけ出してそのまま扱う
+        report.futures.forEach {
+            logger.warning(
+                "${it.fileName} は新しいスキーマ (v${it.foundVersion}) で書かれています。" +
+                    "ダウングレードは行わず、そのまま扱います。"
+            )
+        }
+        report.failures.forEach {
+            logger.warning("${it.fileName} のスキーマ移行に失敗しました: ${it.reason}")
+        }
     }
 
     /**
@@ -234,7 +264,11 @@ open class Mpm :
 
                 // 設定の登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginDirectory> { PluginDirectoryImpl() }
-                single<ConfigManager> { ConfigManagerImpl() }
+                // 読み込み失敗の診断情報（ConfigLoadDiagnostics）も同じインスタンスから引けるようにする
+                single { ConfigManagerImpl() } binds arrayOf(ConfigManager::class, ConfigLoadDiagnostics::class)
+
+                // スキーマ移行の登録（他サービスが設定ファイルを読むより前に一度だけ実行される）
+                single<SchemaMigrator> { SchemaMigratorImpl() }
 
                 // リポジトリマネージャーの登録（ファクトリーを使用）
                 single<RepositoryManager> {
