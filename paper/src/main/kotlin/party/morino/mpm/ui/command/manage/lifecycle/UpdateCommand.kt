@@ -74,9 +74,10 @@ class UpdateCommand : KoinComponent {
                 if (updateResults.isEmpty()) {
                     sender.sendRichMessage("<yellow>更新対象のプラグインはありませんでした。</yellow>")
                 } else {
-                    // 成功と失敗を分ける
+                    // 成功・意図的なスキップ・失敗を分ける
                     val successResults = updateResults.filter { it.success }
-                    val failedResults = updateResults.filter { !it.success }
+                    val skippedResults = updateResults.filter { !it.success && it.skipped }
+                    val failedResults = updateResults.filter { !it.success && !it.skipped }
 
                     // 成功した更新を表示
                     if (successResults.isNotEmpty()) {
@@ -84,6 +85,16 @@ class UpdateCommand : KoinComponent {
                         successResults.forEach { result ->
                             sender.sendRichMessage(
                                 "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}"
+                            )
+                        }
+                    }
+
+                    // ロック中などで意図的にスキップしたものを表示（失敗ではない）
+                    if (skippedResults.isNotEmpty()) {
+                        sender.sendRichMessage("<yellow>以下のプラグインは更新しませんでした:</yellow>")
+                        skippedResults.forEach { result ->
+                            sender.sendRichMessage(
+                                "  - ${result.pluginName}: ${result.errorMessage ?: "スキップしました"}"
                             )
                         }
                     }
@@ -141,9 +152,10 @@ class UpdateCommand : KoinComponent {
                 sender.sendRichMessage("<red>${error.message}</red>")
             },
             { results ->
-                // 更新結果は先頭が親、以降が連動更新した sync: プラグイン（子）
+                // 更新結果は先頭が親、以降が連動更新した sync: プラグイン（子孫）
                 val successResults = results.filter { it.success }
-                val failedResults = results.filter { !it.success }
+                val skippedResults = results.filter { !it.success && it.skipped }
+                val failedResults = results.filter { !it.success && !it.skipped }
 
                 // 成功した更新（親＋連動更新した子）を表示
                 if (successResults.isNotEmpty()) {
@@ -152,6 +164,14 @@ class UpdateCommand : KoinComponent {
                         sender.sendRichMessage(
                             "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}"
                         )
+                    }
+                }
+
+                // ロック中などで意図的にスキップしたものを表示（失敗ではない）
+                if (skippedResults.isNotEmpty()) {
+                    sender.sendRichMessage("<yellow>以下のプラグインは更新しませんでした:</yellow>")
+                    skippedResults.forEach { result ->
+                        sender.sendRichMessage("  - ${result.pluginName}: ${result.errorMessage ?: "スキップしました"}")
                     }
                 }
 

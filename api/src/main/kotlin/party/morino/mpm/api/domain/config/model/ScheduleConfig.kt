@@ -26,7 +26,4 @@ data class ScheduleConfig(
 
     // サーバー起動時にプラグインの更新チェックを行うか
     val checkOnStartup: Boolean = true,
-
-    // dry-runモード（trueの場合、更新チェックと通知のみで実際の更新は行わない）
-    val dryRun: Boolean = false,
 )

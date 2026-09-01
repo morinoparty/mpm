@@ -73,8 +73,7 @@ your-server/
         "schedule": {
             "enabled": false,
             "cron": "0 4 * * *",
-            "checkOnStartup": true,
-            "dryRun": false
+            "checkOnStartup": true
         },
         "cache": {
             "enabled": true,
@@ -110,6 +109,9 @@ your-server/
 <Callout type="info" title="自動移行について">
 版数の扱いと起動時の自動移行の詳細は
 [スキーマ版数と自動移行](/docs/format/schema-migration) をご覧ください。
+
+なお、かつて存在した `settings.schedule.dryRun` は廃止されました。
+旧形式の `config.json` を読み込むと、自動移行の際にこの項目が取り除かれます。
 </Callout>
 
 ### 📦 repositories（リポジトリソース）
@@ -242,8 +244,7 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
         "schedule": {
             "enabled": true,
             "cron": "0 4 * * *",
-            "checkOnStartup": true,
-            "dryRun": false
+            "checkOnStartup": true
         }
     }
 }
@@ -254,7 +255,6 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
 | `enabled` | スケジュール自動更新の有効/無効 | `false` |
 | `cron` | cron式（UNIX形式: 分 時 日 月 曜日） | `"0 4 * * *"` |
 | `checkOnStartup` | サーバー起動時に更新チェックを行うか | `true` |
-| `dryRun` | trueの場合、更新チェックと通知のみ行い、実際の更新は行わない | `false` |
 
 **cron式の例:**
 
@@ -270,10 +270,15 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
 起動時には更新チェックのみ行い、実際の更新は行いません。
 </Callout>
 
-<Callout type="info" title="dry-runモード">
-`dryRun` を `true` に設定すると、スケジュール実行時に更新チェックと通知のみを行い、実際のプラグイン更新は行いません。
-本番環境に導入する前のテストや、更新の頻度を把握するために便利です。
-コマンドからも `/mpm update --dry-run` で同様の動作が可能です。
+<Callout type="info" title="自動更新の対象範囲">
+スケジュール実行時に実際に更新されるのは、`mpm.json` のバージョン指定が `latest` または `tag:xxx` のプラグインだけです。
+固定バージョン（例: `"1.2.3"`）や `pattern:` 指定のプラグインは、更新があってもチェックと報告のみを行い、更新は行いません。
+
+`sync:` 指定のプラグインは、同期先（親）が自動更新された場合に限り、その新しいバージョンへ追従して更新されます。
+また `/mpm lock` でロックされたプラグインは、バージョン指定の種類に関わらず更新されず、
+「更新があるがロック中のためスキップした」旨がログに報告されます。
+
+詳しくは [プラグインの更新](/docs/usage/update) をご覧ください。
 </Callout>
 
 <Callout type="info" title="タイムゾーン">
@@ -442,8 +447,7 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
         "schedule": {
             "enabled": false,
             "cron": "0 4 * * *",
-            "checkOnStartup": true,
-            "dryRun": false
+            "checkOnStartup": true
         },
         "backup": {
             "enabled": true,
@@ -527,8 +531,7 @@ mpmは設定を保存するとき、デフォルト値のままの項目も省�
         "schedule": {
             "enabled": true,
             "cron": "0 4 * * *",
-            "checkOnStartup": true,
-            "dryRun": false
+            "checkOnStartup": true
         },
         "webhook": {
             "enabled": true,

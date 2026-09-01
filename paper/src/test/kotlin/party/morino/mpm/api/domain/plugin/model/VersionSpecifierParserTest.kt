@@ -181,4 +181,24 @@ class VersionSpecifierParserTest {
             assertEquals("QuickShop-Hikari-Addon", result)
         }
     }
+
+    @Nested
+    @DisplayName("isDynamic() tests")
+    inner class IsDynamicTest {
+        @Test
+        @DisplayName("isDynamic accepts latest and tag only")
+        fun testIsDynamic() {
+            // latest と tag: だけが cron 自動更新の駆動要因となる
+            assertTrue(VersionSpecifierParser.isDynamic("latest"))
+            assertTrue(VersionSpecifierParser.isDynamic("LATEST"))
+            assertTrue(VersionSpecifierParser.isDynamic("tag:stable"))
+            // 固定・sync・pattern・unmanaged は動的ではない
+            assertFalse(VersionSpecifierParser.isDynamic("1.2.3"))
+            assertFalse(VersionSpecifierParser.isDynamic("sync:QuickShop"))
+            assertFalse(VersionSpecifierParser.isDynamic("pattern:^1\\..*"))
+            assertFalse(VersionSpecifierParser.isDynamic("unmanaged"))
+            // タグ名が空の "tag:" は Tag 形式として扱わない
+            assertFalse(VersionSpecifierParser.isDynamic("tag:"))
+        }
+    }
 }

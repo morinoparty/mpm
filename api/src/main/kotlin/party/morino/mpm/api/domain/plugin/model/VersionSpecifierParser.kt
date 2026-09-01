@@ -97,6 +97,20 @@ object VersionSpecifierParser {
             versionString.length > TAG_PREFIX.length
 
     /**
+     * バージョン文字列が「動的にバージョンが決まる指定」かどうかを判定する
+     *
+     * latestとtag:は解決のたびにバージョンが変わりうるため、
+     * cron自動更新の駆動要因となる。Fixed / sync: / pattern: は動的ではない。
+     *
+     * 判定は [parse] と同じく大文字小文字を区別しない
+     *
+     * @param versionString 判定対象のバージョン文字列
+     * @return latestまたはtag:形式の場合はtrue
+     */
+    fun isDynamic(versionString: String): Boolean =
+        versionString.equals("latest", ignoreCase = true) || isTagFormat(versionString)
+
+    /**
      * Tag形式のバージョン文字列からタグ名を抽出する
      *
      * @param versionString Tag形式のバージョン文字列

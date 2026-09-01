@@ -18,11 +18,17 @@ import party.morino.mpm.api.application.model.UpdateResult
  * 呼び出し側（コマンド・HTTP API）が「親だけ切り替わり、子が旧バージョンのまま」という
  * `sync:` の不変条件が崩れた状態に気付けない。親の結果の `errorMessage` に載せて可視化する。
  *
+ * ただし [UpdateResult.skipped] が立っている結果は「ロック中などで意図的に据え置いた」ものであり、
+ * 異常ではないため失敗として数えない。ここを数えてしまうと、ロックされた `sync:` の子が1つあるだけで
+ * 「連動更新に失敗した」という誤った警告が親の結果に載り、「ロックは意図的な据え置き」という
+ * 扱いと矛盾する。
+ *
  * @param syncResults 連動更新の結果一覧
- * @return 失敗した子がある場合はその要約メッセージ、すべて成功（または対象なし）の場合はnull
+ * @return 失敗した子がある場合はその要約メッセージ、すべて成功・意図的なスキップ（または対象なし）の場合はnull
  */
 internal fun buildSyncFailureMessage(syncResults: List<UpdateResult>): String? {
-    val failed = syncResults.filter { !it.success }
+    // skipped は意図的な据え置きなので失敗として数えない
+    val failed = syncResults.filter { !it.success && !it.skipped }
     if (failed.isEmpty()) return null
 
     // どの子がどんな理由で失敗したかを列挙する（原因不明でもプラグイン名は必ず出す）

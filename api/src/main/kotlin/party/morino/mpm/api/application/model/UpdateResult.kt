@@ -29,5 +29,7 @@ data class UpdateResult(
     // 更新が成功したかどうか
     val success: Boolean,
     // エラーメッセージ（失敗時のみ）
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // 意図的にスキップした結果かどうか（ロック中など。失敗ではないため警告として扱わない）
+    val skipped: Boolean = false
 )
