@@ -50,12 +50,15 @@ interface PluginUpdateService {
      * @param name プラグイン名
      * @param force trueの場合、api-version非互換でも強制更新する
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
+     * @param skipBackup trueの場合、更新前バックアップを作成しない
+     *   （呼び出し側が複数プラグインをまとめて更新する前に1度だけバックアップを取る場合に使う）
      * @return 更新結果一覧（親＋連動更新した子）
      */
     suspend fun update(
         name: PluginName,
         force: Boolean = false,
-        skipIntegrity: Boolean = false
+        skipIntegrity: Boolean = false,
+        skipBackup: Boolean = false
     ): Either<MpmError, List<UpdateResult>>
 
     /**

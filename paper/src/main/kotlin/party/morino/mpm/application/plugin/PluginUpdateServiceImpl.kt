@@ -237,7 +237,10 @@ class PluginUpdateServiceImpl :
                         oldVersion = outdatedInfo.currentVersion,
                         newVersion = outdatedInfo.latestVersion,
                         success = false,
-                        errorMessage = LOCKED_ERROR_MESSAGE
+                        errorMessage = LOCKED_ERROR_MESSAGE,
+                        // ロックは異常ではなく意図的な据え置きなので、sync連動側と同じくスキップとして扱う。
+                        // ここを失敗のままにすると、同じ理由なのに非syncは赤、sync子は黄と表示が割れる。
+                        skipped = true
                     )
                 )
                 continue
@@ -359,7 +362,8 @@ class PluginUpdateServiceImpl :
     override suspend fun update(
         name: PluginName,
         force: Boolean,
-        skipIntegrity: Boolean
+        skipIntegrity: Boolean,
+        skipBackup: Boolean
     ): Either<MpmError, List<UpdateResult>> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
@@ -454,10 +458,13 @@ class PluginUpdateServiceImpl :
             }
 
             // 一括更新と同様に更新前バックアップを作成する（Codex P2-3）
-            backupManager.createBackup(BackupReason.UPDATE).fold(
-                { error -> plugin.logger.warning("[update] バックアップ作成失敗: ${error.message} - 更新を続行") },
-                { info -> plugin.logger.info("[update] バックアップ作成完了: ${info.fileName}") }
-            )
+            // 呼び出し側で既にバックアップ済みの場合（スケジューラの一括処理など）はskipBackupで抑制する
+            if (!skipBackup) {
+                backupManager.createBackup(BackupReason.UPDATE).fold(
+                    { error -> plugin.logger.warning("[update] バックアップ作成失敗: ${error.message} - 更新を続行") },
+                    { info -> plugin.logger.info("[update] バックアップ作成完了: ${info.fileName}") }
+                )
+            }
 
             // 更新結果（先頭が親、以降が連動更新した子）
             val updateResults = mutableListOf<UpdateResult>()
