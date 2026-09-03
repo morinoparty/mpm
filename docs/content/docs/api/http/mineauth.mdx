@@ -37,8 +37,8 @@ mpmはMineAuthの`MineAuthApi`（v2）に対応しています。サーバー起
 
 | パーミッション | 対象 |
 | --- | --- |
-| `mpm.api.read` | 一覧・詳細・バージョン・履歴・依存関係・診断・検索など、読み取り専用のエンドポイント |
-| `mpm.api.write` | 更新・インストール・アンインストール・ロック・バージョン切り替えなど、状態を変更するエンドポイント |
+| `mpm.api.read` | 一覧・詳細・バージョン・履歴・依存関係・診断・検索・ジョブ状態の参照など、読み取り専用のエンドポイント |
+| `mpm.api.write` | 更新・インストール・アンインストール・ロック・バージョン切り替え・ジョブの受付など、状態を変更するエンドポイント |
 | `mpm.api` | 上記2つを子に持つ親パーミッション（後方互換のために維持されます） |
 
 従来どおり `mpm.api` を付与した場合は、これまでと同じくすべてのエンドポイントにアクセスできます。
@@ -78,6 +78,8 @@ mpmの全エンドポイントは、ユーザートークン・サービスト�
 | GET | `/doctor` | サーバーのプラグイン管理状態を一括診断する |
 | GET | `/search` | リポジトリを横断してプラグインを検索する |
 | GET | `/repositories` | 設定されているリポジトリソースの一覧を取得する |
+| GET | `/jobs` | 非同期ジョブの一覧を取得する |
+| GET | `/jobs/{id}` | 非同期ジョブの進捗と結果を取得する |
 
 ### 書き込み系（`mpm.api.write`）
 
@@ -90,6 +92,7 @@ mpmの全エンドポイントは、ユーザートークン・サービスト�
 | POST | `/plugins/{name}/uninstall` | 指定したプラグインをアンインストールする |
 | POST | `/plugins/{name}/lock` | 指定したプラグインをロックする |
 | POST | `/plugins/{name}/unlock` | 指定したプラグインのロックを解除する |
+| POST | `/jobs` | 時間のかかる処理を非同期ジョブとして受け付ける |
 
 ## 読み取り系エンドポイント
 
@@ -370,13 +373,12 @@ api-versionが非互換な場合でも強制的に更新します。
 :::warning
 このエンドポイントは管理下の**全プラグイン**をダウンロード・検証・配置するため、
 プラグイン数によっては数分単位の時間がかかります。
-処理が完了するまでレスポンスは返らず、進捗通知やジョブIDの仕組みも提供していません。
+処理が完了するまでレスポンスは返らないため、
 リバースプロキシやブラウザのタイムアウトに到達すると、クライアントは更新の成否を知る手段がなくなります。
 
 そのため、**ブラウザからこのエンドポイントを直接呼び出すことは推奨しません。**
-web consoleからは、プラグインごとの `POST /plugins/{name}/update` を利用してください。
-一括更新が必要な場合は、タイムアウトを十分に長く設定したサーバー間の呼び出しか、
-`mpm update` コマンドの利用を検討してください。
+web consoleからは、プラグインごとの `POST /plugins/{name}/update` か、
+進捗と完了を追跡できる[非同期ジョブ](#非同期ジョブ)（`POST /jobs`）を利用してください。
 :::
 
 ```bash title="リクエスト例"
@@ -527,15 +529,133 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/QuickShop-Hikari/versi
 それ以外の値はすべて偽として扱われます。
 :::
 
+## 非同期ジョブ
+
+全プラグインの一括更新のように時間のかかる処理は、レスポンスを待たせ続けると
+リバースプロキシやブラウザのタイムアウトに先に到達してしまいます。
+非同期ジョブのエンドポイントは、処理を受け付けた時点でジョブIDを返し、
+クライアントがポーリングで進捗と完了を確認できるようにします。
+
+:::info
+ジョブはメモリ上にのみ保持されるため、サーバーを再起動すると失われます。
+更新処理そのものはメタデータと `mpm-lock.yaml` に永続化されるので、
+失われるのは「進捗ログと結果の記録」だけです。
+
+また、終了済みのジョブは新しいものから50件まで保持され、それを超えた古いジョブは破棄されます。
+破棄されたジョブIDを参照した場合は `404 Not Found` を返します。
+:::
+
+### POST `/jobs`
+
+ジョブを受け付けてバックグラウンドで実行を開始します。
+受け付けた時点で `201 Created` とジョブIDを返し、`Location` ヘッダーに参照先のURLを示します。
+
+| フィールド | 必須 | 説明 |
+| --- | --- | --- |
+| `type` | 必須 | ジョブ種別。現在は `update_all`（管理下の全プラグインを更新）のみ。大文字小文字は区別しません |
+| `force` | 任意 | `true` の場合、api-version非互換でも強制的に更新します（既定値: `false`） |
+| `skipIntegrity` | 任意 | `true` の場合、整合性検証の不一致を無視して続行します（既定値: `false`） |
+
+同じ種別のジョブがすでに実行中の場合は `409 Conflict` を返します。
+未知の `type` を指定した場合は `400 Bad Request` を返します。
+
+```bash title="リクエスト例"
+curl -X POST "https://<server>/api/v1/plugins/mpm/jobs" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "update_all", "force": false}'
+```
+
+```json title="レスポンス例（201 Created）"
+{
+  "id": "0f9c2f4e-1a7b-4c1e-9a55-2c0f0a1b3d21",
+  "type": "UPDATE_ALL",
+  "state": "RUNNING",
+  "createdAt": "2026-09-03T04:10:00Z",
+  "finishedAt": null,
+  "progress": [],
+  "updateResults": null,
+  "errorMessage": null
+}
+```
+
+:::info
+MineAuthのHTTPステータスには `202 Accepted` が用意されていないため、
+「ジョブというリソースを作成した」ものとして `201 Created` を返し、
+`Location` ヘッダー（`/api/v1/plugins/mpm/jobs/{id}`）で参照先を示しています。
+:::
+
+### GET `/jobs/{id}`
+
+ジョブの進捗と結果を取得します。`state` が `RUNNING` の間はポーリングを続け、
+`SUCCEEDED` または `FAILED` になった時点で結果を読み取ります。
+
+| `state` | 意味 |
+| --- | --- |
+| `RUNNING` | 実行中 |
+| `SUCCEEDED` | 正常終了。結果は種別に応じたフィールド（`update_all` なら `updateResults`）に入ります |
+| `FAILED` | 異常終了。理由は `errorMessage` に入ります |
+
+進捗ログの各行は、ゲーム内チャット向けの原文（`raw`、MiniMessage形式）と、
+タグを取り除いた平文（`text`）の両方を持ちます。Webクライアントは通常 `text` を表示します。
+進捗ログは新しいものから200行まで保持されます。
+
+```json title="レスポンス例"
+{
+  "id": "0f9c2f4e-1a7b-4c1e-9a55-2c0f0a1b3d21",
+  "type": "UPDATE_ALL",
+  "state": "SUCCEEDED",
+  "createdAt": "2026-09-03T04:10:00Z",
+  "finishedAt": "2026-09-03T04:12:31Z",
+  "progress": [
+    {
+      "timestamp": "2026-09-03T04:10:02Z",
+      "text": "[GriefPrevention] バージョン '17.0.2' が一致 — ハッシュ検証中...",
+      "raw": "<gray>[GriefPrevention] バージョン '17.0.2' が一致 — ハッシュ検証中..."
+    }
+  ],
+  "updateResults": [
+    {
+      "pluginName": "GriefPrevention",
+      "oldVersion": "17.0.1",
+      "newVersion": "17.0.2",
+      "success": true,
+      "errorMessage": null,
+      "skipped": false
+    }
+  ],
+  "errorMessage": null
+}
+```
+
+存在しないジョブIDを指定した場合は `404 Not Found` を返します。
+
+### GET `/jobs`
+
+保持しているジョブの一覧を、受付が新しい順に返します。
+進捗ログと結果は件数によっては大きくなるため一覧には含みません。必要な場合は `GET /jobs/{id}` を参照してください。
+
+```json title="レスポンス例"
+[
+  {
+    "id": "0f9c2f4e-1a7b-4c1e-9a55-2c0f0a1b3d21",
+    "type": "UPDATE_ALL",
+    "state": "SUCCEEDED",
+    "createdAt": "2026-09-03T04:10:00Z",
+    "finishedAt": "2026-09-03T04:12:31Z"
+  }
+]
+```
+
 ## エラーレスポンス
 
 エラーはmpm内部のエラー種別に応じて、以下のHTTPステータスにマッピングされます。
 
 | ステータス | 主な原因 |
 | --- | --- |
-| `400 Bad Request` | 不正な `filter` 値、空の `q` / `version`、存在しないバージョンの指定、未対応のリポジトリ種別 |
-| `404 Not Found` | プラグイン・メタデータ・リポジトリ定義・mpm.json が見つからない |
-| `409 Conflict` | 更新が既に実行中、ロック状態の不一致、`sync:` プラグインのバージョン切り替え、逆依存が存在する削除、api-version非互換 |
+| `400 Bad Request` | 不正な `filter` / ジョブ `type` の値、空の `q` / `version`、存在しないバージョンの指定、未対応のリポジトリ種別 |
+| `404 Not Found` | プラグイン・メタデータ・リポジトリ定義・mpm.json・ジョブが見つからない |
+| `409 Conflict` | 更新（または同種のジョブ）が既に実行中、ロック状態の不一致、`sync:` プラグインのバージョン切り替え、逆依存が存在する削除、api-version非互換 |
 | `500 Internal Server Error` | ダウンロード失敗・整合性検証失敗・メタデータ保存失敗など、サーバー側の処理失敗 |
 | `503 Service Unavailable` | 上流リポジトリ（Modrinth / Hangar / SpigotMC / GitHub）が一時的に応答しない |
 

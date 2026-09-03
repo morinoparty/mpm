@@ -21,10 +21,15 @@ import party.morino.mineauth.api.annotations.Query
 import party.morino.mineauth.api.annotations.QueryMap
 import party.morino.mineauth.api.http.HttpError
 import party.morino.mineauth.api.http.HttpStatus
+import party.morino.mineauth.api.http.Response
 import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.health.DoctorService
+import party.morino.mpm.api.application.job.JobService
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.UpdateResult
+import party.morino.mpm.api.application.model.job.JobId
+import party.morino.mpm.api.application.model.job.JobResult
+import party.morino.mpm.api.application.model.job.JobType
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
@@ -37,6 +42,9 @@ import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.infrastructure.mineauth.model.dependency.DependencyResponse
 import party.morino.mpm.infrastructure.mineauth.model.health.DoctorReportResponse
 import party.morino.mpm.infrastructure.mineauth.model.health.VerifyEntryResponse
+import party.morino.mpm.infrastructure.mineauth.model.job.JobCreateRequest
+import party.morino.mpm.infrastructure.mineauth.model.job.JobResponse
+import party.morino.mpm.infrastructure.mineauth.model.job.JobSummaryResponse
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.InstallResultResponse
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.LockStateResponse
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.UninstallResponse
@@ -63,6 +71,27 @@ private fun String.parseBooleanParam(): Boolean =
         "true", "1", "yes", "on" -> true
         else -> false
     }
+
+// ジョブリソースのベースパス（Locationヘッダーの組み立てに使用する）
+// mpm のハンドラーは MineAuth により /api/v1/plugins/mpm/ 配下へマウントされる
+private const val JOBS_BASE_PATH = "/api/v1/plugins/mpm/jobs"
+
+/**
+ * `type` フィールドを [JobType] に変換する
+ *
+ * 大文字小文字は区別しない。
+ *
+ * @param type リクエストボディの値
+ * @return 対応する [JobType]
+ * @throws HttpError 未知の値が指定された場合（400 Bad Request）
+ */
+private fun parseJobType(type: String): JobType =
+    JobType.entries.firstOrNull { it.name.equals(type, ignoreCase = true) }
+        ?: throw HttpError(
+            HttpStatus.BAD_REQUEST,
+            "Unknown job type '" + type + "'. Supported values: " +
+                JobType.entries.joinToString(", ") { it.name.lowercase() }
+        )
 
 /**
  * `filter` クエリパラメータを [PluginFilter] に変換する
@@ -109,6 +138,7 @@ class MpmPluginHandler : KoinComponent {
     private val dependencyService: DependencyService by inject()
     private val repositoryManager: RepositoryManager by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
+    private val jobService: JobService by inject()
 
     // ===== 読み取り系エンドポイント（mpm.api.read） =====
 
@@ -314,6 +344,41 @@ class MpmPluginHandler : KoinComponent {
         )
     }
 
+    /**
+     * 非同期ジョブの一覧を取得する
+     * GET /api/v1/plugins/mpm/jobs
+     *
+     * 進捗ログと結果は含まない。それらが必要な場合は `GET /jobs/{id}` を参照する。
+     * ジョブはメモリ上にのみ保持されるため、サーバー再起動で失われる。
+     *
+     * @return 受付が新しい順のジョブ一覧
+     */
+    @Get("/jobs")
+    @Authenticated(permission = MpmApiPermission.READ, callers = [CallerType.USER, CallerType.SERVICE])
+    fun listJobs(): List<JobSummaryResponse> = jobService.list().map { JobSummaryResponse.from(it) }
+
+    /**
+     * 非同期ジョブの状態を取得する
+     * GET /api/v1/plugins/mpm/jobs/{id}
+     *
+     * クライアントは `state` が `RUNNING` の間このエンドポイントをポーリングし、
+     * `SUCCEEDED` / `FAILED` になった時点で結果またはエラーを読む。
+     *
+     * @param id ジョブID
+     * @return ジョブの状態（進捗ログと結果を含む）
+     */
+    @Get("/jobs/{id}")
+    @Authenticated(permission = MpmApiPermission.READ, callers = [CallerType.USER, CallerType.SERVICE])
+    fun getJob(
+        @Path("id") id: String
+    ): JobResponse {
+        // 保持上限を超えて破棄されたジョブもここに来るため、存在しない場合は404を返す
+        val snapshot =
+            jobService.get(JobId(id))
+                ?: throw HttpError(HttpStatus.NOT_FOUND, "Job '" + id + "' not found")
+        return JobResponse.from(snapshot)
+    }
+
     // ===== 書き込み系エンドポイント（mpm.api.write） =====
 
     /**
@@ -321,11 +386,12 @@ class MpmPluginHandler : KoinComponent {
      * POST /api/v1/plugins/mpm/plugins/update
      *
      * 注意: この処理は管理下の全プラグインをダウンロード・検証・配置するため、
-     * プラグイン数によっては数分単位の時間がかかる。処理が完了するまでレスポンスは返らず、
-     * 進捗通知やジョブIDの仕組みも提供していない。リバースプロキシやブラウザのタイムアウトに
-     * 到達すると、クライアントは更新の成否を知る手段がなくなる。
+     * プラグイン数によっては数分単位の時間がかかる。このエンドポイントは処理が完了するまで
+     * レスポンスを返さないため、リバースプロキシやブラウザのタイムアウトに到達すると
+     * クライアントは更新の成否を知る手段がなくなる。
      * そのため、ブラウザからこのエンドポイントを直接呼び出すことは推奨しない。
-     * web console からはプラグインごとの `POST /plugins/{name}/update` を利用すること。
+     * web console からはプラグインごとの `POST /plugins/{name}/update` か、
+     * 進捗と完了を追跡できる `POST /jobs`（type = `update_all`）を利用すること。
      *
      * @param params クエリパラメータ（force=true で api-version 非互換でも強制更新）
      * @return 各プラグインの更新結果一覧
@@ -469,6 +535,50 @@ class MpmPluginHandler : KoinComponent {
             name = name,
             isLocked = false,
             message = "Plugin '$name' has been unlocked."
+        )
+    }
+
+    /**
+     * 非同期ジョブを受け付ける
+     * POST /api/v1/plugins/mpm/jobs
+     *
+     * 全プラグインの一括更新のように時間のかかる処理を、レスポンスを待たせずに実行するための入り口。
+     * 受け付けた時点で `201 Created` とジョブIDを返し、以降の進捗は `GET /jobs/{id}` で確認する
+     * （MineAuth の `HttpStatus` に 202 Accepted が無いため、ジョブというリソースを作成したものとして
+     * 201 を用い、`Location` ヘッダーで参照先を示す）。
+     *
+     * 同じ種別のジョブがすでに実行中の場合は 409 Conflict を返す。
+     *
+     * @param request ジョブ種別と実行オプション
+     * @return 受け付けたジョブの状態
+     */
+    @Post("/jobs")
+    @Authenticated(permission = MpmApiPermission.WRITE, callers = [CallerType.USER, CallerType.SERVICE])
+    fun createJob(
+        @Body request: JobCreateRequest
+    ): Response<JobResponse> {
+        val type = parseJobType(request.type)
+
+        // 受付直後のスナップショット（state は RUNNING）をそのまま返す
+        val snapshot =
+            jobService
+                .submit(type) { reportProgress ->
+                    when (type) {
+                        // 一括更新の進捗をそのままジョブの進捗ログへ流す
+                        JobType.UPDATE_ALL ->
+                            pluginUpdateService
+                                .update(
+                                    force = request.force,
+                                    progressCallback = reportProgress,
+                                    skipIntegrity = request.skipIntegrity
+                                ).map { JobResult.UpdateAll(it) }
+                    }
+                }.orThrowHttpError()
+
+        return Response.of(
+            body = JobResponse.from(snapshot),
+            status = HttpStatus.CREATED,
+            headers = mapOf("Location" to JOBS_BASE_PATH + "/" + snapshot.id.value)
         )
     }
 }

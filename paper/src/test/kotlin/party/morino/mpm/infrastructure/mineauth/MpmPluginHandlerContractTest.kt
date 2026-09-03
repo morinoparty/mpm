@@ -25,8 +25,10 @@ import party.morino.mineauth.api.annotations.Public
 import party.morino.mineauth.api.annotations.Put
 import party.morino.mineauth.api.annotations.Query
 import party.morino.mineauth.api.annotations.QueryMap
+import party.morino.mineauth.api.http.Response
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
+import kotlin.reflect.KType
 import kotlin.reflect.full.declaredMemberFunctions
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
@@ -96,14 +98,30 @@ class MpmPluginHandlerContractTest {
     @DisplayName("every endpoint return type is serializable")
     fun returnTypesAreSerializable() {
         endpoints.forEach { fn ->
+            // MineAuth は Response<T> を剥がして内側の型を直列化するため、こちらも同じ型を検証する
+            val responseType = fn.returnType.unwrapResponse()
+
             // Unit を返すエンドポイントは MineAuth 側で許容されるため検証対象外
-            if (fn.returnType.jvmErasure == Unit::class) return@forEach
-            runCatching { serializer(fn.returnType) }
+            if (responseType.jvmErasure == Unit::class) return@forEach
+            runCatching { serializer(responseType) }
                 .onFailure { error ->
-                    throw AssertionError("${fn.name}: return type ${fn.returnType} is not serializable", error)
+                    throw AssertionError("${fn.name}: return type $responseType is not serializable", error)
                 }
         }
     }
+
+    /**
+     * `Response<T>` ラッパーであれば内側の型を返す
+     *
+     * `Response` はインターフェースであり、そのまま `serializer()` に渡すと
+     * ポリモーフィックシリアライザとして解決されてしまい検証にならない。
+     */
+    private fun KType.unwrapResponse(): KType =
+        if (jvmErasure == Response::class) {
+            arguments.firstOrNull()?.type ?: this
+        } else {
+            this
+        }
 
     @Test
     @DisplayName("every parameter has exactly one supported annotation")

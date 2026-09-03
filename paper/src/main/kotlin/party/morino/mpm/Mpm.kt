@@ -17,6 +17,7 @@ import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.health.DoctorService
+import party.morino.mpm.api.application.job.JobService
 import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
@@ -46,6 +47,7 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
 import party.morino.mpm.application.health.DoctorServiceImpl
+import party.morino.mpm.application.job.JobServiceImpl
 import party.morino.mpm.application.lock.LockServiceImpl
 import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
@@ -159,6 +161,9 @@ open class Mpm :
     override fun onDisable() {
         // スケジューラーの停止（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<UpdateScheduler>()?.stop()
+
+        // 実行中の非同期ジョブの停止（Koin停止後のBean参照を避けるため、stopKoinより前に行う）
+        GlobalContext.getOrNull()?.getOrNull<JobService>()?.shutdown()
 
         // Webhookリソースの解放（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
@@ -322,6 +327,9 @@ open class Mpm :
 
                 // スケジューラーの登録
                 single<UpdateScheduler> { UpdateSchedulerImpl() }
+
+                // 非同期ジョブ（HTTP APIの長時間処理）の登録
+                single<JobService> { JobServiceImpl() }
             }
 
         // 既存のKoinコンテキストが残っている場合は停止してから再起動
