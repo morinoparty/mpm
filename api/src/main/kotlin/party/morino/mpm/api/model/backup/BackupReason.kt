@@ -15,13 +15,17 @@ import kotlinx.serialization.Serializable
 
 /**
  * バックアップを作成する理由を表す列挙型
+ *
+ * 自動バックアップ機能は廃止されたため、現在新規に作成されるのは MANUAL のみ。
+ * UPDATE / INSTALL はバックアップインデックスに永続化された過去のエントリを
+ * 読み込めるように残している（削除するとバックアップ一覧の復元に失敗する）。
  */
 @Serializable
 enum class BackupReason {
-    /** mpm update 実行前の自動バックアップ */
+    /** 旧版の mpm update 実行前の自動バックアップ（読み込み互換用） */
     UPDATE,
 
-    /** mpm install 実行前の自動バックアップ */
+    /** 旧版の mpm install 実行前の自動バックアップ（読み込み互換用） */
     INSTALL,
 
     /** mpm backup create による手動バックアップ */

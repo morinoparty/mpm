@@ -82,9 +82,7 @@ your-server/
         },
         "backup": {
             "enabled": true,
-            "maxBackups": 5,
-            "autoBackupOnUpdate": true,
-            "autoBackupOnInstall": false
+            "maxBackups": 5
         }
     }
 }
@@ -217,7 +215,7 @@ mpm全体の動作設定を定義します。
 | `githubToken` | GitHub APIの認証トークン（レート制限回避用） | `null` |
 | `webhook` | Discord Webhook通知の設定（後述） | デフォルト値 |
 | `schedule` | スケジュール自動更新の設定（後述） | デフォルト値 |
-| `backup` | 更新前のサーバー[バックアップ](/docs/commands/backup)設定（後述） | デフォルト値 |
+| `backup` | サーバー[バックアップ](/docs/commands/backup)の設定（後述） | デフォルト値 |
 | `cache` | HTTPメタデータキャッシュの設定（後述） | デフォルト値 |
 
 <Callout type="warn" title="未使用の予約フィールド">
@@ -386,16 +384,14 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 
 #### 💾 backup（サーバーバックアップ）
 
-プラグインの更新を行う前に、`plugins/` ディレクトリ全体のバックアップを自動作成できます。
+`/mpm backup create` で作成する `plugins/` ディレクトリ全体のバックアップに関する設定です。
 
 ```json
 {
     "settings": {
         "backup": {
             "enabled": true,
-            "maxBackups": 5,
-            "autoBackupOnUpdate": true,
-            "autoBackupOnInstall": false
+            "maxBackups": 5
         }
     }
 }
@@ -405,18 +401,16 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
 |-----------|------|-----------|
 | `enabled` | バックアップ機能全体の有効/無効 | `true` |
 | `maxBackups` | `/mpm backup cleanup` で保持するバックアップの件数 | `5` |
-| `autoBackupOnUpdate` | 更新の前に自動でバックアップを作成するか | `true` |
-| `autoBackupOnInstall` | 現在は未使用（予約フィールド） | `false` |
 
-<Callout type="warn" title="autoBackupOnInstall は未使用です">
-現在、`mpm install` / `mpm add` / `mpm adopt` などのインストール経路はバックアップを作成しません。
-`autoBackupOnInstall` を `true` にしても、インストール前のバックアップは行われません。
-インストール前にバックアップを取りたい場合は、`/mpm backup create` で手動作成してください。
+<Callout type="info" title="バックアップは手動でのみ作成されます">
+バックアップは `/mpm backup create` を実行したときにのみ作成されます。
+`mpm update` やスケジュール自動更新、`mpm rollback` などの操作では自動作成されません。
+更新前に状態を残しておきたい場合は、事前に `/mpm backup create` を実行してください。
 </Callout>
 
-<Callout type="info" title="スケジュール自動更新でのバックアップ">
-スケジュール自動更新では、対象プラグインが何件あっても、1回の実行につきバックアップは1つだけ作成されます。
-古いバックアップは自動では削除されないため、`/mpm backup cleanup` で定期的に整理してください。
+<Callout type="warn" title="廃止されたフィールド">
+以前のバージョンに存在した `autoBackupOnUpdate` / `autoBackupOnInstall` は廃止されました。
+既存の `config.json` にこれらのキーが残っていても無視され、動作には影響しません。
 </Callout>
 
 ## 使用例
@@ -451,9 +445,7 @@ Discord WebhookのURLはトークンを含む機密情報です。`config.json` 
         },
         "backup": {
             "enabled": true,
-            "maxBackups": 5,
-            "autoBackupOnUpdate": true,
-            "autoBackupOnInstall": false
+            "maxBackups": 5
         }
     }
 }

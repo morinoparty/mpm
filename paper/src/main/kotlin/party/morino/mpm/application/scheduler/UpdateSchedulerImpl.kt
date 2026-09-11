@@ -28,7 +28,6 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
-import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
@@ -37,7 +36,6 @@ import party.morino.mpm.api.domain.project.dto.MpmConfig
 import party.morino.mpm.api.domain.project.dto.detectCircularDependencies
 import party.morino.mpm.api.domain.project.dto.getSyncDependencies
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
-import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.utils.regenerateQuietly
 import java.time.ZonedDateTime
@@ -64,9 +62,6 @@ class UpdateSchedulerImpl :
     private val infoService: PluginInfoService by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
     private val lockService: LockService by inject()
-
-    // cron 1回につき1度だけ更新前バックアップを作成するために使用する
-    private val backupManager: ServerBackupManager by inject()
 
     // mpm.jsonのバージョン指定（latest / tag: / sync: / 固定）を読むために使用する
     private val projectRepository: ProjectRepository by inject()
@@ -222,12 +217,11 @@ class UpdateSchedulerImpl :
      * cron発火時の処理
      *
      * 1. 更新チェックを1回だけ実行して分類する
-     * 2. 更新対象がある場合のみ、実行につき1度だけ更新前バックアップを作成する
-     * 3. autoUpdate対象（動的指定かつ非ロック）のみを個別に更新する
+     * 2. autoUpdate対象（動的指定かつ非ロック）のみを個別に更新する
      *    - sync:子孫の追従更新は [PluginUpdateService.update] が面倒を見るため、
      *      スケジューラ側では追従処理を一切行わない（二重更新の防止）
-     * 4. すべての分類を報告する
-     * 5. 実際に更新が起きた場合のみロックファイルを再生成する
+     * 3. すべての分類を報告する
+     * 4. 実際に更新が起きた場合のみロックファイルを再生成する
      */
     private suspend fun executeUpdate() {
         val prefix = SCHEDULED_PREFIX
@@ -239,24 +233,14 @@ class UpdateSchedulerImpl :
         // 更新前に全分類を報告する（更新に失敗しても状況が分かるようにする）
         reportClassification(prefix, classification, specs, hasCheckErrors)
 
-        // 対象を1件ずつ更新するが、バックアップはcron1回につき1度だけ作成する
-        // （個別更新に任せるとplugins/全体のZIPが更新対象数だけ作られてしまう）
-        if (classification.autoUpdate.isNotEmpty()) {
-            backupManager.createBackup(BackupReason.UPDATE).fold(
-                { error -> plugin.logger.warning("$prefix バックアップ作成失敗: ${error.message} - 更新を続行します") },
-                { info -> plugin.logger.info("$prefix バックアップ作成完了: ${info.fileName}") }
-            )
-        }
-
+        // 対象を1件ずつ更新する
         var anyUpdated = false
         for (target in classification.autoUpdate) {
             val result =
                 updateService.update(
                     PluginName(target.pluginName),
                     force = false,
-                    skipIntegrity = false,
-                    // 上でまとめて1度バックアップ済みのため、個別更新側では作成しない
-                    skipBackup = true
+                    skipIntegrity = false
                 )
             result.fold(
                 { error -> reportUpdateError(prefix, target.pluginName, error) },

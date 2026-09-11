@@ -32,7 +32,6 @@ import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.plugin.model.integrity.IntegrityResult
 import party.morino.mpm.api.application.project.ProjectService
-import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
@@ -51,7 +50,6 @@ import party.morino.mpm.api.domain.project.dto.validateSyncDependencies
 import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
-import party.morino.mpm.api.model.backup.BackupReason
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
@@ -99,7 +97,6 @@ class PluginUpdateServiceImpl :
     private val pluginMetadataManager: PluginMetadataManager by inject()
     private val repositoryManager: RepositoryManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
-    private val backupManager: ServerBackupManager by inject()
     private val infoService: PluginInfoService by inject()
 
     // mpm.jsonの保存（バージョン切り替え時のFixed書き換え）に使用する
@@ -181,23 +178,10 @@ class PluginUpdateServiceImpl :
                 )
             }
 
-        // 更新が必要なプラグインがある場合、バックアップを作成
+        // 更新が必要なプラグインが1つもなく、チェック失敗もなければ最新である旨を通知する
         val hasUpdates = outdatedInfoList.any { it.needsUpdate }
         if (!hasUpdates && checkFailResults.isEmpty()) {
             progressCallback?.invoke("<green>すべてのプラグインは最新です。")
-        }
-        if (hasUpdates) {
-            progressCallback?.invoke("<gray>バックアップを作成しています...")
-            backupManager.createBackup(BackupReason.UPDATE).fold(
-                {
-                    plugin.logger.warning("バックアップの作成に失敗しました: ${it.message}")
-                    progressCallback?.invoke("<yellow>バックアップの作成に失敗しましたが、更新を続行します")
-                },
-                {
-                    plugin.logger.info("バックアップを作成しました: ${it.fileName}")
-                    progressCallback?.invoke("<green>バックアップ完了: ${it.fileName}")
-                }
-            )
         }
 
         // mpm.jsonを読み込んでSync依存関係を取得
@@ -374,8 +358,7 @@ class PluginUpdateServiceImpl :
     override suspend fun update(
         name: PluginName,
         force: Boolean,
-        skipIntegrity: Boolean,
-        skipBackup: Boolean
+        skipIntegrity: Boolean
     ): Either<MpmError, List<UpdateResult>> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
@@ -446,10 +429,9 @@ class PluginUpdateServiceImpl :
                 return MpmError.PluginError.Locked(name.value).left()
             }
 
-            // メタデータを置き換えられるかを、イベント発火とバックアップ作成より前に検査する（副作用なし）。
+            // メタデータを置き換えられるかを、イベント発火より前に検査する（副作用なし）。
             // 未来のスキーマ版数で書かれたファイルは読み込みに成功するため、ここを通さないと
-            // 中止が確定している操作のために plugins/ ディレクトリ全体のZIPを作り、
-            // 起きるはずのない更新を他プラグインへ通知してしまう。
+            // 中止が確定している操作のために、起きるはずのない更新を他プラグインへ通知してしまう。
             // add / uninstall / install と同じく「破壊的操作の前に中止する」方に揃える
             // （installSinglePlugin 側の同じ判定は、他の呼び出し経路のための多重防御として残す）。
             pluginMetadataManager.ensureMetadataReplaceable(name.value).onLeft {
@@ -468,15 +450,6 @@ class PluginUpdateServiceImpl :
                 )
             if (updateEvent.isCancelled) {
                 return MpmError.PluginError.OperationCancelled(name.value, "update").left()
-            }
-
-            // 一括更新と同様に更新前バックアップを作成する（Codex P2-3）
-            // 呼び出し側で既にバックアップ済みの場合（スケジューラの一括処理など）はskipBackupで抑制する
-            if (!skipBackup) {
-                backupManager.createBackup(BackupReason.UPDATE).fold(
-                    { error -> plugin.logger.warning("[update] バックアップ作成失敗: ${error.message} - 更新を続行") },
-                    { info -> plugin.logger.info("[update] バックアップ作成完了: ${info.fileName}") }
-                )
             }
 
             // 更新結果（先頭が親、以降が連動更新した子）
@@ -527,8 +500,8 @@ class PluginUpdateServiceImpl :
      * - メタデータ保存に失敗: jarは新バージョン、メタデータとmpm.jsonは旧バージョンのまま
      * - mpm.json保存に失敗: jarとメタデータは新バージョン、mpm.jsonのバージョン指定は旧値のまま
      *   （ロックファイルも再生成されない）
-     * どちらの場合も切り替え前に自動バックアップを作成しているため、
-     * `mpm backup restore <id>` で切り替え前の状態へ戻せる（IDはエラーメッセージに含まれる）。
+     * バックアップは自動作成されないため、切り替え前の状態へ戻したい場合は
+     * 事前に `mpm backup create` で取得したバックアップから `mpm backup restore <id>` で復元する。
      *
      * また `sync:` で追従している子プラグインの更新に失敗した場合でも、親の切り替え自体は成功として返す。
      * その場合は success=true のまま [UpdateResult.errorMessage] に子の失敗内容を載せる。
@@ -615,10 +588,10 @@ class PluginUpdateServiceImpl :
                     ).left()
             }
 
-            // メタデータと mpm.json を置き換えられるかを、イベント発火とバックアップ作成より前に検査する（副作用なし）。
+            // メタデータと mpm.json を置き換えられるかを、イベント発火より前に検査する（副作用なし）。
             // 未来のスキーマ版数で書かれたファイルは読み込みに成功してしまうため、ここを通さないと
-            // 中止が確定している切り替えのために plugins/ ディレクトリ全体のZIPを作り、
-            // 起きるはずのない更新を他プラグインへ通知してしまう（Webhookの外部通知は取り消せない）。
+            // 中止が確定している切り替えのために、起きるはずのない更新を他プラグインへ通知してしまう
+            // （Webhookの外部通知は取り消せない）。
             // さらに mpm.json の保存が必ず拒否されるため、末尾の rewriteSpecToFixed だけが失敗し
             // 「jarとメタデータは新バージョン、mpm.json は旧指定」という中間状態が確定的に残る。
             // update(name) / add / remove / uninstall / lock / unlock と同じ位置・同じ理屈で中止する。
@@ -640,7 +613,7 @@ class PluginUpdateServiceImpl :
             val currentVersion = metadata.mpmInfo.version.current.raw
 
             // 対象バージョンをリポジトリ上の実バージョン名（raw）へ解決する。
-            // ダウンロード前に解決しておくことで、バックアップ作成前に不正なバージョン指定を弾ける
+            // ダウンロード前に解決しておくことで、jar差し替えより前に不正なバージョン指定を弾ける
             val resolvedVersion =
                 resolveSwitchTargetVersion(pluginName, metadata, requestedVersion).getOrElse {
                     return it.left()
@@ -660,17 +633,6 @@ class PluginUpdateServiceImpl :
                 return MpmError.PluginError.OperationCancelled(pluginName, action).left()
             }
 
-            // jarを差し替える前に自動バックアップを作成する（失敗しても切り替え自体は続行する）
-            // 途中で失敗した場合の復旧手順を案内するため、作成できたバックアップのIDを控えておく
-            var backupId: String? = null
-            backupManager.createBackup(BackupReason.UPDATE).fold(
-                { error -> plugin.logger.warning("[$action] バックアップ作成失敗: ${error.message} - 処理を続行") },
-                { info ->
-                    backupId = info.id
-                    plugin.logger.info("[$action] バックアップ作成完了: ${info.fileName}")
-                }
-            )
-
             // ダウンロード → 整合性検証 → jar差し替え → メタデータ更新 → 履歴追記
             // 失敗時は型付きエラーをそのまま返す（上流障害は503、メタデータ保存失敗は500など）
             installPluginWithVersion(
@@ -682,7 +644,7 @@ class PluginUpdateServiceImpl :
             ).getOrElse { return it.left() }
 
             // mpm.jsonのバージョン指定をFixedへ書き換え、次回のmpm updateで巻き戻らないようにする
-            rewriteSpecToFixed(name, resolvedVersion, backupId).getOrElse { return it.left() }
+            rewriteSpecToFixed(name, resolvedVersion).getOrElse { return it.left() }
 
             // sync: で追従している子プラグインを親の新バージョンへ揃える（update(name)と同じ連動更新）。
             // 親だけを切り替えると、アドオンと本体のバージョンが食い違ったまま残ってしまうため。
@@ -819,13 +781,11 @@ class PluginUpdateServiceImpl :
      *
      * @param name プラグイン名
      * @param version 固定するバージョン
-     * @param backupId 切り替え前に作成したバックアップのID（作成できていない場合はnull）
      * @return 成功時はUnit
      */
     private suspend fun rewriteSpecToFixed(
         name: PluginName,
-        version: String,
-        backupId: String? = null
+        version: String
     ): Either<MpmError, Unit> {
         // 保存直前に最新のmpm.jsonを読み直す（他コマンドによる変更を巻き戻さないため）
         val project = projectRepository.findOrError().getOrElse { return it.left() }
@@ -834,17 +794,13 @@ class PluginUpdateServiceImpl :
         val updatedProject = project.updatePlugin(name, newSpec).getOrElse { return it.left() }
 
         // 保存に失敗した場合、jarとメタデータは既に新バージョンへ差し替わっているため、
-        // どこまで進んだのかと復旧手順（バックアップからの復元）をメッセージに含める
-        val recoveryHint =
-            backupId
-                ?.let { "切り替え前に戻す場合は 'mpm backup restore $it' を実行してください。" }
-                ?: "mpm.jsonのバージョン指定を手動で確認してください。"
+        // どこまで進んだのかと復旧手順をメッセージに含める
         return projectService.save(updatedProject.withSortedPlugins()).mapLeft { error ->
             MpmError.PluginError.UpdateFailed(
                 name.value,
                 "jarとメタデータは $version へ差し替え済みですが、mpm.jsonの更新に失敗しました" +
                     "（バージョン指定は旧値のまま、ロックファイルも再生成されていません）: ${error.message}。" +
-                    recoveryHint
+                    "mpm.jsonのバージョン指定を手動で確認してください。"
             )
         }
     }

@@ -41,7 +41,7 @@ class RollbackCommand : KoinComponent {
      * プラグインを過去のバージョンへ切り戻すコマンド
      *
      * バージョンを省略した場合はメタデータの履歴から直前のバージョンを解決する。
-     * 実行前には自動でバックアップが作成される。
+     * バックアップは自動作成されないため、必要なら事前に `mpm backup create` を実行する。
      *
      * @param sender コマンド送信者
      * @param plugin 切り戻し対象のプラグイン

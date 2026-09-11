@@ -39,9 +39,10 @@ import { Callout } from "fumadocs-ui/components/callout";
 メタデータファイルの各フィールドについては
 [metadata/*.yaml](/docs/format/managed) をご覧ください。
 
-<Callout type="info" title="更新の前にバックアップが作成されます">
-`config.json` の `settings.backup` が有効な場合、更新の前に `plugins/` ディレクトリ全体の
-バックアップが自動的に作成されます。更新後に問題が起きた場合は `/mpm backup` から復元できます。
+<Callout type="info" title="更新前のバックアップは手動で作成します">
+更新の前にバックアップは自動作成されません。更新後に問題が起きたときに戻せるようにしたい場合は、
+事前に `/mpm backup create` で `plugins/` ディレクトリ全体のバックアップを作成してください。
+復元は `/mpm backup restore <id>` で行えます。
 </Callout>
 
 <Callout type="warn" title="ロック中のプラグインは更新されません">
@@ -270,9 +271,9 @@ cron実行時に実際にダウンロードして更新されるのは、**浮�
 [mpm] [Scheduled] - LuckPermsExtensionAddon は親の更新に追従しませんでした（同期先 'LuckPermsExtension' が更新されなかったため）
 ```
 
-<Callout type="info" title="バックアップは1回の実行につき1つです">
-cron実行で更新対象が複数あっても、バックアップは実行の最初に1つだけ作成されます。
-古いバックアップは自動では削除されないため、`/mpm backup cleanup` で定期的に整理してください。
+<Callout type="warn" title="スケジュール更新ではバックアップは作成されません">
+スケジュール自動更新の前にバックアップは自動作成されません。
+自動更新で問題が起きたときに戻せるようにしたい場合は、`/mpm backup create` で定期的にバックアップを取っておいてください。
 </Callout>
 
 ### cron式の例
