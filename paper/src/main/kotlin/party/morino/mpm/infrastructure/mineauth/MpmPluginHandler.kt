@@ -87,7 +87,7 @@ private const val JOBS_BASE_PATH = "/api/v1/plugins/mpm/jobs"
  */
 private fun parseJobType(type: String): JobType =
     JobType.entries.firstOrNull { it.name.equals(type, ignoreCase = true) }
-        ?: throw HttpError(
+        ?: throw httpError(
             HttpStatus.BAD_REQUEST,
             "Unknown job type '" + type + "'. Supported values: " +
                 JobType.entries.joinToString(", ") { it.name.lowercase() }
@@ -105,7 +105,7 @@ private fun parseJobType(type: String): JobType =
 private fun parsePluginFilter(filter: String?): PluginFilter {
     if (filter == null) return PluginFilter.ALL
     return PluginFilter.entries.firstOrNull { it.name.equals(filter, ignoreCase = true) }
-        ?: throw HttpError(
+        ?: throw httpError(
             HttpStatus.BAD_REQUEST,
             "Unknown filter '$filter'. Supported values: " +
                 PluginFilter.entries.joinToString(", ") { it.name.lowercase() }
@@ -217,7 +217,7 @@ class MpmPluginHandler : KoinComponent {
     ): List<PluginSearchResultResponse> {
         // 空文字での検索は上流APIに無意味な負荷をかけるため弾く
         if (query.isBlank()) {
-            throw HttpError(HttpStatus.BAD_REQUEST, "Query parameter 'q' must not be blank")
+            throw httpError(HttpStatus.BAD_REQUEST, "Query parameter 'q' must not be blank")
         }
         // 上限・下限でクランプして上流APIへの過大なリクエストを防ぐ
         val effectiveLimit = (limit ?: DEFAULT_SEARCH_LIMIT).coerceIn(1, MAX_SEARCH_LIMIT)
@@ -289,7 +289,7 @@ class MpmPluginHandler : KoinComponent {
         val metadata =
             pluginMetadataManager.loadMetadata(name).fold(
                 ifLeft = { reason ->
-                    throw HttpError(HttpStatus.NOT_FOUND, "Metadata not found for '$name': $reason")
+                    throw httpError(HttpStatus.NOT_FOUND, "Metadata not found for '$name': $reason")
                 },
                 ifRight = { it }
             )
@@ -329,7 +329,7 @@ class MpmPluginHandler : KoinComponent {
         // 依存情報が取れない場合は対象プラグインが存在しないため、ここでエラーを返す
         val info =
             dependencyService.getDependencyInfo(name).fold(
-                ifLeft = { error -> throw HttpError(error.toHttpStatus(), error.toString()) },
+                ifLeft = { error -> throw httpError(error.toHttpStatus(), error.toString()) },
                 ifRight = { it }
             )
         // ツリーと依存経路は失敗しても致命的ではないため、取得できなければ空扱いにする
@@ -375,7 +375,7 @@ class MpmPluginHandler : KoinComponent {
         // 保持上限を超えて破棄されたジョブもここに来るため、存在しない場合は404を返す
         val snapshot =
             jobService.get(JobId(id))
-                ?: throw HttpError(HttpStatus.NOT_FOUND, "Job '" + id + "' not found")
+                ?: throw httpError(HttpStatus.NOT_FOUND, "Job '" + id + "' not found")
         return JobResponse.from(snapshot)
     }
 
@@ -445,7 +445,7 @@ class MpmPluginHandler : KoinComponent {
     ): UpdateResult {
         // 空のバージョン指定は解決不能なので、サービスを呼ぶ前に弾く
         if (request.version.isBlank()) {
-            throw HttpError(HttpStatus.BAD_REQUEST, "Field 'version' must not be blank")
+            throw httpError(HttpStatus.BAD_REQUEST, "Field 'version' must not be blank")
         }
         return pluginUpdateService
             .switchVersion(

@@ -17,7 +17,8 @@ mpmはMineAuthの`MineAuthApi`（v2）に対応しています。サーバー起
 
 1. `MineAuth` プラグインがサーバーに存在するか確認する
 2. 存在する場合、Bukkitの`ServicesManager`経由で`MineAuthApi`インスタンスを取得する
-3. 取得できた場合のみ、mpmのハンドラーを`mpm`名前空間で登録する
+3. エラー応答に使う`HttpError`を1度だけ生成し、MineAuth側のクラスと正しくリンクできるか検証する
+4. すべて成功した場合のみ、mpmのハンドラーを`mpm`名前空間で登録する
 
 登録はall-or-nothingで行われます。いずれかのエンドポイントが検証に失敗した場合は何もマウントされず、
 検証エラーの一覧を含む警告ログを出力したうえで連携を無効化します。いずれの場合もmpm本体の起動は継続します。
@@ -27,6 +28,7 @@ mpmはMineAuthの`MineAuthApi`（v2）に対応しています。サーバー起
 | --- | --- | --- |
 | MineAuth未導入 | `MineAuth not found - HTTP API integration disabled` | 連携なしで起動 |
 | APIサービス取得不可 | `MineAuth found but MineAuthApi service is unavailable - HTTP API integration disabled` | 連携なしで起動 |
+| `HttpError`の生成に失敗（クラスローダー不整合） | `MineAuth integration failed: HttpError could not be constructed (...) - HTTP API will be unavailable. ...` | 連携なしで起動 |
 | 登録検証エラー | `MineAuth integration failed (...): ... - HTTP API will be unavailable` | 連携なしで起動 |
 | 連携成功 | `MineAuth integration enabled - N endpoints registered under /api/v1/plugins/mpm/` | エンドポイント有効化 |
 
@@ -675,3 +677,24 @@ MineAuthのHTTPステータスには `202 Accepted` が用意されていない�
 `409 Conflict` は「同じリクエストをもう一度送っても解決しない」ことを表します。
 たとえば更新ボタンの二重クリックでは `409` が返るため、クライアントは
 「更新が既に実行中です」といった案内を表示できます。
+
+### クラスローダーをまたぐ呼び出しについて
+
+これはmpmに手を入れる方向けの注意点です。
+
+mpmはKotlin標準ライブラリを自身のJARに同梱（shade）していますが、MineAuthはPaperの`libraries:`機能を使って
+実行時に読み込んでいます。そのため、mpmから見える`kotlin.*`のクラスとMineAuthから見える`kotlin.*`のクラスは、
+名前が同じでも別のクラスローダーが定義した別物になります。
+
+ここで、MineAuthのコンストラクタをデフォルト引数を省略して呼ぶと、Kotlinは引数の末尾に
+`kotlin.jvm.internal.DefaultConstructorMarker`を含む合成コンストラクタを呼ぶコードを生成します。
+この型が両方のクラスローダーで一致しないため、JVMは呼び出しの解決時に
+`LinkageError: loader constraint violation`を報告します。
+実際にこの問題が起きると、mpmが返すはずだった`404`や`409`はすべてMineAuth側の
+`{"error":"Internal server error","code":"internal_error"}`に潰れてしまいます。
+
+したがって、`HttpError`は必ず`httpError()`ヘルパー経由で生成してください。
+このヘルパーは全引数を明示してプライマリコンストラクタを呼ぶため、呼び出しのシグネチャに`kotlin.*`の型が現れません。
+なお、`Response.of()`のような**関数**のデフォルト引数は`java.lang.Object`をマーカーに使うため、この問題は起きません。
+危険なシグネチャが生成されていないことは`MineAuthCallDescriptorTest`がコンパイル済みバイトコードを走査して検証しており、
+うっかり`HttpError(...)`を直接呼ぶとビルド時のテストが失敗します。

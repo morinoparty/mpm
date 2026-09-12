@@ -131,6 +131,32 @@ internal fun DependencyError.toHttpStatus(): HttpStatus =
     }
 
 /**
+ * MineAuth の [HttpError] を生成する
+ *
+ * **MineAuth のコンストラクタは必ずこのヘルパー経由で呼ぶこと。**
+ * `HttpError(status, message)` のようにデフォルト引数を省略すると、Kotlin は
+ * `(HttpStatus, String, String, Map, int, kotlin.jvm.internal.DefaultConstructorMarker)` という
+ * 合成コンストラクタを呼び出すコードを生成する。
+ * ところが mpm は shadowJar で kotlin 標準ライブラリを自身の JAR に同梱しているのに対し、
+ * MineAuth は Paper の `libraries:` 機能でランタイムに読み込んでいるため、
+ * 両者の `DefaultConstructorMarker` は別クラスローダーが定義した別のクラスになる。
+ * その結果、呼び出しの解決時に JVM が loader constraint violation（[LinkageError]）を報告し、
+ * mpm のエラーはすべて MineAuth 側の汎用 500 に潰れてしまう。
+ *
+ * 全引数を明示してプライマリコンストラクタ `(HttpStatus, String, String, Map)` を直接呼べば、
+ * ディスクリプタに `kotlin/` の型が現れないため、この問題を根本から回避できる。
+ * この不変条件は MineAuthCallDescriptorTest がバイトコードを走査して検証している。
+ *
+ * @param status レスポンスの HTTP ステータス
+ * @param message クライアントに返すエラーメッセージ
+ * @return 生成された [HttpError]
+ */
+internal fun httpError(
+    status: HttpStatus,
+    message: String
+): HttpError = HttpError(status, message, null, emptyMap())
+
+/**
  * [Either] の左側（[MpmError]）を [HttpError] としてスローし、右側の値を取り出す
  *
  * ハンドラー各メソッドで同じ fold を書き並べるのを避けるためのヘルパー。
@@ -141,6 +167,6 @@ internal fun DependencyError.toHttpStatus(): HttpStatus =
  */
 internal fun <T> Either<MpmError, T>.orThrowHttpError(): T =
     fold(
-        ifLeft = { error -> throw HttpError(error.toHttpStatus(), error.message) },
+        ifLeft = { error -> throw httpError(error.toHttpStatus(), error.message) },
         ifRight = { it }
     )
