@@ -1137,13 +1137,16 @@ class PluginLifecycleServiceImpl :
                 }
             }
             is LegacyVersionSpecifier.Fixed -> {
-                try {
-                    // 指定されたバージョンのdownloadIdを正しく取得する
-                    downloaderRepository.getVersionByName(urlData, version.version).right()
-                } catch (e: Exception) {
-                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
-                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
-                }
+                // 指定されたバージョンのdownloadIdを正しく取得する。
+                // mpm.jsonに正規化表記（例: "0.3.9"）が書かれていても実タグ（例: "v0.3.9"）へ
+                // 解決できるよう、VersionNameResolverに解決順を任せる
+                VersionNameResolver.resolve(
+                    downloaderRepository,
+                    urlData,
+                    pluginName,
+                    version.version,
+                    repoConfig?.effectiveVersionPattern(null)
+                )
             }
             is LegacyVersionSpecifier.Tag -> {
                 try {
@@ -1173,18 +1176,22 @@ class PluginLifecycleServiceImpl :
                     ).left()
             }
             is LegacyVersionSpecifier.Sync -> {
-                resolveSyncVersion(version, urlData, project, pluginName)
+                resolveSyncVersion(version, urlData, project, pluginName, repoConfig)
             }
         }
 
     /**
      * Sync バージョンを解決する
+     *
+     * @param repoConfig 自分自身（アドオン側）のリポジトリ設定。解決したバージョン文字列を
+     *   実バージョン名へ突き合わせる際の versionPattern 取得に使う
      */
     private suspend fun resolveSyncVersion(
         version: LegacyVersionSpecifier.Sync,
         urlData: UrlData,
         project: MpmProject,
-        pluginName: String
+        pluginName: String,
+        repoConfig: RepositoryConfig? = null
     ): Either<MpmError, VersionData> {
         // ターゲットプラグインがプロジェクトに存在するか確認
         val targetSpec =
@@ -1301,16 +1308,27 @@ class PluginLifecycleServiceImpl :
                 }
             }
 
-        // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
-        return try {
-            downloaderRepository.getVersionByName(urlData, resolvedVersion).right()
-        } catch (e: Exception) {
-            MpmError.PluginError
-                .VersionResolutionFailed(
-                    pluginName,
-                    "Version '$resolvedVersion' not found: ${e.message}"
-                ).left()
-        }
+        // アドオン側で解決されたバージョンに対応するダウンロード情報を取得。
+        // 親が固定バージョン指定の場合、その文字列は正規化表記のこともあるため、
+        // VersionNameResolverで実タグへの突き合わせまで行う
+        return VersionNameResolver
+            .resolve(
+                downloaderRepository,
+                urlData,
+                pluginName,
+                resolvedVersion,
+                repoConfig?.effectiveVersionPattern(null)
+            ).mapLeft { error ->
+                // 上流障害（UpstreamUnavailable）はそのまま伝え、解決失敗のみ従来の文言で包む
+                if (error is MpmError.PluginError.VersionResolutionFailed) {
+                    MpmError.PluginError.VersionResolutionFailed(
+                        pluginName,
+                        "Version '$resolvedVersion' not found: ${error.reason}"
+                    )
+                } else {
+                    error
+                }
+            }
     }
 
     /**
