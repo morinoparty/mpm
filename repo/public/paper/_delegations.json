@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "delegations": [
+    {
+      "root": "MineAuth",
+      "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json",
+      "allowedSources": [
+        "github:morinoparty/MineAuth",
+        "modrinth:9LoU3yUC"
+      ]
+    }
+  ]
+}
