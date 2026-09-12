@@ -1,0 +1,72 @@
+name: deploy repo
+
+# mpmのプラグインカタログを配信するCloudflare Workerをデプロイする。
+#
+# repo/ 配下の変更時に自動デプロイする。加えて、委譲先のindexを取り込んだ
+# スナップショットを新鮮に保つため週次でも実行する
+# （スナップショットは委譲先がダウンしたときの「床」になるため、
+#  古いまま放置すると障害時に配信される定義が古くなる）。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "repo/**"
+      - ".github/workflows/deploy_repo.yml"
+  schedule:
+    # 毎週月曜 04:00 JST (19:00 UTC 日曜)
+    - cron: "0 19 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# デプロイの同時実行を防ぐ（後発が先発を追い越して古い内容を配信しないように）
+concurrency:
+  group: deploy-repo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v6.0.10
+        name: Install pnpm
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install
+        working-directory: repo
+        run: pnpm i --frozen-lockfile
+
+      # gen:list は委譲先のindexを取得してスナップショットを更新する。
+      # 委譲先が落ちていても既存スナップショットを保って続行するが、
+      # 前回あったプラグインが消えていた場合はここで失敗する（単調性チェック）。
+      - name: Generate catalog
+        working-directory: repo
+        run: pnpm run gen:list
+
+      # 生成物がコミット済みの内容と食い違ったら、そのまま配信せず知らせる。
+      # 委譲先に新しいプラグインが増えた場合はここで差分が出るので、
+      # スナップショットを更新するコミットを入れるきっかけになる。
+      - name: Report generated diff
+        working-directory: repo
+        run: |
+          if ! git diff --quiet -- public/paper; then
+            echo "::notice::生成物がコミット済みの内容と異なります（委譲先の更新が取り込まれました）"
+            git diff --stat -- public/paper
+          fi
+
+      - name: Deploy
+        working-directory: repo
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy
