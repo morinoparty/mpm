@@ -37,7 +37,6 @@ import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
-import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -713,7 +712,8 @@ class PluginUpdateServiceImpl :
      *
      * web console や履歴からは正規化済みバージョン（例: "5.4.1"）が渡ることがあるが、
      * ダウンロードには実バージョン名（例: "v5.4.1-bukkit"）が必要になる。
-     * まず実バージョン名としての解決を試し、失敗した場合のみ全バージョンを正規化して突き合わせる。
+     * 「表記そのまま→正規化して突き合わせ」という解決順の実装は [VersionNameResolver] に集約しており、
+     * ここではメタデータからリポジトリ情報とversionPatternを取り出して委譲するだけにしている。
      *
      * @param pluginName プラグイン名
      * @param metadata 対象プラグインのメタデータ（リポジトリ情報とversionPatternの取得に使用）
@@ -730,45 +730,14 @@ class PluginUpdateServiceImpl :
             createUrlData(repositoryInfo.type.name, repositoryInfo.id)
                 ?: return MpmError.PluginError.UnsupportedRepository(repositoryInfo.type.name).left()
 
-        // まずはリポジトリ上のバージョン名としてそのまま解決を試みる
-        val exactMatch =
-            try {
-                downloaderRepository.getVersionByName(urlData, requestedVersion)
-            } catch (e: Exception) {
-                // 実バージョン名として存在しないだけの可能性があるため、ここでは失敗としない
-                plugin.logger.fine("[switchVersion] '$requestedVersion' の直接解決に失敗: ${e.message}")
-                null
-            }
-        if (exactMatch != null) {
-            return exactMatch.version.right()
-        }
-
-        // 見つからない場合は正規化済みバージョンとみなし、全バージョンを正規化して突き合わせる
-        val versionPattern = metadata.mpmInfo.versionPattern
-        val requestedNormalized = VersionDetail.normalizeWithPattern(requestedVersion, versionPattern)
-        val candidates =
-            try {
-                downloaderRepository.getAllVersions(urlData)
-            } catch (e: Exception) {
-                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
-                return MpmError.PluginError
-                    .UpstreamUnavailable(
-                        pluginName,
-                        "バージョン一覧の取得に失敗しました: ${e.message}"
-                    ).left()
-            }
-
-        val matched =
-            candidates.firstOrNull { candidate ->
-                candidate.version == requestedVersion ||
-                    VersionDetail.normalizeWithPattern(candidate.version, versionPattern) == requestedNormalized
-            } ?: return MpmError.PluginError
-                .VersionResolutionFailed(
-                    pluginName,
-                    "バージョン '$requestedVersion' はリポジトリに存在しません"
-                ).left()
-
-        return matched.version.right()
+        return VersionNameResolver
+            .resolve(
+                downloaderRepository,
+                urlData,
+                pluginName,
+                requestedVersion,
+                metadata.mpmInfo.versionPattern
+            ).map { it.version }
     }
 
     /**
@@ -1512,14 +1481,21 @@ class PluginUpdateServiceImpl :
         val versionData =
             if (useLatest) {
                 if (fixedVersionForPlugin != null) {
-                    try {
-                        downloaderRepository.getVersionByName(urlData, fixedVersionForPlugin)
-                    } catch (e: Exception) {
-                        return updateFailure(
+                    // mpm.jsonには正規化表記（例: "0.3.9"）が書かれていることがあるため、
+                    // 実タグ（例: "v0.3.9"）へ解決できるVersionNameResolverを経由する
+                    VersionNameResolver
+                        .resolve(
+                            downloaderRepository,
+                            urlData,
                             pluginName,
-                            "指定されたバージョン '$fixedVersionForPlugin' の取得に失敗しました: ${e.message}"
-                        ).left()
-                    }
+                            fixedVersionForPlugin,
+                            mpmInfoDto.versionPattern
+                        ).getOrElse {
+                            return updateFailure(
+                                pluginName,
+                                "指定されたバージョン '$fixedVersionForPlugin' の取得に失敗しました: ${it.message}"
+                            ).left()
+                        }
                 } else {
                     latestVersionData
                 }
@@ -1746,14 +1722,20 @@ class PluginUpdateServiceImpl :
                 // latestとtag:はどちらも最新バージョンをそのまま使用
                 latestVersionData
             } else {
-                try {
-                    downloaderRepository.getVersionByName(urlData, expectedVersion)
-                } catch (e: Exception) {
-                    return installFailure(
+                // 固定バージョン指定。mpm.jsonの表記が正規化済みでも実タグへ解決できるようにする
+                VersionNameResolver
+                    .resolve(
+                        downloaderRepository,
+                        urlData,
                         pluginName,
-                        "指定されたバージョン '$expectedVersion' の取得に失敗しました: ${e.message}"
-                    ).left()
-                }
+                        expectedVersion,
+                        firstRepository.effectiveVersionPattern(null)
+                    ).getOrElse {
+                        return installFailure(
+                            pluginName,
+                            "指定されたバージョン '$expectedVersion' の取得に失敗しました: ${it.message}"
+                        ).left()
+                    }
             }
 
         // 更新前の保存済みバージョン/ハッシュを退避する
