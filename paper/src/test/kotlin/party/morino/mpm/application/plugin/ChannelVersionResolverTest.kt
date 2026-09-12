@@ -58,6 +58,7 @@ class ChannelVersionResolverTest {
             fileNamePattern: String?
         ): File? = null
 
+        @Deprecated("テスト用フェイク実装")
         override suspend fun downloadLatest(
             url: String,
             fileNamePattern: String?

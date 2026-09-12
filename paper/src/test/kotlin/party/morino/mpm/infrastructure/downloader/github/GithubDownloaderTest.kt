@@ -275,12 +275,6 @@ class GithubDownloaderTest {
     }
 
     @Test
-    fun downloadLatest() {
-        // downloadLatest は getLatestVersion と downloadByVersion を組み合わせたものなので
-        // 個別のテストで十分カバーされている
-    }
-
-    @Test
     @DisplayName("getAllVersions follows pagination beyond one page")
     fun getAllVersionsFollowsPagination() {
         // 1ページ目は満杯(100件)、2ページ目に残り2件を返すモック

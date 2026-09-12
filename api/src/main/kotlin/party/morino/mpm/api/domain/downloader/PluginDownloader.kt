@@ -108,10 +108,24 @@ interface PluginDownloader {
 
     /**
      * リポジトリURLからプラグインをダウンロード
+     *
+     * 非推奨。このメソッドはリポジトリ定義の `versionMatcher` を一切参照せず、
+     * 常にプラットフォーム側の無フィルタな最新版を取得してしまう。これは #434 で
+     * リゾルバから取り除いたサイレントフォールバックとまったく同じ形であり、
+     * 除外したかったバージョンを「最新」として返す危険がある。
+     * 公開済みの `api` アーティファクトのソース互換性を保つためだけに残してあり、
+     * 新しいコードでは party.morino.mpm.application.plugin.ChannelVersionResolver.resolveLatest
+     * でバージョンを解決してから [downloadByVersion] を呼ぶこと。
+     *
      * @param url リポジトリURL
      * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
+    @Deprecated(
+        "versionMatcher を無視して常にプラットフォームの最新を返すため使用しないこと。" +
+            "party.morino.mpm.application.plugin.ChannelVersionResolver.resolveLatest で解決してから " +
+            "downloadByVersion を呼ぶこと。"
+    )
     suspend fun downloadLatest(
         url: String,
         fileNamePattern: String? = null

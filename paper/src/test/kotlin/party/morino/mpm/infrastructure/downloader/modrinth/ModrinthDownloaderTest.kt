@@ -305,10 +305,4 @@ class ModrinthDownloaderTest {
             }
         }
     }
-
-    @Test
-    fun downloadLatest() {
-        // downloadLatest は getLatestVersion と downloadByVersion を組み合わせたものなので
-        // 個別のテストで十分カバーされている
-    }
 }

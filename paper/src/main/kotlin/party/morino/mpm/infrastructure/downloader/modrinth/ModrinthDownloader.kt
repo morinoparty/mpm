@@ -237,6 +237,7 @@ open class ModrinthDownloader : AbstractPluginDownloader() {
      * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション、複数ファイルがある場合の選択に使用）
      * @return ダウンロードしたファイル
      */
+    @Deprecated("PluginDownloader.downloadLatest を参照。versionMatcher を無視するため使用しないこと。")
     override suspend fun downloadLatest(
         url: String,
         fileNamePattern: String?
