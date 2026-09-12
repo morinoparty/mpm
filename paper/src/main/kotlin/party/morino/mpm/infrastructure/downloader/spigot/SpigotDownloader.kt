@@ -155,6 +155,7 @@ open class SpigotDownloader : AbstractPluginDownloader() {
      * @param fileNamePattern ファイル名に一致する正規表現パターン（SpigotMCでは使用しない）
      * @return ダウンロードしたファイル
      */
+    @Deprecated("PluginDownloader.downloadLatest を参照。versionMatcher を無視するため使用しないこと。")
     override suspend fun downloadLatest(
         url: String,
         fileNamePattern: String?
