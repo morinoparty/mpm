@@ -57,6 +57,23 @@ interface PluginMetadataManager {
     ): Either<String, ManagedPluginDto>
 
     /**
+     * 更新チェックの結果をメタデータへ記録する
+     *
+     * [updateMetadata] と違い、`version.latest` と `version.lastChecked` だけを書き換える。
+     * 履歴の追記も `current` / `download` の変更も行わないため、定期チェックのたびに
+     * 呼んでも履歴が伸びず、インストール状態を巻き戻すこともない。
+     *
+     * @param pluginName プラグイン名
+     * @param latestVersion 今回のチェックで解決した最新バージョン（raw）
+     * @return latest が前回記録された値から変化した場合は true。
+     *   メタデータが存在しない・読めない場合はエラー
+     */
+    suspend fun recordCheckResult(
+        pluginName: String,
+        latestVersion: String
+    ): Either<String, Boolean>
+
+    /**
      * メタデータファイルからプラグインメタデータを読み込む
      *
      * @param pluginName プラグイン名

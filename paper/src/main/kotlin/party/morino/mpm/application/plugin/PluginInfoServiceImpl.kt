@@ -40,10 +40,7 @@ import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
-import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
-import party.morino.mpm.event.state.PluginOutdatedEvent
-import party.morino.mpm.utils.BukkitDispatcher
 import java.io.File
 
 /**
@@ -310,24 +307,26 @@ class PluginInfoServiceImpl :
         val currentVersion = metadata.mpmInfo.version.current.raw
         val needsUpdate = currentNormalized != latestNormalized
 
-        // 更新が必要な場合はBukkitイベントを発火
-        // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
-        if (needsUpdate) {
-            BukkitDispatcher.callEventSync(
-                plugin,
-                PluginOutdatedEvent(
-                    installedPlugin = InstalledPlugin(name.value),
-                    currentVersion = currentVersion,
-                    latestVersion = latestVersionName
-                )
-            )
-        }
+        // チェック結果をメタデータへ書き戻す。
+        // list（yaml読み出し）と outdated（fresh解決）の表示がずれ続けるのを防ぐ。
+        // ここではイベントを発火しない。checkOutdated は info / doctor / HTTP API など
+        // 多くの経路から呼ばれるため、ここで通知すると同じ内容が何度も飛ぶ。
+        // 「mpmが自律的に行ったチェック」だけを通知したいので、発火は UpdateScheduler に集約する。
+        val latestChanged =
+            pluginMetadataManager
+                .recordCheckResult(name.value, latestVersionName)
+                .getOrElse { reason ->
+                    // 書き戻しの失敗はチェック自体を失敗させない（表示は fresh の値で正しい）
+                    plugin.logger.warning("[$name] チェック結果の記録に失敗しました: $reason")
+                    false
+                }
 
         return OutdatedInfo(
             pluginName = name.value,
             currentVersion = currentVersion,
             latestVersion = latestVersionName,
-            needsUpdate = needsUpdate
+            needsUpdate = needsUpdate,
+            latestChanged = latestChanged
         ).right()
     }
 
