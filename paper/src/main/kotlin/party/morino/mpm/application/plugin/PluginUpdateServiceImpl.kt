@@ -137,6 +137,13 @@ class PluginUpdateServiceImpl :
         force: Boolean,
         progressCallback: ((String) -> Unit)?,
         skipIntegrity: Boolean
+    ): Either<MpmError, List<UpdateResult>> =
+        updateAllInternal(force, progressCallback, skipIntegrity).onRight { regenerateLock() }
+
+    private suspend fun updateAllInternal(
+        force: Boolean,
+        progressCallback: ((String) -> Unit)?,
+        skipIntegrity: Boolean
     ): Either<MpmError, List<UpdateResult>> {
         // 既に更新処理が実行中の場合はエラーを返す
         if (!updateMutex.tryLock()) {
@@ -363,6 +370,13 @@ class PluginUpdateServiceImpl :
         name: PluginName,
         force: Boolean,
         skipIntegrity: Boolean
+    ): Either<MpmError, List<UpdateResult>> =
+        updateSingleInternal(name, force, skipIntegrity).onRight { regenerateLock() }
+
+    private suspend fun updateSingleInternal(
+        name: PluginName,
+        force: Boolean,
+        skipIntegrity: Boolean
     ): Either<MpmError, List<UpdateResult>> {
         // 並行更新を防止（jar/metadataファイルの競合回避）
         if (!updateMutex.tryLock()) {
@@ -550,6 +564,19 @@ class PluginUpdateServiceImpl :
     }
 
     /**
+     * ロックファイル（mpm-lock.yaml）を実インストール状態へ追従させる
+     *
+     * サービス層で行うことで、コマンド経路・HTTP経路・スケジューラのいずれから呼ばれても
+     * ロックファイルが更新される。以前は switch/rollback 以外はコマンド層でのみ再生成しており、
+     * HTTP API 経由の update / install ではロックファイルが古いまま取り残されていた（#448）。
+     *
+     * 再生成は冪等で、失敗しても警告ログのみで握り潰す（[regenerateQuietly]）。
+     */
+    private suspend fun regenerateLock() {
+        lockService.regenerateQuietly(plugin.logger)
+    }
+
+    /**
      * バージョン切り替えの本体
      *
      * switchVersion / rollback の唯一の実体であり、Mutexの取得もここだけで行う
@@ -677,10 +704,8 @@ class PluginUpdateServiceImpl :
                 }
             }
 
-            // ロックファイルを実インストール状態へ追従させる。
-            // サービス層で行うことで、コマンド経路とHTTP経路の双方が再生成の恩恵を受ける
-            // （再生成はメタデータから作り直す冪等な処理のため、呼び出しが重なっても害はない）。
-            lockService.regenerateQuietly(plugin.logger)
+            // ロックファイルを実インストール状態へ追従させる（switch/rollback経路）
+            regenerateLock()
 
             // 子の失敗をログだけに留めると、sync: の不変条件が崩れた状態が成功として確定してしまう。
             // 親の切り替え自体は完了しているため success は true のまま、要約を errorMessage に載せる
@@ -785,6 +810,19 @@ class PluginUpdateServiceImpl :
      * BulkInstallUseCaseImplから移行したロジック
      */
     override suspend fun installAll(
+        force: Boolean,
+        skipIntegrity: Boolean,
+        frozen: Boolean
+    ): Either<MpmError, BulkInstallResult> =
+        installAllInternal(force, skipIntegrity, frozen).onRight {
+            // frozenインストールはロックファイルどおりに導入するだけなので再生成しない
+            // （生成し直しても内容は変わらず、書き込みが無駄になる）
+            if (!frozen) {
+                regenerateLock()
+            }
+        }
+
+    private suspend fun installAllInternal(
         force: Boolean,
         skipIntegrity: Boolean,
         frozen: Boolean

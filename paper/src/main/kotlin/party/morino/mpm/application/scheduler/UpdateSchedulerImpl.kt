@@ -22,7 +22,6 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitTask
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.model.UpdateResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.plugin.PluginInfoService
@@ -40,7 +39,6 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.event.state.PluginOutdatedEvent
 import party.morino.mpm.utils.BukkitDispatcher
-import party.morino.mpm.utils.regenerateQuietly
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -64,7 +62,6 @@ class UpdateSchedulerImpl :
     private val updateService: PluginUpdateService by inject()
     private val infoService: PluginInfoService by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
-    private val lockService: LockService by inject()
 
     // mpm.jsonのバージョン指定（latest / tag: / sync: / 固定）を読むために使用する
     private val projectRepository: ProjectRepository by inject()
@@ -265,8 +262,8 @@ class UpdateSchedulerImpl :
         publishOutdatedEvents(classification, failedAutoUpdates)
 
         if (anyUpdated) {
-            // スケジューラはコマンド層を経由しないため、ここで明示的にロックファイルを再生成する
-            lockService.regenerateQuietly(plugin.logger)
+            // ロックファイルの再生成は PluginUpdateService.update 側で行われる（#448）
+            plugin.logger.info("$prefix Plugins were updated.")
         } else {
             plugin.logger.info("$prefix No plugins were updated.")
         }

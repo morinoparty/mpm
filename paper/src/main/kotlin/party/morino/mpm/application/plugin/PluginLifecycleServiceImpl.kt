@@ -16,6 +16,7 @@ import arrow.core.right
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.add.AddWithDependenciesResult
 import party.morino.mpm.api.application.model.add.AdoptResult
@@ -59,6 +60,7 @@ import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.FileNameTemplate
 import party.morino.mpm.utils.PluginDataUtils
 import party.morino.mpm.utils.SafeFileName
+import party.morino.mpm.utils.regenerateQuietly
 import party.morino.mpm.utils.replaceJarAtomically
 import party.morino.mpm.utils.retireOldJar
 import java.io.File
@@ -91,12 +93,20 @@ class PluginLifecycleServiceImpl :
     // ダウンロードしたJARのハッシュ整合性検証を行う
     private val integrityVerifier: IntegrityVerifier by inject()
 
+    // ロックファイル再生成用。状態変更の成功後に mpm-lock.yaml を実状態へ追従させる
+    private val lockService: LockService by inject()
+
     /**
      * プラグインを管理対象に追加する
      *
      * AddPluginUseCaseImpl から移行したロジック
      */
     override suspend fun add(
+        name: PluginName,
+        version: VersionSpecifier
+    ): Either<MpmError, ManagedPlugin> = addInternal(name, version).onRight { regenerateLock() }
+
+    private suspend fun addInternal(
         name: PluginName,
         version: VersionSpecifier
     ): Either<MpmError, ManagedPlugin> {
@@ -348,6 +358,11 @@ class PluginLifecycleServiceImpl :
     override suspend fun remove(
         name: PluginName,
         force: Boolean
+    ): Either<MpmError, Unit> = removeInternal(name, force).onRight { regenerateLock() }
+
+    private suspend fun removeInternal(
+        name: PluginName,
+        force: Boolean
     ): Either<MpmError, Unit> {
         val pluginName = name.value
 
@@ -423,6 +438,12 @@ class PluginLifecycleServiceImpl :
      * PluginInstallUseCaseImplから移行したロジック
      */
     override suspend fun install(
+        name: PluginName,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, InstallResult> = installInternal(name, force, skipIntegrity).onRight { regenerateLock() }
+
+    private suspend fun installInternal(
         name: PluginName,
         force: Boolean,
         skipIntegrity: Boolean
@@ -707,6 +728,25 @@ class PluginLifecycleServiceImpl :
     }
 
     /**
+     * ロックファイル（mpm-lock.yaml）を実インストール状態へ追従させる
+     *
+     * サービス層で行うことで、コマンド経路・HTTP経路・スケジューラのいずれから呼ばれても
+     * ロックファイルが更新される。以前はコマンド層でのみ再生成しており、HTTP API 経由の
+     * 操作ではロックファイルが古いまま取り残されていた（#448）。
+     *
+     * 各publicメソッドは実処理を `*Internal` に委譲し、`onRight` で成功時だけここを呼ぶ。
+     * バッチ処理（addWithDependencies / adoptAll）は内部で `*Internal` を直接呼ぶため、
+     * 1件ごとではなくバッチ全体で1回だけ再生成される。
+     *
+     * 再生成はメタデータから作り直す冪等な処理で、失敗しても警告ログのみで握り潰す
+     * （[regenerateQuietly]）。本処理は既に完了しているため、ここでの失敗を理由に
+     * 全体を失敗扱いにはしない。
+     */
+    private suspend fun regenerateLock() {
+        lockService.regenerateQuietly(plugin.logger)
+    }
+
+    /**
      * 保存直前に最新のメタデータを読み直し、設定（lock等）だけを引き継ぐ
      *
      * メタデータはファイル全体を上書き保存するため、ダウンロード開始前に読み込んだスナップショットを
@@ -783,7 +823,10 @@ class PluginLifecycleServiceImpl :
      * UninstallPluginUseCaseImplから移行したロジック
      * mpm.jsonから削除し、pluginsディレクトリからJARファイルも削除する
      */
-    override suspend fun uninstall(name: PluginName): Either<MpmError, Unit> {
+    override suspend fun uninstall(name: PluginName): Either<MpmError, Unit> =
+        uninstallInternal(name).onRight { regenerateLock() }
+
+    private suspend fun uninstallInternal(name: PluginName): Either<MpmError, Unit> {
         val pluginName = name.value
 
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
@@ -856,7 +899,10 @@ class PluginLifecycleServiceImpl :
      * RemoveUnmanagedUseCaseImplから移行したロジック
      * mpm.jsonに含まれていないプラグインのJARファイルを削除する
      */
-    override suspend fun removeUnmanaged(): Either<MpmError, Int> {
+    override suspend fun removeUnmanaged(): Either<MpmError, Int> =
+        removeUnmanagedInternal().onRight { regenerateLock() }
+
+    private suspend fun removeUnmanagedInternal(): Either<MpmError, Int> {
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
         val project =
             projectRepository.findOrError().getOrElse { error ->
@@ -1437,6 +1483,16 @@ class PluginLifecycleServiceImpl :
         includeSoftDependencies: Boolean,
         force: Boolean,
         skipIntegrity: Boolean
+    ): Either<MpmError, AddWithDependenciesResult> =
+        addWithDependenciesInternal(name, version, includeSoftDependencies, force, skipIntegrity)
+            .onRight { regenerateLock() }
+
+    private suspend fun addWithDependenciesInternal(
+        name: PluginName,
+        version: VersionSpecifier,
+        includeSoftDependencies: Boolean = false,
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, AddWithDependenciesResult> {
         val addedPlugins = mutableListOf<PluginAddResult>()
         val skippedPlugins = mutableListOf<String>()
@@ -1553,14 +1609,14 @@ class PluginLifecycleServiceImpl :
             }
 
         // プラグインを追加
-        val addResult = add(PluginName(pluginName), resolvedVersion)
+        val addResult = addInternal(PluginName(pluginName), resolvedVersion)
         addResult.fold(
             { error ->
                 failedPlugins[pluginName] = error.message
             },
             {
                 // 追加成功後、インストール（force・skipIntegrityフラグを伝播）
-                val installResult = install(PluginName(pluginName), force, skipIntegrity)
+                val installResult = installInternal(PluginName(pluginName), force, skipIntegrity)
                 installResult.fold(
                     { error ->
                         failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"
@@ -1590,6 +1646,14 @@ class PluginLifecycleServiceImpl :
      * @return adopt結果（adoptされたプラグイン、スキップされたプラグイン、失敗したプラグイン）
      */
     override suspend fun adoptAll(
+        includeSoftDependencies: Boolean,
+        pinToCurrentVersion: Boolean,
+        progressCallback: ((String) -> Unit)?
+    ): Either<MpmError, AdoptResult> =
+        adoptAllInternal(includeSoftDependencies, pinToCurrentVersion, progressCallback)
+            .onRight { regenerateLock() }
+
+    private suspend fun adoptAllInternal(
         includeSoftDependencies: Boolean,
         pinToCurrentVersion: Boolean,
         progressCallback: ((String) -> Unit)?
@@ -1667,7 +1731,7 @@ class PluginLifecycleServiceImpl :
             progressCallback?.invoke("<gray>[$repoName] ダウンロード中...")
 
             // addWithDependenciesを呼び出してプラグインを追加
-            addWithDependencies(
+            addWithDependenciesInternal(
                 PluginName(repoName),
                 versionSpecifier,
                 includeSoftDependencies
