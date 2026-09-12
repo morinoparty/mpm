@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright
-and related and neighboring rights to this software to the public domain worldwide.
-This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -57,6 +55,23 @@ interface PluginMetadataManager {
         latestVersionData: VersionData,
         action: String = "update"
     ): Either<String, ManagedPluginDto>
+
+    /**
+     * 更新チェックの結果をメタデータへ記録する
+     *
+     * [updateMetadata] と違い、`version.latest` と `version.lastChecked` だけを書き換える。
+     * 履歴の追記も `current` / `download` の変更も行わないため、定期チェックのたびに
+     * 呼んでも履歴が伸びず、インストール状態を巻き戻すこともない。
+     *
+     * @param pluginName プラグイン名
+     * @param latestVersion 今回のチェックで解決した最新バージョン（raw）
+     * @return latest が前回記録された値から変化した場合は true。
+     *   メタデータが存在しない・読めない場合はエラー
+     */
+    suspend fun recordCheckResult(
+        pluginName: String,
+        latestVersion: String
+    ): Either<String, Boolean>
 
     /**
      * メタデータファイルからプラグインメタデータを読み込む

@@ -378,6 +378,27 @@ cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づ�
 送信は非同期で行われるため、サーバーのパフォーマンスに影響はありません。
 </Callout>
 
+<Callout type="warn" title="outdated 通知には schedule の有効化が必要です">
+`outdated` の通知は、[スケジュール自動更新](/docs/usage/update)による定期チェック
+（起動時チェックとcron実行）でのみ送信されます。
+`settings.schedule.enabled` が `false` のままでは送信されません。
+
+`mpm outdated` / `mpm doctor` / `mpm update` の実行や、HTTP API の
+`GET /plugins/outdated` の呼び出しでは送信されません。
+これらは何度でも実行されうるため、以前は同じ内容の通知が繰り返し送信されていました。
+</Callout>
+
+<Callout type="info" title="同じ内容は繰り返し通知されません">
+`outdated` の通知は、上流で新しいバージョンが公開されたことを検知した回だけ送信されます。
+更新可能な状態が続いているだけのプラグイン（ロック中のものやバージョンを固定しているものなど）が、
+定期チェックのたびに繰り返し通知されることはありません。
+
+判定には、メタデータに記録された前回のチェック結果（`latestVersion`）を使用します。
+
+なお、自動更新に成功したプラグインには `update` の通知が送信されるため、
+`outdated` の通知は行われません。自動更新に失敗した場合は `outdated` が送信されます。
+</Callout>
+
 <Callout type="warn" title="Webhook URLの扱い">
 Discord WebhookのURLはトークンを含む機密情報です。`config.json` を公開リポジトリにコミットしないように注意してください。
 </Callout>

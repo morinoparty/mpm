@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -36,7 +36,10 @@ import party.morino.mpm.api.domain.project.dto.MpmConfig
 import party.morino.mpm.api.domain.project.dto.detectCircularDependencies
 import party.morino.mpm.api.domain.project.dto.getSyncDependencies
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
+import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.event.state.PluginOutdatedEvent
+import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.regenerateQuietly
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
@@ -161,6 +164,8 @@ class UpdateSchedulerImpl :
             val specs = loadVersionSpecs(prefix)
             val (classification, hasCheckErrors) = runCheck(prefix, specs) ?: return@launch
             reportClassification(prefix, classification, specs, hasCheckErrors)
+            // 起動時は更新を行わないため、自動更新の失敗は無い
+            publishOutdatedEvents(classification, emptySet())
         }
     }
 
@@ -235,6 +240,8 @@ class UpdateSchedulerImpl :
 
         // 対象を1件ずつ更新する
         var anyUpdated = false
+        // mpmが自動更新を試みて直せなかったもの。更新成功と違い人に知らせる必要がある
+        val failedAutoUpdates = mutableSetOf<String>()
         for (target in classification.autoUpdate) {
             val result =
                 updateService.update(
@@ -243,7 +250,10 @@ class UpdateSchedulerImpl :
                     skipIntegrity = false
                 )
             result.fold(
-                { error -> reportUpdateError(prefix, target.pluginName, error) },
+                { error ->
+                    reportUpdateError(prefix, target.pluginName, error)
+                    failedAutoUpdates.add(target.pluginName)
+                },
                 { results ->
                     val updated = reportUpdateResults(prefix, results, specs)
                     anyUpdated = anyUpdated || updated
@@ -251,11 +261,43 @@ class UpdateSchedulerImpl :
             )
         }
 
+        // 更新を試みた後に通知する。成功したものは PluginUpdateEvent 側で通知されるため除外される
+        publishOutdatedEvents(classification, failedAutoUpdates)
+
         if (anyUpdated) {
             // スケジューラはコマンド層を経由しないため、ここで明示的にロックファイルを再生成する
             lockService.regenerateQuietly(plugin.logger)
         } else {
             plugin.logger.info("$prefix No plugins were updated.")
+        }
+    }
+
+    /**
+     * 更新可能なプラグインを [PluginOutdatedEvent] として発火する
+     *
+     * かつては [party.morino.mpm.api.application.plugin.PluginInfoService.checkOutdated] が
+     * 自ら発火していたが、あれは info / doctor / HTTP API など多くの経路から呼ばれるため、
+     * 同じ内容の通知が何度も飛んでいた。発火をここに集約することで、
+     * 「mpmが自律的に行ったチェック」だけが通知されるようになる。
+     *
+     * PaperMCではイベントをメインスレッドで発火する必要があるため BukkitDispatcher を使う。
+     *
+     * @param classification 分類結果
+     * @param failedAutoUpdates 自動更新に失敗したプラグイン名
+     */
+    private suspend fun publishOutdatedEvents(
+        classification: UpdateCandidateClassification,
+        failedAutoUpdates: Set<String>
+    ) {
+        for (target in NotifiableOutdatedSelector.select(classification, failedAutoUpdates)) {
+            BukkitDispatcher.callEventSync(
+                plugin,
+                PluginOutdatedEvent(
+                    installedPlugin = InstalledPlugin(target.pluginName),
+                    currentVersion = target.currentVersion,
+                    latestVersion = target.latestVersion
+                )
+            )
         }
     }
 
