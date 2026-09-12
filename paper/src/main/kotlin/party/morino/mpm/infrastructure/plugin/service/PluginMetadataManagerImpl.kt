@@ -41,6 +41,7 @@ import java.nio.file.Files
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * プラグインメタデータ管理の実装クラス
@@ -57,10 +58,27 @@ class PluginMetadataManagerImpl :
         // 退避先の連番の上限。これを超えたら退避先を作らずエラーにする（原本は消さない）
         private const val MAX_QUARANTINE_INDEX = 99
 
-        // 更新チェックの書き戻し同士を直列化するロック。
-        // インストール/更新経路の書き込みは PluginUpdateServiceImpl 側の updateMutex に
-        // 守られており、こちらとは別のロックである点に注意（[recordCheckResult] の説明を参照）。
-        private val checkResultMutex = Mutex()
+        // メタデータの「読み込み→加工→保存」を直列化するプラグイン単位のロック。
+        // 定期チェックの書き戻しも、add / install / update / lock / unlock の書き込みも、
+        // すべてこの同じロックを経由させることで、両者が互いを巻き戻せないようにしている。
+        //
+        // companion object（JVM的には静的）に置いているのは意図的である。
+        // 本番では Koin の single で1インスタンスだが、テストなどが直接 new した
+        // インスタンスと同じロックを共有できないと、直列化が無音で効かなくなるため。
+        //
+        // キーはプラグイン名。ロックの取得自体は名前の検証より前に行われるため、
+        // 不正な名前でもエントリは作られる（名前の拒否は loadMetadata / saveMetadata 側で行う）。
+        // ただし Mutex は小さく、到達経路も mpm.json と認証付きHTTP APIに限られるので、
+        // 通常の運用では管理対象プラグインの数（高々数十）に収まる。よって破棄処理は設けない。
+        private val metadataLocks = ConcurrentHashMap<String, Mutex>()
+
+        /**
+         * プラグイン名に対応するロックを取得する（無ければ生成する）
+         *
+         * @param pluginName プラグイン名
+         * @return そのプラグイン専用のMutex
+         */
+        private fun lockFor(pluginName: String): Mutex = metadataLocks.computeIfAbsent(pluginName) { Mutex() }
     }
 
     // Koinによる依存性注入
@@ -250,21 +268,37 @@ class PluginMetadataManagerImpl :
     }
 
     /**
+     * プラグイン単位のロックを取って [block] を実行する
+     *
+     * ロックの所有者は呼び出し側であり、[loadMetadata] / [saveMetadata] などは自分では
+     * ロックを取らない。詳しい呼び出し規約は [PluginMetadataManager.withMetadataLock] を参照。
+     */
+    override suspend fun <T> withMetadataLock(
+        pluginName: String,
+        block: suspend () -> T
+    ): T = lockFor(pluginName).withLock { block() }
+
+    /**
      * 更新チェックの結果をメタデータへ記録する
      *
-     * 定期チェックはインストール処理と並行して走りうるため、読み込んだ内容をそのまま
-     * 書き戻すと、その間に行われた更新（current / download / history）を巻き戻してしまう。
-     * それを避けるため、書き込み直前にメタデータを読み直し、そこへ `latest` と
-     * `lastChecked` だけを載せて保存する。こうすると最悪でも自分が書こうとした latest を
+     * 定期チェックはインストール処理と並行して走りうるため、書き込みは [withMetadataLock] と
+     * 同じプラグイン単位のロックの中で行う。ロックを共有しているので、インストール経路の
+     * 「読み込み→加工→保存」がこのチェックの書き戻しと交差することはない。
+     *
+     * その上で、ロックの中でも書き込み直前にメタデータを読み直し、そこへ `latest` と
+     * `lastChecked` だけを載せて保存する。これはロックを経由しない書き手（起動時のスキーマ
+     * マイグレーションなど）に対する二重の防御で、最悪でも自分が書こうとした latest を
      * 落とすだけで済み（次回のチェックで書き直される）、インストール状態は決して壊さない。
+     *
+     * ロックを内部で取るため、[withMetadataLock] のブロックの中から呼んではならない。
      */
     override suspend fun recordCheckResult(
         pluginName: String,
         latestVersion: String
     ): Either<String, Boolean> =
-        checkResultMutex.withLock {
+        withMetadataLock(pluginName) {
             // 書き込み直前の内容を基準にする（並行して行われた更新を巻き戻さないため）
-            val current = loadMetadata(pluginName).getOrElse { return@withLock it.left() }
+            val current = loadMetadata(pluginName).getOrElse { return@withMetadataLock it.left() }
 
             val previousLatestRaw = current.mpmInfo.version.latest.raw
             val changed = previousLatestRaw != latestVersion

@@ -120,6 +120,12 @@ class PluginUpdateServiceImpl :
     private val lockService: LockService by inject()
 
     // 並行更新を防止するためのMutex（スケジューラーとコマンドの競合回避）
+    //
+    // ロック順序の不変条件: このMutexは常に外側、
+    // [PluginMetadataManager.withMetadataLock] のメタデータロックは常に内側とする。
+    // すなわちメタデータロックを握ったままこのサービスの処理を呼び出してはならない。
+    // 現状、メタデータロックの中から呼ぶのは metadataManager の各メソッドとロガーだけで、
+    // infoService（= recordCheckResult 経由で同じロックを取る）もここでは呼ばれない。
     private val updateMutex = Mutex()
 
     /**
@@ -1085,21 +1091,36 @@ class PluginUpdateServiceImpl :
             return MpmError.PluginError.OperationCancelled(name.value, "lock").left()
         }
 
-        // ロックフラグを設定
-        val updatedMetadata =
-            metadata.copy(
-                mpmInfo =
-                    metadata.mpmInfo.copy(
-                        settings = metadata.mpmInfo.settings.copy(lock = true)
-                    )
-            )
+        // 読み込みからイベント発火を挟んでいるため、フラグの書き換えはロックの中で読み直してから行う。
+        // ここで読み直さないと、イベント待ちの間に走ったインストールの結果（current / download / history）を
+        // 古いスナップショットで丸ごと巻き戻してしまう。
+        return pluginMetadataManager.withMetadataLock(name.value) {
+            val latestMetadata =
+                pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                    return@withMetadataLock MpmError.PluginError.MetadataNotFound(name.value).left()
+                }
 
-        // メタデータを保存
-        pluginMetadataManager.saveMetadata(name.value, updatedMetadata).getOrElse {
-            return MpmError.PluginError.MetadataSaveFailed(name.value, it).left()
+            // イベント待ちの間に他経路がロックしていた場合は、事前チェックと同じ理由で拒否する
+            if (latestMetadata.mpmInfo.settings.lock == true) {
+                return@withMetadataLock MpmError.PluginError.AlreadyLocked(name.value).left()
+            }
+
+            // ロックフラグを設定
+            val updatedMetadata =
+                latestMetadata.copy(
+                    mpmInfo =
+                        latestMetadata.mpmInfo.copy(
+                            settings = latestMetadata.mpmInfo.settings.copy(lock = true)
+                        )
+                )
+
+            // メタデータを保存
+            pluginMetadataManager.saveMetadata(name.value, updatedMetadata).getOrElse {
+                return@withMetadataLock MpmError.PluginError.MetadataSaveFailed(name.value, it).left()
+            }
+
+            Unit.right()
         }
-
-        return Unit.right()
     }
 
     /**
@@ -1141,21 +1162,34 @@ class PluginUpdateServiceImpl :
             return MpmError.PluginError.OperationCancelled(name.value, "unlock").left()
         }
 
-        // ロックフラグを解除
-        val updatedMetadata =
-            metadata.copy(
-                mpmInfo =
-                    metadata.mpmInfo.copy(
-                        settings = metadata.mpmInfo.settings.copy(lock = false)
-                    )
-            )
+        // 読み直してから書き換える理由は lock と同じ（イベント待ちの間の更新を巻き戻さないため）
+        return pluginMetadataManager.withMetadataLock(name.value) {
+            val latestMetadata =
+                pluginMetadataManager.loadMetadata(name.value).getOrElse {
+                    return@withMetadataLock MpmError.PluginError.MetadataNotFound(name.value).left()
+                }
 
-        // メタデータを保存
-        pluginMetadataManager.saveMetadata(name.value, updatedMetadata).getOrElse {
-            return MpmError.PluginError.MetadataSaveFailed(name.value, it).left()
+            // イベント待ちの間に他経路がロックを外していた場合は、事前チェックと同じ理由で拒否する
+            if (latestMetadata.mpmInfo.settings.lock != true) {
+                return@withMetadataLock MpmError.PluginError.NotLocked(name.value).left()
+            }
+
+            // ロックフラグを解除
+            val updatedMetadata =
+                latestMetadata.copy(
+                    mpmInfo =
+                        latestMetadata.mpmInfo.copy(
+                            settings = latestMetadata.mpmInfo.settings.copy(lock = false)
+                        )
+                )
+
+            // メタデータを保存
+            pluginMetadataManager.saveMetadata(name.value, updatedMetadata).getOrElse {
+                return@withMetadataLock MpmError.PluginError.MetadataSaveFailed(name.value, it).left()
+            }
+
+            Unit.right()
         }
-
-        return Unit.right()
     }
 
     // === プライベートヘルパーメソッド ===
@@ -1621,9 +1655,13 @@ class PluginUpdateServiceImpl :
                             )
                     )
             )
+        // 読み直しと保存が交差しないよう、この2つはロックの中でまとめて行う。
+        // ダウンロードとJAR差し替えはロックの外に置いている（長時間握ると同じプラグインへの
+        // `mpm lock` や定期チェックが待たされてしまうため）。
         pluginMetadataManager
-            .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
-            .getOrElse {
+            .withMetadataLock(pluginName) {
+                pluginMetadataManager.saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
+            }.getOrElse {
                 // ここに到達した時点でjarは既に新バージョンへ差し替わっているため、
                 // メタデータだけが旧バージョンのまま残る。手動確認が必要であることを明示する
                 return MpmError.PluginError
@@ -1909,56 +1947,65 @@ class PluginUpdateServiceImpl :
                     )
             )
 
-        // 破損メタデータの退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
-        // 退避できない場合は原本を守るためインストールを失敗として扱う。
-        // 退避先は保存に失敗したときに戻すため保持しておく。
-        var quarantinedFile: File? = null
-        pendingQuarantineReason?.let { loadError ->
-            pluginMetadataManager.quarantineMetadata(pluginName).fold(
-                { quarantineError ->
-                    return installFailure(
-                        pluginName,
-                        "破損したメタデータを退避できなかったため処理を中断しました: " +
-                            "$quarantineError (元のエラー: $loadError)"
-                    ).left()
-                },
-                { quarantined ->
-                    quarantinedFile = quarantined
-                    // 退避が発生した場合のみ、復旧できるように退避先を明示して警告する
-                    quarantined?.let {
-                        plugin.logger.warning(
-                            "メタデータを読み込めないため退避して作り直します: $pluginName " +
-                                "($loadError) -> ${it.absolutePath}"
-                        )
-                    }
-                }
-            )
-        }
-
-        // 長時間のダウンロード中に実行された lock/unlock を上書きで失わないよう、
-        // 保存直前に読み直した settings を引き継ぐ（mergeLatestSettings）。
-        // 直前に退避が起きていた場合は原本が無いため no-op に縮退するだけで害はない。
+        // 退避・読み直し・保存は同じファイルに対する連続操作なので、ロックの中でまとめて行う。
+        // ダウンロードとJAR差し替えはロックの外に置いている（長時間握ると同じプラグインへの
+        // `mpm lock` や定期チェックが待たされてしまうため）。
         pluginMetadataManager
-            .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
-            .onLeft { saveError ->
-                // 退避した原本を戻さないと `metadata/<名前>.yaml` が不在のまま残り、
-                // ロック判定などが無音で無効化されてしまう（詳細は restoreQuarantinedMetadataOrWarn のKDoc）
-                val restoreNote =
-                    restoreQuarantinedMetadataOrWarn(
-                        metadataManager = pluginMetadataManager,
-                        logger = plugin.logger,
-                        pluginName = pluginName,
-                        quarantinedFile = quarantinedFile
+            .withMetadataLock(pluginName) {
+                // 破損メタデータの退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
+                // 退避できない場合は原本を守るためインストールを失敗として扱う。
+                // 退避先は保存に失敗したときに戻すため保持しておく。
+                var quarantinedFile: File? = null
+                pendingQuarantineReason?.let { loadError ->
+                    pluginMetadataManager.quarantineMetadata(pluginName).fold(
+                        { quarantineError ->
+                            return@withMetadataLock installFailure(
+                                pluginName,
+                                "破損したメタデータを退避できなかったため処理を中断しました: " +
+                                    "$quarantineError (元のエラー: $loadError)"
+                            ).left()
+                        },
+                        { quarantined ->
+                            quarantinedFile = quarantined
+                            // 退避が発生した場合のみ、復旧できるように退避先を明示して警告する
+                            quarantined?.let {
+                                plugin.logger.warning(
+                                    "メタデータを読み込めないため退避して作り直します: $pluginName " +
+                                        "($loadError) -> ${it.absolutePath}"
+                                )
+                            }
+                        }
                     )
-                // ここに到達した時点でjarは既に新バージョンへ差し替わっているため、
-                // メタデータだけが旧バージョンのまま残る。手動確認が必要であることを明示する
-                return MpmError.PluginError
-                    .MetadataSaveFailed(
-                        pluginName,
-                        "jarは既に $newFileName へ差し替え済みですが、メタデータの保存に失敗しました" +
-                            "（plugins/ と metadata の内容を手動で確認してください）: $saveError$restoreNote"
-                    ).left()
-            }
+                }
+
+                // 長時間のダウンロード中に実行された lock/unlock を上書きで失わないよう、
+                // 保存直前に読み直した settings を引き継ぐ（mergeLatestSettings）。
+                // 直前に退避が起きていた場合は原本が無いため no-op に縮退するだけで害はない。
+                pluginMetadataManager
+                    .saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
+                    .onLeft { saveError ->
+                        // 退避した原本を戻さないと `metadata/<名前>.yaml` が不在のまま残り、
+                        // ロック判定などが無音で無効化されてしまう
+                        // （詳細は restoreQuarantinedMetadataOrWarn のKDoc）
+                        val restoreNote =
+                            restoreQuarantinedMetadataOrWarn(
+                                metadataManager = pluginMetadataManager,
+                                logger = plugin.logger,
+                                pluginName = pluginName,
+                                quarantinedFile = quarantinedFile
+                            )
+                        // ここに到達した時点でjarは既に新バージョンへ差し替わっているため、
+                        // メタデータだけが旧バージョンのまま残る。手動確認が必要であることを明示する
+                        return@withMetadataLock MpmError.PluginError
+                            .MetadataSaveFailed(
+                                pluginName,
+                                "jarは既に $newFileName へ差し替え済みですが、メタデータの保存に失敗しました" +
+                                    "（plugins/ と metadata の内容を手動で確認してください）: $saveError$restoreNote"
+                            ).left()
+                    }
+
+                Unit.right()
+            }.getOrElse { return it.left() }
 
         // インストール結果を返す
         val installInfo =
@@ -1982,6 +2029,10 @@ class PluginUpdateServiceImpl :
      * 結果を消してしまう（HTTPは200を返したのにロックされていない状態になる）。
      * mpm.jsonに対して [rewriteSpecToFixed] が採っているのと同じ方針で、保存直前に読み直す。
      * バージョンやダウンロード情報は本処理が確定させた値が正しいため、マージ対象は設定のみとする。
+     *
+     * 読み直しと保存の間に別経路が割り込まないよう、必ず
+     * [PluginMetadataManager.withMetadataLock] の中から呼ぶこと。ロックの中で呼ぶことで、
+     * このマージは「隙間が狭いだけ」ではなく実際に不可分になる。
      *
      * @param pluginName プラグイン名
      * @param metadata 保存しようとしているメタデータ

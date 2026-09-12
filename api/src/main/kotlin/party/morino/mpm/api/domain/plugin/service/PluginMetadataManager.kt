@@ -63,6 +63,10 @@ interface PluginMetadataManager {
      * 履歴の追記も `current` / `download` の変更も行わないため、定期チェックのたびに
      * 呼んでも履歴が伸びず、インストール状態を巻き戻すこともない。
      *
+     * 読み込みから保存までを [withMetadataLock] と同じプラグイン単位のロックの中で行う。
+     * そのため **[withMetadataLock] のブロックの中からこのメソッドを呼んではならない**。
+     * kotlinx の `Mutex` は再入可能ではないので、その場で確実にデッドロックする。
+     *
      * @param pluginName プラグイン名
      * @param latestVersion 今回のチェックで解決した最新バージョン（raw）
      * @return latest が前回記録された値から変化した場合は true。
@@ -74,7 +78,39 @@ interface PluginMetadataManager {
     ): Either<String, Boolean>
 
     /**
+     * 1つのプラグインのメタデータに対する「読み込み→加工→保存」を直列化する
+     *
+     * メタデータはファイル全体を上書き保存するため、[loadMetadata] から [saveMetadata] までの間に
+     * 別の経路が同じファイルを書き換えると、後から保存した側がその変更を無音で巻き戻してしまう。
+     * add / install / update / switch / lock / unlock と定期チェックは互いに並行して走りうるので、
+     * 書き込みを伴う経路は必ずこのロックの中で読み書きをまとめて行う。
+     *
+     * ロックはプラグイン単位で、異なるプラグイン同士は待たない（メタデータファイルが別なので競合しない）。
+     *
+     * ### 呼び出し規約（kotlinx の `Mutex` は再入可能ではないため厳守すること）
+     * - [loadMetadata] / [saveMetadata] / [updateMetadata] / [quarantineMetadata] /
+     *   [deleteMetadata] はロックを取らない。ロックの所有者は常に呼び出し側であり、
+     *   これらはこのブロックの中で呼ばれることを前提にしている。
+     * - 同じプラグインに対して [withMetadataLock] を入れ子にしてはならない。
+     * - [recordCheckResult] は内部で同じロックを取るため、このブロックの中から呼んではならない。
+     * - ブロックの中から更新サービス（インストール処理）を呼び出してはならない。
+     *   ロック順序は「更新サービスのロック → メタデータのロック」の一方向に保つ必要がある。
+     * - ダウンロードなど時間のかかる処理はブロックの外に出すこと。
+     *   ロックを握ったままにすると、同じプラグインへの `mpm lock` や定期チェックが待たされる。
+     *
+     * @param pluginName プラグイン名（ロックの粒度となるキー）
+     * @param block ロックの中で実行する読み書き処理
+     * @return [block] の戻り値
+     */
+    suspend fun <T> withMetadataLock(
+        pluginName: String,
+        block: suspend () -> T
+    ): T
+
+    /**
      * メタデータファイルからプラグインメタデータを読み込む
+     *
+     * ロックは取らない。書き込みを伴う経路では [withMetadataLock] の中から呼ぶこと。
      *
      * @param pluginName プラグイン名
      * @return 成功時は読み込まれたメタデータ、失敗時はエラーメッセージ
@@ -83,6 +119,9 @@ interface PluginMetadataManager {
 
     /**
      * プラグインメタデータをファイルに保存する
+     *
+     * ロックは取らない（再入によるデッドロックを避けるため意図的にそうしている）。
+     * 直前に読み込んだ内容を元に書き戻す場合は、必ず [withMetadataLock] の中で読み書きすること。
      *
      * @param pluginName プラグイン名
      * @param metadata 保存するメタデータ

@@ -9,8 +9,13 @@
 
 package party.morino.mpm.infrastructure.plugin.service
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -93,6 +98,59 @@ class PluginMetadataManagerImplTest {
             assertEquals(metadata.mpmInfo.history.size, stored.mpmInfo.history.size)
 
             manager.deleteMetadata(name)
+        }
+    }
+
+    @Test
+    @DisplayName("withMetadataLock serializes concurrent access for the same plugin")
+    fun withMetadataLockSerializesSamePlugin() {
+        runBlocking {
+            val name = "LockPlugin"
+            // 先行するコルーチンにロックを握らせ、解放の合図を待たせる
+            val holderEntered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val holder =
+                launch {
+                    manager.withMetadataLock(name) {
+                        holderEntered.complete(Unit)
+                        release.await()
+                    }
+                }
+            holderEntered.await()
+
+            // ロックが握られている間、同じプラグインへの取得は待たされる
+            val blocked = withTimeoutOrNull(200) { manager.withMetadataLock(name) { true } }
+            assertNull(blocked)
+
+            // 解放後は待っていた側が進める
+            release.complete(Unit)
+            holder.join()
+            val afterRelease = withTimeout(1000) { manager.withMetadataLock(name) { true } }
+            assertTrue(afterRelease)
+        }
+    }
+
+    @Test
+    @DisplayName("withMetadataLock does not block a different plugin")
+    fun withMetadataLockIsPerPlugin() {
+        runBlocking {
+            val holderEntered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val holder =
+                launch {
+                    manager.withMetadataLock("PluginA") {
+                        holderEntered.complete(Unit)
+                        release.await()
+                    }
+                }
+            holderEntered.await()
+
+            // ロックはプラグイン単位なので、別プラグインは待たされない
+            val other = withTimeout(1000) { manager.withMetadataLock("PluginB") { true } }
+            assertTrue(other)
+
+            release.complete(Unit)
+            holder.join()
         }
     }
 
