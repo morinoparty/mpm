@@ -63,6 +63,7 @@ import party.morino.mpm.event.state.PluginUpdateEvent
 import party.morino.mpm.infrastructure.downloader.PluginDownloadException
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.FileNameTemplate
+import party.morino.mpm.utils.SafeFileName
 import party.morino.mpm.utils.regenerateQuietly
 import party.morino.mpm.utils.replaceJarAtomically
 import party.morino.mpm.utils.retireOldJar
@@ -1598,12 +1599,19 @@ class PluginUpdateServiceImpl :
         // 更新後のメタデータからバージョン情報を取得してファイル名を生成
         val template = mpmInfoDto.fileNameTemplate ?: FileNameTemplate.DEFAULT
         val updatedVersion = updatedMetadataWithLatest.mpmInfo.version.current.normalized
-        val newFileName = generateFileName(template, pluginInfoDto.name, updatedVersion)
+        val newFileName =
+            generateFileName(template, pluginInfoDto.name, updatedVersion).getOrElse { reason ->
+                return updateFailure(pluginName, reason).left()
+            }
 
         // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
         // 途中で失敗しても既存JARが壊れず、中間ファイルも残らない
         val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
+        // 配置直前にも plugins/ の配下に収まることを確認する（多重防御）
+        val targetFile =
+            SafeFileName.resolveInside(pluginsDir, newFileName).getOrElse { reason ->
+                return updateFailure(pluginName, reason).left()
+            }
         replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
             return updateFailure(pluginName, reason).left()
         }
@@ -1871,12 +1879,20 @@ class PluginUpdateServiceImpl :
 
         // ファイル名を生成
         val template = firstRepository.fileNameTemplate ?: FileNameTemplate.DEFAULT
-        val newFileName = generateFileName(template, pluginName, metadata.mpmInfo.version.current.normalized)
+        val newFileName =
+            generateFileName(template, pluginName, metadata.mpmInfo.version.current.normalized)
+                .getOrElse { reason ->
+                    return installFailure(pluginName, reason).left()
+                }
 
         // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
         // 途中で失敗しても既存JARが壊れず、中間ファイルも残らない
         val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
+        // 配置直前にも plugins/ の配下に収まることを確認する（多重防御）
+        val targetFile =
+            SafeFileName.resolveInside(pluginsDir, newFileName).getOrElse { reason ->
+                return installFailure(pluginName, reason).left()
+            }
         replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
             return installFailure(pluginName, reason).left()
         }
@@ -2156,5 +2172,5 @@ class PluginUpdateServiceImpl :
         template: String,
         pluginName: String,
         versionString: String
-    ): String = FileNameTemplate.render(template, pluginName, versionString)
+    ): Either<String, String> = FileNameTemplate.render(template, pluginName, versionString)
 }

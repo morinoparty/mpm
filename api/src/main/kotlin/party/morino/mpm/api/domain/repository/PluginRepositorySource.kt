@@ -88,8 +88,10 @@ data class RepositoryFile(
  * @property versionPattern バージョン番号の検証用正規表現（オプション）
  *   セマンティックバージョニングなど、特定のバージョンフォーマットを強制する場合に使用
  *   例: "(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)" （セマンティックバージョニング）
- * @property downloadUrlTemplate ダウンロードURLのテンプレート（オプション）
- *   カスタムダウンロードURLを指定する場合に使用
+ * @property downloadUrlTemplate ダウンロードURLのテンプレート（未実装・予約フィールド）
+ *   現在このフィールドを読む実装は存在せず、値を設定しても動作は変わらない。
+ *   実装する場合は、リポジトリ定義に由来する任意URLへ無検証でリクエストすることになるため、
+ *   ホストのallowlist等の検証を必ず伴わせること（委譲リポジトリでは第三者が値を供給しうる）。
  *   プレースホルダー: {versionId}, {version}, {fileName}
  *   例: "https://api.modrinth.com/v2/project/luckperms/version/{versionId}/file"
  * @property fileNamePattern ファイル名の選択用正規表現（オプション）

@@ -9,6 +9,8 @@
 
 package party.morino.mpm.utils
 
+import arrow.core.Either
+
 /**
  * ダウンロードしたJARのファイル名テンプレートを展開する
  *
@@ -30,17 +32,24 @@ internal object FileNameTemplate {
     /**
      * テンプレートを展開してファイル名を生成する
      *
+     * テンプレートもプラグイン名もリポジトリ定義に由来するため、展開結果が
+     * ディレクトリを跨がないこと（単一のパスセグメントであること）を必ず検証する。
+     * 検証を呼び出し側の作法に委ねると、新しい呼び出し経路が増えたときに
+     * 素通りしてしまうため、展開と検証を1つの関数にまとめている。
+     *
      * @param template ファイル名テンプレート（null の場合は [DEFAULT]）
      * @param pluginName プラグイン名
      * @param normalizedVersion 正規化済みバージョン文字列
-     * @return 展開後のファイル名
+     * @return 展開後のファイル名。安全でない場合は理由
      */
     fun render(
         template: String?,
         pluginName: String,
         normalizedVersion: String
-    ): String =
-        (template ?: DEFAULT)
-            .replace(PLUGIN_NAME, pluginName)
-            .replace(NORMALIZED_VERSION, normalizedVersion)
+    ): Either<String, String> =
+        SafeFileName.validate(
+            (template ?: DEFAULT)
+                .replace(PLUGIN_NAME, pluginName)
+                .replace(NORMALIZED_VERSION, normalizedVersion)
+        )
 }
