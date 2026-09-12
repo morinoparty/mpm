@@ -32,6 +32,7 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
+import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
@@ -244,91 +245,99 @@ class PluginLifecycleServiceImpl :
             }
         val sortedProject = updatedProject.withSortedPlugins()
 
-        // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
-        val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
+        // ここから先はメタデータの読み書きが連続するため、プラグイン単位のロックで直列化する。
+        // ダウンロードもイベント発火もこの区間には無く、ファイル操作だけなのでロックは短時間で済む。
+        // ロックの中から更新サービスや recordCheckResult を呼ばないこと（再入不可・ロック順序のため）。
+        return metadataManager.withMetadataLock(pluginName) {
+            // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
+            val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
 
-        // 読み込めなかった原本の退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
-        // 退避に失敗した場合は原本を上書きせずに中止する。
-        // 退避先は、この後の保存に失敗したときに戻すため保持しておく。
-        var quarantinedFile: File? = null
-        if (needsQuarantine) {
-            metadataManager.quarantineMetadata(pluginName).fold(
-                { quarantineError ->
-                    return MpmError.PluginError
-                        .AddFailed(pluginName, "破損したメタデータを退避できませんでした: $quarantineError")
-                        .left()
-                },
-                { quarantined ->
-                    quarantinedFile = quarantined
-                    quarantined?.let {
-                        plugin.logger.warning(
-                            "メタデータを読み込めないため退避して作り直します: $pluginName -> ${it.absolutePath}"
-                        )
+            // 読み込めなかった原本の退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
+            // 退避に失敗した場合は原本を上書きせずに中止する。
+            // 退避先は、この後の保存に失敗したときに戻すため保持しておく。
+            var quarantinedFile: File? = null
+            // 退避の要否はロックの中で読み直した結果で最終判定する。
+            // 先の読み込みが失敗していても、その後に別経路が正しいファイルを書いていれば
+            // ここで読めるようになっており、その場合に退避すると正常なファイルを `.corrupt` へ追い出してしまう
+            if (needsQuarantine && previousMetadata == null) {
+                metadataManager.quarantineMetadata(pluginName).fold(
+                    { quarantineError ->
+                        return@withMetadataLock MpmError.PluginError
+                            .AddFailed(pluginName, "破損したメタデータを退避できませんでした: $quarantineError")
+                            .left()
+                    },
+                    { quarantined ->
+                        quarantinedFile = quarantined
+                        quarantined?.let {
+                            plugin.logger.warning(
+                                "メタデータを読み込めないため退避して作り直します: $pluginName -> ${it.absolutePath}"
+                            )
+                        }
                     }
-                }
-            )
-        }
-
-        // メタデータを先に保存（mpm.jsonより先に保存することで、メタデータ保存失敗時の不整合を防ぐ）
-        metadataManager.saveMetadata(pluginName, metadata).onLeft { saveError ->
-            // 退避したまま保存に失敗すると `metadata/<名前>.yaml` が不在になるため、原本を戻す
-            val restoreNote =
-                restoreQuarantinedMetadataOrWarn(
-                    metadataManager = metadataManager,
-                    logger = plugin.logger,
-                    pluginName = pluginName,
-                    quarantinedFile = quarantinedFile
                 )
-            return MpmError.PluginError.AddFailed(pluginName, "$saveError$restoreNote").left()
-        }
+            }
 
-        // メタデータ保存成功後にProjectRepositoryを通じて保存
-        try {
-            projectRepository.save(sortedProject)
-        } catch (e: Exception) {
-            // 保存失敗時はメタデータをロールバック（以前の状態に復元）
-            val rollbackError =
-                if (previousMetadata != null) {
-                    metadataManager.saveMetadata(pluginName, previousMetadata).fold(
-                        { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
-                        { "" }
+            // メタデータを先に保存（mpm.jsonより先に保存することで、メタデータ保存失敗時の不整合を防ぐ）
+            metadataManager.saveMetadata(pluginName, metadata).onLeft { saveError ->
+                // 退避したまま保存に失敗すると `metadata/<名前>.yaml` が不在になるため、原本を戻す
+                val restoreNote =
+                    restoreQuarantinedMetadataOrWarn(
+                        metadataManager = metadataManager,
+                        logger = plugin.logger,
+                        pluginName = pluginName,
+                        quarantinedFile = quarantinedFile
                     )
-                } else {
-                    metadataManager.deleteMetadata(pluginName).fold(
-                        { rollbackMsg ->
-                            // 作り直したメタデータを消せなかった場合、退避した原本は `.corrupt` に
-                            // 置き去りのまま戻せない。原本の所在が起動ログにしか残らないと
-                            // 利用者が復旧できないため、退避先の絶対パスをエラー文にも載せる
-                            val restoreNote =
+                return@withMetadataLock MpmError.PluginError.AddFailed(pluginName, "$saveError$restoreNote").left()
+            }
+
+            // メタデータ保存成功後にProjectRepositoryを通じて保存
+            try {
+                projectRepository.save(sortedProject)
+            } catch (e: Exception) {
+                // 保存失敗時はメタデータをロールバック（以前の状態に復元）
+                val rollbackError =
+                    if (previousMetadata != null) {
+                        metadataManager.saveMetadata(pluginName, previousMetadata).fold(
+                            { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
+                            { "" }
+                        )
+                    } else {
+                        metadataManager.deleteMetadata(pluginName).fold(
+                            { rollbackMsg ->
+                                // 作り直したメタデータを消せなかった場合、退避した原本は `.corrupt` に
+                                // 置き去りのまま戻せない。原本の所在が起動ログにしか残らないと
+                                // 利用者が復旧できないため、退避先の絶対パスをエラー文にも載せる
+                                val restoreNote =
+                                    restoreQuarantinedMetadataOrWarn(
+                                        metadataManager = metadataManager,
+                                        logger = plugin.logger,
+                                        pluginName = pluginName,
+                                        quarantinedFile = quarantinedFile
+                                    )
+                                " (rollback also failed: $rollbackMsg)$restoreNote"
+                            },
+                            {
+                                // 作り直したメタデータを消しただけでは、退避した原本があると
+                                // `metadata/<名前>.yaml` が不在のまま残ってしまうため元に戻す
                                 restoreQuarantinedMetadataOrWarn(
                                     metadataManager = metadataManager,
                                     logger = plugin.logger,
                                     pluginName = pluginName,
                                     quarantinedFile = quarantinedFile
                                 )
-                            " (rollback also failed: $rollbackMsg)$restoreNote"
-                        },
-                        {
-                            // 作り直したメタデータを消しただけでは、退避した原本があると
-                            // `metadata/<名前>.yaml` が不在のまま残ってしまうため元に戻す
-                            restoreQuarantinedMetadataOrWarn(
-                                metadataManager = metadataManager,
-                                logger = plugin.logger,
-                                pluginName = pluginName,
-                                quarantinedFile = quarantinedFile
-                            )
-                        }
-                    )
-                }
-            return MpmError.PluginError
-                .AddFailed(
-                    pluginName,
-                    "Failed to save mpm.json: ${e.message}$rollbackError"
-                ).left()
-        }
+                            }
+                        )
+                    }
+                return@withMetadataLock MpmError.PluginError
+                    .AddFailed(
+                        pluginName,
+                        "Failed to save mpm.json: ${e.message}$rollbackError"
+                    ).left()
+            }
 
-        // ManagedPluginを返す（メタデータから構築）
-        return ManagedPlugin.fromDto(metadata).right()
+            // ManagedPluginを返す（メタデータから構築）
+            ManagedPlugin.fromDto(metadata).right()
+        }
     }
 
     /**
@@ -675,9 +684,15 @@ class PluginLifecycleServiceImpl :
                             )
                     )
             )
-        metadataManager.saveMetadata(pluginName, updatedMetadata).getOrElse {
-            return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
-        }
+        // 読み込みから保存までの間にダウンロードを挟んでいるため、保存はロックの中で読み直してから行う。
+        // ダウンロード自体はロックの外に置いている（数十秒握り続けると同じプラグインへの
+        // `mpm lock` や定期チェックが待たされてしまうため）。
+        metadataManager
+            .withMetadataLock(pluginName) {
+                metadataManager.saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
+            }.getOrElse {
+                return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
+            }
 
         // インストール結果を返す
         return InstallResult(
@@ -689,6 +704,34 @@ class PluginLifecycleServiceImpl :
                 ),
             removed = removedInfo
         ).right()
+    }
+
+    /**
+     * 保存直前に最新のメタデータを読み直し、設定（lock等）だけを引き継ぐ
+     *
+     * メタデータはファイル全体を上書き保存するため、ダウンロード開始前に読み込んだスナップショットを
+     * そのまま保存すると、数十秒かかるダウンロードの最中に実行された `mpm lock` / `mpm unlock` の
+     * 結果を消してしまう。バージョンやダウンロード情報は本処理が確定させた値が正しいため、
+     * マージ対象は設定のみとする。
+     *
+     * 読み直しと保存が交差しないよう、必ず [PluginMetadataManager.withMetadataLock] の中から呼ぶこと。
+     *
+     * @param pluginName プラグイン名
+     * @param metadata 保存しようとしているメタデータ
+     * @return 最新の設定を反映したメタデータ（読み直しに失敗した場合は元のメタデータ）
+     */
+    private fun mergeLatestSettings(
+        pluginName: String,
+        metadata: ManagedPluginDto
+    ): ManagedPluginDto {
+        val latestSettings =
+            metadataManager
+                .loadMetadata(pluginName)
+                .getOrNull()
+                ?.mpmInfo
+                ?.settings
+                ?: return metadata
+        return metadata.copy(mpmInfo = metadata.mpmInfo.copy(settings = latestSettings))
     }
 
     /**
