@@ -66,9 +66,10 @@ class PluginMetadataManagerImpl :
         // 本番では Koin の single で1インスタンスだが、テストなどが直接 new した
         // インスタンスと同じロックを共有できないと、直列化が無音で効かなくなるため。
         //
-        // キーはプラグイン名で、管理対象プラグインの数（高々数十）に上限が縛られる。
-        // 名前は sanitizePluginName を通った値しかメタデータ操作に到達しないため、
-        // 外部入力で無制限に増やされることもない。よって破棄処理は設けない。
+        // キーはプラグイン名。ロックの取得自体は名前の検証より前に行われるため、
+        // 不正な名前でもエントリは作られる（名前の拒否は loadMetadata / saveMetadata 側で行う）。
+        // ただし Mutex は小さく、到達経路も mpm.json と認証付きHTTP APIに限られるので、
+        // 通常の運用では管理対象プラグインの数（高々数十）に収まる。よって破棄処理は設けない。
         private val metadataLocks = ConcurrentHashMap<String, Mutex>()
 
         /**
