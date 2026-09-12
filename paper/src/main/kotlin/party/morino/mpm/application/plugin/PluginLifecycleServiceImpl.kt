@@ -59,6 +59,7 @@ import party.morino.mpm.infrastructure.downloader.PluginDownloadException
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.FileNameTemplate
 import party.morino.mpm.utils.PluginDataUtils
+import party.morino.mpm.utils.SafeFileName
 import party.morino.mpm.utils.replaceJarAtomically
 import party.morino.mpm.utils.retireOldJar
 import java.io.File
@@ -620,14 +621,22 @@ class PluginLifecycleServiceImpl :
             }
         }
 
-        // ファイル名を生成
+        // ファイル名を生成する（リポジトリ由来のテンプレートなので展開結果を検証する）
         val template = mpmInfo.fileNameTemplate ?: FileNameTemplate.DEFAULT
-        val newFileName = generateFileName(template, pluginInfo.name, mpmInfo.version.current.normalized)
+        val newFileName =
+            generateFileName(template, pluginInfo.name, mpmInfo.version.current.normalized)
+                .getOrElse { reason ->
+                    return MpmError.PluginError.InstallFailed(pluginName, reason).left()
+                }
 
         // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
         // （失敗時も既存JARが壊れず、中間ファイルも残らない）
         val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
+        // 配置直前にも plugins/ の配下に収まることを確認する（多重防御）
+        val targetFile =
+            SafeFileName.resolveInside(pluginsDir, newFileName).getOrElse { reason ->
+                return MpmError.PluginError.InstallFailed(pluginName, reason).left()
+            }
         replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
             return MpmError.PluginError
                 .InstallFailed(
@@ -1350,7 +1359,7 @@ class PluginLifecycleServiceImpl :
         template: String,
         pluginName: String,
         versionString: String
-    ): String = FileNameTemplate.render(template, pluginName, versionString)
+    ): Either<String, String> = FileNameTemplate.render(template, pluginName, versionString)
 
     /**
      * プラグインを依存関係と共に追加・インストールする
