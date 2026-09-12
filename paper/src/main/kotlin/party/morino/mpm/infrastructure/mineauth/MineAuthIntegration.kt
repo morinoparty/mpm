@@ -11,6 +11,7 @@ package party.morino.mpm.infrastructure.mineauth
 
 import org.bukkit.plugin.java.JavaPlugin
 import party.morino.mineauth.api.MineAuthApi
+import party.morino.mineauth.api.http.HttpStatus
 
 /**
  * MineAuth との連携を管理するクラス
@@ -29,6 +30,8 @@ class MineAuthIntegration(
      * MineAuth が利用可能か確認してエンドポイントを登録する
      *
      * MineAuth が存在しない場合は情報ログのみ出力してスキップする。
+     * 登録の直前に [httpError] を1度呼んでエラー応答のリンクを検証し、
+     * 失敗する場合は登録せずに打ち切る（中途半端に動く API を公開しないため）。
      */
     fun setup() {
         // NoClassDefFoundError など Throwable も含めて全体を保護する。
@@ -54,6 +57,27 @@ class MineAuthIntegration(
             if (api == null) {
                 plugin.logger.warning(
                     "MineAuth found but MineAuthApi service is unavailable - HTTP API integration disabled"
+                )
+                return
+            }
+
+            // エラー応答のリンク検証（fail-fast）。
+            // mineauth-api にはバージョンを示す定数が存在しないため「コンパイル時のリビジョンと
+            // 実行時のリビジョンを突き合わせる」検査は原理的に書けない。
+            // 代わりに、エラー応答の要である HttpError を1度だけ実際に生成してみる。
+            // これはリンクの解決を強制するため、クラスローダー不整合（LinkageError）も
+            // 本当の API 変更（NoSuchMethodError も LinkageError のサブクラス）も同時に捕捉できる。
+            // 失敗したまま登録すると「成功時だけ動き、失敗時はすべて汎用 500」という
+            // 中途半端な API を公開してしまうため、登録せずに打ち切る。
+            try {
+                httpError(HttpStatus.INTERNAL_SERVER_ERROR, "mpm MineAuth linkage probe")
+            } catch (e: LinkageError) {
+                // catch 節の例外型に MineAuth 由来の型を使えない制約は上記コメントのとおり。
+                // LinkageError は JDK の型なので安全に catch できる。
+                plugin.logger.severe(
+                    "MineAuth integration failed: HttpError could not be constructed " +
+                        "(${e::class.simpleName}: ${e.message}) - HTTP API will be unavailable. " +
+                        "mpm's shaded Kotlin stdlib may clash with the one MineAuth loads via 'libraries:'"
                 )
                 return
             }
