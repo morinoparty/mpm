@@ -37,6 +37,7 @@ import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
+import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.infrastructure.mineauth.model.dependency.DependencyResponse
@@ -47,6 +48,7 @@ import party.morino.mpm.infrastructure.mineauth.model.job.JobResponse
 import party.morino.mpm.infrastructure.mineauth.model.job.JobSummaryResponse
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.InstallResultResponse
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.LockStateResponse
+import party.morino.mpm.infrastructure.mineauth.model.lifecycle.PluginAddRequest
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.UninstallResponse
 import party.morino.mpm.infrastructure.mineauth.model.lifecycle.VersionSwitchRequest
 import party.morino.mpm.infrastructure.mineauth.model.outdated.OutdatedCheckResponse
@@ -454,6 +456,35 @@ class MpmPluginHandler : KoinComponent {
                 force = request.force,
                 skipIntegrity = request.skipIntegrity
             ).orThrowHttpError()
+    }
+
+    /**
+     * 指定したプラグインを管理対象に追加する
+     * POST /api/v1/plugins/mpm/plugins/{name}/add
+     *
+     * mpm.json にエントリを追加してメタデータを作成するだけで、jar のダウンロード・配置は行わない。
+     * 実際に配置するところまで行う場合は、続けて POST /plugins/{name}/install を呼ぶ。
+     * 依存関係の自動追加（addWithDependencies 相当）はこのエンドポイントの対象外。
+     *
+     * @param name 追加対象のプラグイン名
+     * @param request バージョン指定（省略時は "latest"）
+     * @return 追加された管理下プラグインの概要
+     */
+    @Post("/plugins/{name}/add")
+    @Authenticated(permission = MpmApiPermission.WRITE, callers = [CallerType.USER, CallerType.SERVICE])
+    suspend fun addPlugin(
+        @Path("name") name: String,
+        @Body request: PluginAddRequest
+    ): PluginSummaryResponse {
+        // 既定値は "latest" だが、クライアントが明示的に空文字を送ってくることはありうる。
+        // 空文字は Fixed("") として解決不能になるだけなので、サービスを呼ぶ前に弾く
+        if (request.version.isBlank()) {
+            throw httpError(HttpStatus.BAD_REQUEST, "Field 'version' must not be blank")
+        }
+        // コマンド版の `mpm add` と同じパーサーを通し、指定形式の解釈を1箇所に揃える
+        val specifier = VersionSpecifierParser.parse(request.version)
+        val added = pluginLifecycleService.add(PluginName(name), specifier).orThrowHttpError()
+        return PluginSummaryResponse.from(added)
     }
 
     /**

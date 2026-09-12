@@ -28,6 +28,11 @@ class MpmErrorHttpMappingTest {
         assertEquals(HttpStatus.NOT_FOUND, MpmError.PluginError.NotFound("a").toHttpStatus())
         assertEquals(HttpStatus.NOT_FOUND, MpmError.PluginError.NotManaged("a").toHttpStatus())
         assertEquals(HttpStatus.NOT_FOUND, MpmError.ProjectError.ConfigNotFound.toHttpStatus())
+        // どのリポジトリにも定義が無いケース。add エンドポイントだけがHTTPへ露出させる
+        assertEquals(
+            HttpStatus.NOT_FOUND,
+            MpmError.DownloadError.RepositoryNotFound("unknown", "a").toHttpStatus()
+        )
     }
 
     @Test
