@@ -45,11 +45,15 @@ jobs:
           calculatedSha=$(git rev-parse --short HEAD)
           echo "sha=$calculatedSha" >> $GITHUB_OUTPUT
 
+      # プレビュービルドには tag が無いため、短縮SHAをバージョンとして使う。
+      # 以前は $GITHUB_ENV（ファイルパス）を参照したうえ、シングルクォートで
+      # 変数展開もされておらず、置換結果が literal な "$after" になっていた。
       - name: Change plugin.yml version
+        env:
+          PREVIEW_VERSION: ${{ steps.vars.outputs.sha }}
         run: |
-          before="$GITHUB_ENV"
-          after="${before//v/}"
-          sed -i 's/VersionPlaceholder/$after/' ./gradle.properties
+          sed -i "s/VersionPlaceholder/${PREVIEW_VERSION}/g" ./gradle.properties
+          grep -q "^version=${PREVIEW_VERSION}$" ./gradle.properties
 
       - name: Build with Gradle
         id: build
