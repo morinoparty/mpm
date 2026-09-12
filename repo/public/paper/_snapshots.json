@@ -1,1 +1,162 @@
-{}
+{
+  "MineAuth": {
+    "plugins": {
+      "MineAuth-addon-betonquest": {
+        "id": "MineAuth-addon-betonquest",
+        "source": "https://github.com/morinoparty/MineAuth",
+        "repositories": [
+          {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-betonquest-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+            "latest": {
+              "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+              "useUpstreamLabel": true
+            },
+            "beta": {
+              "useUpstreamLabel": true
+            }
+          }
+        ],
+        "dependencies": [
+          "MineAuth"
+        ],
+        "softDependencies": [
+          "BetonQuest"
+        ],
+        "defaultVersion": "sync:MineAuth"
+      },
+      "MineAuth-addon-griefprevention": {
+        "id": "MineAuth-addon-griefprevention",
+        "source": "https://github.com/morinoparty/MineAuth",
+        "repositories": [
+          {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-griefprevention-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+            "latest": {
+              "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+              "useUpstreamLabel": true
+            },
+            "beta": {
+              "useUpstreamLabel": true
+            }
+          }
+        ],
+        "dependencies": [
+          "MineAuth"
+        ],
+        "softDependencies": [
+          "GriefPrevention"
+        ],
+        "defaultVersion": "sync:MineAuth"
+      },
+      "MineAuth-addon-pure-tickets": {
+        "id": "MineAuth-addon-pure-tickets",
+        "source": "https://github.com/morinoparty/MineAuth",
+        "repositories": [
+          {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-pure-tickets-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+            "latest": {
+              "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+              "useUpstreamLabel": true
+            },
+            "beta": {
+              "useUpstreamLabel": true
+            }
+          }
+        ],
+        "dependencies": [
+          "MineAuth"
+        ],
+        "softDependencies": [
+          "PureTickets"
+        ],
+        "defaultVersion": "sync:MineAuth"
+      },
+      "MineAuth-addon-quickshop-hikari": {
+        "id": "MineAuth-addon-quickshop-hikari",
+        "source": "https://github.com/morinoparty/MineAuth",
+        "repositories": [
+          {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-quickshop-hikari-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+            "latest": {
+              "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+              "useUpstreamLabel": true
+            },
+            "beta": {
+              "useUpstreamLabel": true
+            }
+          }
+        ],
+        "dependencies": [
+          "MineAuth"
+        ],
+        "softDependencies": [
+          "QuickShop-Hikari"
+        ],
+        "defaultVersion": "sync:MineAuth"
+      },
+      "MineAuth-addon-vault": {
+        "id": "MineAuth-addon-vault",
+        "source": "https://github.com/morinoparty/MineAuth",
+        "repositories": [
+          {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-vault-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+            "latest": {
+              "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+              "useUpstreamLabel": true
+            },
+            "beta": {
+              "useUpstreamLabel": true
+            }
+          }
+        ],
+        "dependencies": [
+          "MineAuth"
+        ],
+        "softDependencies": [
+          "Vault"
+        ],
+        "defaultVersion": "sync:MineAuth"
+      },
+      "MineAuth-addon-voting-plugin": {
+        "id": "MineAuth-addon-voting-plugin",
+        "source": "https://github.com/morinoparty/MineAuth",
+        "repositories": [
+          {
+            "type": "github",
+            "id": "morinoparty/MineAuth",
+            "fileNameRegex": "MineAuth-addon-voting-plugin-.*\\.jar$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+            "latest": {
+              "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+              "useUpstreamLabel": true
+            },
+            "beta": {
+              "useUpstreamLabel": true
+            }
+          }
+        ],
+        "dependencies": [
+          "MineAuth"
+        ],
+        "softDependencies": [
+          "VotingPlugin"
+        ],
+        "defaultVersion": "sync:MineAuth"
+      }
+    }
+  }
+}
