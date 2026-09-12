@@ -90,6 +90,7 @@ mpmの全エンドポイントは、ユーザートークン・サービスト�
 | POST | `/plugins/update` | 管理中の全プラグインを一括更新する |
 | POST | `/plugins/{name}/update` | 指定したプラグインを更新する |
 | POST | `/plugins/{name}/version` | 指定したプラグインを任意のバージョンに切り替える |
+| POST | `/plugins/{name}/add` | 指定したプラグインを管理対象に追加する |
 | POST | `/plugins/{name}/install` | 指定したプラグインをインストールする |
 | POST | `/plugins/{name}/uninstall` | 指定したプラグインをアンインストールする |
 | POST | `/plugins/{name}/lock` | 指定したプラグインをロックする |
@@ -483,6 +484,60 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/QuickShop-Hikari/versi
 
 指定されたバージョンは、まず表記そのままで解決を試み、見つからない場合は正規化して全バージョンと突き合わせます。
 それでも一致しない場合は `400 Bad Request` を返します。
+バージョン一覧の取得自体が上流リポジトリの障害で失敗した場合は `503 Service Unavailable` を返します。
+
+### POST `/plugins/{name}/add`
+
+指定したプラグインをmpmの管理対象に追加します。コンソールの `/mpm add` と同じ操作です。
+
+このエンドポイントが行うのは、mpm.jsonへのエントリ追加とメタデータの作成までです。
+jarのダウンロードと `plugins/` ディレクトリへの配置は行わないため、
+一度も追加したことのないプラグインを実際に導入するには、続けて `POST /plugins/{name}/install` を呼んでください。
+`install` は既存のメタデータを前提とするため、追加前に呼ぶと `404 Not Found` になります。
+
+依存関係の自動追加（コンソール版の依存解決つき追加に相当する処理）は、このエンドポイントの対象外です。
+依存プラグインもmpmの管理下に置きたい場合は、それぞれに対して `add` を呼んでください。
+
+リクエストボディはJSONで指定します。
+
+| フィールド | 必須 | 説明 |
+| --- | --- | --- |
+| `version` | 任意 | バージョン指定。`latest` / `sync:PluginName` / `tag:beta` / 固定バージョンを受け付けます（既定値: `latest`） |
+
+```bash title="リクエスト例"
+curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/MineAuth-addon-pure-tickets/add" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"version": "sync:MineAuth"}'
+```
+
+```json title="レスポンス例"
+{
+  "name": "MineAuth-addon-pure-tickets",
+  "status": "MANAGED",
+  "isManaged": true,
+  "currentVersion": "0.3.8",
+  "latestVersion": "0.3.8",
+  "isLocked": false,
+  "isOutdated": false,
+  "description": null,
+  "author": null,
+  "repository": { "type": "GITHUB", "id": "morinoparty/MineAuth-addon-pure-tickets" },
+  "lastChecked": "2026-09-12T00:00:00Z"
+}
+```
+
+レスポンスは `GET /plugins` の各エントリと同じ形式です。
+ただしこの時点ではjarが存在しないため、`currentVersion` は「追加したバージョン指定から解決された値」であって、
+サーバー上に配置済みのバージョンではありません。
+`install` を呼ばないまま放置すると、mpm.jsonにだけ載ってファイルが無い状態になり、`GET /doctor` が不整合として報告します。
+
+すでに管理下にある場合、またはメタデータがロックされている場合は `409 Conflict` を返します。
+ロックされているプラグインを追加し直したい場合は、先に `POST /plugins/{name}/unlock` を呼んでください。
+
+どのリポジトリソースにも定義が無い場合と、mpm.jsonが未初期化の場合は `404 Not Found` を返します。
+バージョン指定を解決できない場合は `400 Bad Request` を返します
+（`pattern:` は未実装、`sync:` は追従先が未登録・管理外のときに該当します）。
 バージョン一覧の取得自体が上流リポジトリの障害で失敗した場合は `503 Service Unavailable` を返します。
 
 ### POST `/plugins/{name}/install`

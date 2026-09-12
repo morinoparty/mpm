@@ -18,6 +18,7 @@ import party.morino.mpm.api.domain.plugin.model.PluginEntryStatus
  *
  * 管理下プラグインだけでなく、`filter=unmanaged` で返る管理外プラグインや、
  * メタデータを読み込めなかったプラグインも同じ形で表現する。
+ * `POST /plugins/{name}/add` のレスポンスとしても、追加直後のエントリを同じ形で返す。
  *
  * @property name プラグイン名
  * @property status エントリの由来（MANAGED / UNMANAGED / METADATA_UNAVAILABLE）
