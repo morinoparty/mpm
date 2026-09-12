@@ -11,7 +11,11 @@ import { Callout } from "fumadocs-ui/components/callout";
 npmの`package-lock.json`に相当し、実際にインストールされたプラグインの正確なバージョンとダウンロード情報を記録します。
 
 <Callout type="info" title="自動生成">
-`mpm-lock.yaml`は自動生成・自動更新されます。`mpm install` / `mpm update` / `mpm add` / `mpm remove` / `mpm uninstall` の実行後に、実際のインストール状態を反映して再生成されます。[スケジュール自動更新](/docs/usage/update)で実際にプラグインが更新された場合も再生成されます。手動で編集する必要はありません。
+`mpm-lock.yaml`は自動生成・自動更新されます。プラグインの追加・インストール・更新・バージョン切り替え・切り戻し・除外・アンインストールといった状態を変更する操作が成功したあとに、実際のインストール状態を反映して再生成されます。手動で編集する必要はありません。
+
+再生成はサービス層で行われるため、操作の入り口を問わず同じように動作します。ゲーム内やコンソールの`mpm`コマンドからでも、[MineAuth連携のHTTP API](/docs/api/http/mineauth)からでも、[スケジュール自動更新](/docs/usage/update)からでも、同じタイミングで再生成されます。
+
+失敗した操作では再生成されません。実際には何も変わっていないのに`generatedAt`だけが進んでしまうと、更新された痕跡と区別がつかなくなるためです。また`mpm install --frozen`は`mpm-lock.yaml`のとおりに導入する操作なので、再生成の対象外です。
 </Callout>
 
 ## ファイルの配置

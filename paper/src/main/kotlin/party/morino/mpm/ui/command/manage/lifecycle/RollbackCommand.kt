@@ -13,11 +13,9 @@ import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.model.plugin.InstalledPlugin
-import party.morino.mpm.utils.regenerateQuietly
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Optional
 import revxrsal.commands.annotation.Subcommand
@@ -34,7 +32,6 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class RollbackCommand : KoinComponent {
     // Koinによる依存性注入
     private val updateService: PluginUpdateService by inject()
-    private val lockService: LockService by inject()
     private val mpmPlugin: JavaPlugin by inject()
 
     /**
@@ -81,8 +78,5 @@ class RollbackCommand : KoinComponent {
                 mpmPlugin.logger.info("[rollback] $pluginId: ${result.oldVersion} -> ${result.newVersion}")
             }
         )
-
-        // 成否に関わらず、ロックファイルを実際のインストール状態へ追従させる
-        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 }
