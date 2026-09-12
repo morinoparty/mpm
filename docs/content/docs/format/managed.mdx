@@ -266,6 +266,18 @@ version:
   lastChecked: "2025-01-15T10:30:00Z"
 ```
 
+<Callout type="info" title="latest と lastChecked が更新されるタイミング">
+`latest` と `lastChecked` は、インストールや更新のときだけでなく、
+`mpm outdated` や[スケジュール自動更新](/docs/usage/update)による更新チェックのときにも書き戻されます。
+
+そのため、`mpm list` が表示する最新バージョンと `mpm outdated` の結果が食い違うことはありません。
+このとき書き換えられるのは `latest` と `lastChecked` だけで、
+`current` や `download`、インストール履歴には手を触れません。
+
+`latest` の値が前回の記録から変化したかどうかは、
+[Discord Webhook の `outdated` 通知](/docs/format/config)を繰り返し送らないための判定にも使われます。
+</Callout>
+
 #### download
 
 ダウンロード情報です。`mpm-lock.yaml`の`download`フィールドと同じ形式です。

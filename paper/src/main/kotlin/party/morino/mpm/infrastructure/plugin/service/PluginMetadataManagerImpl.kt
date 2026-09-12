@@ -14,6 +14,8 @@ import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
 import com.charleskorn.kaml.Yaml
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.PluginDirectory
@@ -54,6 +56,11 @@ class PluginMetadataManagerImpl :
 
         // 退避先の連番の上限。これを超えたら退避先を作らずエラーにする（原本は消さない）
         private const val MAX_QUARANTINE_INDEX = 99
+
+        // 更新チェックの書き戻し同士を直列化するロック。
+        // インストール/更新経路の書き込みは PluginUpdateServiceImpl 側の updateMutex に
+        // 守られており、こちらとは別のロックである点に注意（[recordCheckResult] の説明を参照）。
+        private val checkResultMutex = Mutex()
     }
 
     // Koinによる依存性注入
@@ -241,6 +248,49 @@ class PluginMetadataManagerImpl :
 
         return metadata.right()
     }
+
+    /**
+     * 更新チェックの結果をメタデータへ記録する
+     *
+     * 定期チェックはインストール処理と並行して走りうるため、読み込んだ内容をそのまま
+     * 書き戻すと、その間に行われた更新（current / download / history）を巻き戻してしまう。
+     * それを避けるため、書き込み直前にメタデータを読み直し、そこへ `latest` と
+     * `lastChecked` だけを載せて保存する。こうすると最悪でも自分が書こうとした latest を
+     * 落とすだけで済み（次回のチェックで書き直される）、インストール状態は決して壊さない。
+     */
+    override suspend fun recordCheckResult(
+        pluginName: String,
+        latestVersion: String
+    ): Either<String, Boolean> =
+        checkResultMutex.withLock {
+            // 書き込み直前の内容を基準にする（並行して行われた更新を巻き戻さないため）
+            val current = loadMetadata(pluginName).getOrElse { return@withLock it.left() }
+
+            val previousLatestRaw = current.mpmInfo.version.latest.raw
+            val changed = previousLatestRaw != latestVersion
+
+            val normalizedLatest =
+                VersionDetail.normalizeWithPattern(latestVersion, current.mpmInfo.versionPattern)
+            val now = Instant.now().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)
+
+            val updated =
+                current.copy(
+                    mpmInfo =
+                        current.mpmInfo.copy(
+                            version =
+                                current.mpmInfo.version.copy(
+                                    latest =
+                                        VersionDetailDto(
+                                            raw = latestVersion,
+                                            normalized = normalizedLatest
+                                        ),
+                                    lastChecked = now
+                                )
+                        )
+                )
+
+            saveMetadata(pluginName, updated).map { changed }
+        }
 
     override suspend fun updateMetadata(
         pluginName: String,

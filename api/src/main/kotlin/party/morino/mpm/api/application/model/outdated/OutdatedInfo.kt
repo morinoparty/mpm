@@ -27,5 +27,11 @@ data class OutdatedInfo(
     // 最新のバージョン
     val latestVersion: String,
     // 更新が必要かどうか
-    val needsUpdate: Boolean
+    val needsUpdate: Boolean,
+    // このチェックで latest が前回メタデータに記録された値から変化したか
+    //
+    // 「新しい上流リリースを検知した瞬間」を表す。更新可能な状態が続いているだけの
+    // プラグインは毎回のチェックで false になるため、通知の重複抑制に使える。
+    // メタデータを読めなかった場合など、判定できないときは false とする。
+    val latestChanged: Boolean = false
 )
