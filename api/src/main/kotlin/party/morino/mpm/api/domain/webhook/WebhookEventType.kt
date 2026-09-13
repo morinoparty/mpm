@@ -19,5 +19,8 @@ enum class WebhookEventType {
     UNINSTALL,
     LOCK,
     UNLOCK,
-    OUTDATED
+    OUTDATED,
+
+    // plugins/ 直下のJARを直接削除したとき（mpm.json には触れない）
+    FILE_DELETE
 }

@@ -42,6 +42,14 @@ interface DeferredJarDeletion {
     fun cancel(jarFile: File)
 
     /**
+     * JARの削除が予約済みかどうかを返す
+     *
+     * @param jarFile 確認するJAR
+     * @return 予約済みなら true
+     */
+    fun isScheduled(jarFile: File): Boolean
+
+    /**
      * 予約済みのJARをまとめて削除する（サーバー停止時に呼び出す）
      *
      * @return 実際に削除できたJAR

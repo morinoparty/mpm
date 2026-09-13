@@ -14,6 +14,7 @@ import org.koin.core.component.inject
 import party.morino.mineauth.api.CallerType
 import party.morino.mineauth.api.annotations.Authenticated
 import party.morino.mineauth.api.annotations.Body
+import party.morino.mineauth.api.annotations.Delete
 import party.morino.mineauth.api.annotations.Get
 import party.morino.mineauth.api.annotations.Path
 import party.morino.mineauth.api.annotations.Post
@@ -31,6 +32,7 @@ import party.morino.mpm.api.application.model.job.JobId
 import party.morino.mpm.api.application.model.job.JobResult
 import party.morino.mpm.api.application.model.job.JobType
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginJarFileService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.search.PluginSearchService
@@ -41,6 +43,8 @@ import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.infrastructure.mineauth.model.dependency.DependencyResponse
+import party.morino.mpm.infrastructure.mineauth.model.file.JarDeleteResponse
+import party.morino.mpm.infrastructure.mineauth.model.file.JarFileResponse
 import party.morino.mpm.infrastructure.mineauth.model.health.DoctorReportResponse
 import party.morino.mpm.infrastructure.mineauth.model.health.VerifyEntryResponse
 import party.morino.mpm.infrastructure.mineauth.model.job.JobCreateRequest
@@ -135,6 +139,7 @@ class MpmPluginHandler : KoinComponent {
     private val pluginInfoService: PluginInfoService by inject()
     private val pluginUpdateService: PluginUpdateService by inject()
     private val pluginLifecycleService: PluginLifecycleService by inject()
+    private val pluginJarFileService: PluginJarFileService by inject()
     private val doctorService: DoctorService by inject()
     private val pluginSearchService: PluginSearchService by inject()
     private val dependencyService: DependencyService by inject()
@@ -347,6 +352,20 @@ class MpmPluginHandler : KoinComponent {
     }
 
     /**
+     * plugins/ 直下のJARファイル一覧を取得する
+     * GET /api/v1/plugins/mpm/jars
+     *
+     * mpm の管理情報とは無関係に、ファイルシステム上に存在する `.jar` をそのまま返す。
+     * `DELETE /jars/{fileName}` で削除できる対象の一覧であり、自己更新で残った旧JARや
+     * 管理外のJARもここに現れる。
+     *
+     * @return ファイル名順のJAR一覧
+     */
+    @Get("/jars")
+    @Authenticated(permission = MpmApiPermission.READ, callers = [CallerType.USER, CallerType.SERVICE])
+    fun listJarFiles(): List<JarFileResponse> = pluginJarFileService.listJars().map { JarFileResponse.from(it) }
+
+    /**
      * 非同期ジョブの一覧を取得する
      * GET /api/v1/plugins/mpm/jobs
      *
@@ -524,6 +543,25 @@ class MpmPluginHandler : KoinComponent {
             message = "Plugin '$name' uninstalled successfully. Restart the server to apply changes."
         )
     }
+
+    /**
+     * plugins/ 直下のJARファイルを直接削除する
+     * DELETE /api/v1/plugins/mpm/jars/{fileName}
+     *
+     * `/plugins/{name}/uninstall` と異なり、mpm.json やメタデータには一切触れず、ファイルだけを削除する。
+     * 自己更新で残ってしまった旧 mpm のJARや、管理外のJARを片付けるための入り口。
+     * 削除できるのは plugins/ 直下の `.jar` に限り、パス区切りを含む指定やそれ以外の拡張子は 400 を返す。
+     * 実行中の mpm 自身のJAR（または OS にロックされたJAR）は即時削除できないため、
+     * サーバー停止時の削除を予約して `deferred = true` を返す。
+     *
+     * @param fileName 削除するファイル名（例: `mpm_0.0.25.jar`）
+     * @return 削除結果
+     */
+    @Delete("/jars/{fileName}")
+    @Authenticated(permission = MpmApiPermission.WRITE, callers = [CallerType.USER, CallerType.SERVICE])
+    suspend fun deleteJarFile(
+        @Path("fileName") fileName: String
+    ): JarDeleteResponse = JarDeleteResponse.from(pluginJarFileService.deleteJar(fileName).orThrowHttpError())
 
     /**
      * 指定したプラグインをロックする（自動更新の対象外にする）

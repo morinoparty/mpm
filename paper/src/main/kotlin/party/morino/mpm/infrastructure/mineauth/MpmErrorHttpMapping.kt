@@ -40,7 +40,8 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         is MpmError.ProjectError.ConfigNotFound,
         is MpmError.ProjectError.NotInitialized,
         is MpmError.DownloadError.RepositoryNotFound,
-        is MpmError.BackupError.NotFound -> HttpStatus.NOT_FOUND
+        is MpmError.BackupError.NotFound,
+        is MpmError.FileError.NotFound -> HttpStatus.NOT_FOUND
 
         // --- 409 Conflict: リソースの現在の状態と要求が衝突している ---
         // 二重クリックによる UpdateInProgress や、ロック状態の不一致がここに入る。
@@ -56,9 +57,11 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         is MpmError.ProjectError.AlreadyInitialized -> HttpStatus.CONFLICT
 
         // --- 400 Bad Request: リクエストで指定された値が解決できない ---
-        // 存在しないバージョン名の指定や、未対応のリポジトリ種別の指定が該当する。
+        // 存在しないバージョン名の指定や、未対応のリポジトリ種別の指定、
+        // plugins/ 直下の .jar として解決できないファイル名の指定が該当する。
         is MpmError.PluginError.VersionResolutionFailed,
-        is MpmError.PluginError.UnsupportedRepository -> HttpStatus.BAD_REQUEST
+        is MpmError.PluginError.UnsupportedRepository,
+        is MpmError.FileError.InvalidFileName -> HttpStatus.BAD_REQUEST
 
         // --- 503 Service Unavailable: 上流リポジトリの一時障害 ---
         // タイムアウトやレート制限で上流（Modrinth/Hangar/GitHub等）が応答しない状態。
@@ -93,6 +96,7 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         is MpmError.BackupError.Failed,
         is MpmError.BackupError.RestoreFailed,
         is MpmError.CacheError.Failed,
+        is MpmError.FileError.DeleteFailed,
         is MpmError.Unknown -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 
