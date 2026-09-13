@@ -22,6 +22,7 @@ import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.DeferredJarDeletion
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginJarFileService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
@@ -55,6 +56,7 @@ import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginInstallValidator
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
+import party.morino.mpm.application.plugin.file.PluginJarFileServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
@@ -334,6 +336,8 @@ open class Mpm :
                 single<IntegrityVerifier> { IntegrityVerifierImpl() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
+                // plugins/ 直下のJARを管理情報に触れず直接削除する（自己更新で残った旧JARの片付けなど）
+                single<PluginJarFileService> { PluginJarFileServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
 
                 // スケジューラーの登録

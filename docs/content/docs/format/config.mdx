@@ -339,7 +339,8 @@ cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づ�
                         "uninstall": true,
                         "lock": true,
                         "unlock": true,
-                        "outdated": true
+                        "outdated": true,
+                        "fileDelete": true
                     }
                 },
                 {
@@ -351,7 +352,8 @@ cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づ�
                         "uninstall": false,
                         "lock": false,
                         "unlock": false,
-                        "outdated": true
+                        "outdated": true,
+                        "fileDelete": false
                     }
                 }
             ]
@@ -372,6 +374,7 @@ cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づ�
 | `endpoints[].events.lock` | プラグインロック時の通知 | `true` |
 | `endpoints[].events.unlock` | プラグインロック解除時の通知 | `true` |
 | `endpoints[].events.outdated` | プラグイン更新可能検出時の通知 | `true` |
+| `endpoints[].events.fileDelete` | HTTP API（`DELETE /jars/{fileName}`）による `plugins/` 直下のjarファイル直接削除時の通知 | `true` |
 
 <Callout type="info" title="通知タイミング">
 通知はイベントがキャンセルされずに処理された場合にのみ送信されます。
@@ -558,7 +561,8 @@ mpmは設定を保存するとき、デフォルト値のままの項目も省�
                         "uninstall": false,
                         "lock": false,
                         "unlock": false,
-                        "outdated": true
+                        "outdated": true,
+                        "fileDelete": false
                     }
                 }
             ]

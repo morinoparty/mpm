@@ -28,6 +28,7 @@ class MpmErrorHttpMappingTest {
         assertEquals(HttpStatus.NOT_FOUND, MpmError.PluginError.NotFound("a").toHttpStatus())
         assertEquals(HttpStatus.NOT_FOUND, MpmError.PluginError.NotManaged("a").toHttpStatus())
         assertEquals(HttpStatus.NOT_FOUND, MpmError.ProjectError.ConfigNotFound.toHttpStatus())
+        assertEquals(HttpStatus.NOT_FOUND, MpmError.FileError.NotFound("a.jar").toHttpStatus())
         // どのリポジトリにも定義が無いケース。add エンドポイントだけがHTTPへ露出させる
         assertEquals(
             HttpStatus.NOT_FOUND,
@@ -55,6 +56,11 @@ class MpmErrorHttpMappingTest {
             HttpStatus.BAD_REQUEST,
             MpmError.PluginError.VersionResolutionFailed("a", "no such version").toHttpStatus()
         )
+        // plugins/ 直下の .jar として解決できないファイル名はクライアントの指定ミス
+        assertEquals(
+            HttpStatus.BAD_REQUEST,
+            MpmError.FileError.InvalidFileName("../x.jar", "traversal").toHttpStatus()
+        )
     }
 
     @Test
@@ -75,5 +81,9 @@ class MpmErrorHttpMappingTest {
             MpmError.PluginError.UpdateFailed("a", "io").toHttpStatus()
         )
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, MpmError.Unknown("boom").toHttpStatus())
+        assertEquals(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            MpmError.FileError.DeleteFailed("a.jar", "io").toHttpStatus()
+        )
     }
 }

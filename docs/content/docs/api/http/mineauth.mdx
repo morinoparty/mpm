@@ -80,6 +80,7 @@ mpmの全エンドポイントは、ユーザートークン・サービスト�
 | GET | `/doctor` | サーバーのプラグイン管理状態を一括診断する |
 | GET | `/search` | リポジトリを横断してプラグインを検索する |
 | GET | `/repositories` | 設定されているリポジトリソースの一覧を取得する |
+| GET | `/jars` | `plugins/` 直下のjarファイル一覧を取得する |
 | GET | `/jobs` | 非同期ジョブの一覧を取得する |
 | GET | `/jobs/{id}` | 非同期ジョブの進捗と結果を取得する |
 
@@ -95,6 +96,7 @@ mpmの全エンドポイントは、ユーザートークン・サービスト�
 | POST | `/plugins/{name}/uninstall` | 指定したプラグインをアンインストールする |
 | POST | `/plugins/{name}/lock` | 指定したプラグインをロックする |
 | POST | `/plugins/{name}/unlock` | 指定したプラグインのロックを解除する |
+| DELETE | `/jars/{fileName}` | `plugins/` 直下のjarファイルを直接削除する |
 | POST | `/jobs` | 時間のかかる処理を非同期ジョブとして受け付ける |
 
 ## 読み取り系エンドポイント
@@ -366,6 +368,46 @@ mpmがプラグイン定義を読み込むリポジトリソースを、優先�
 ]
 ```
 
+### GET `/jars`
+
+`plugins/` ディレクトリ直下に存在するjarファイルの一覧を、ファイル名順に返します。
+
+mpmの管理情報（`mpm.json`・メタデータ）とは無関係に、ファイルシステム上の事実だけを返します。
+そのため、mpm自身を更新したあとに残った旧バージョンのjarや、mpmの管理外にあるjarもこの一覧に現れます。
+`fileName` はそのまま [`DELETE /jars/{fileName}`](#delete-jarsfilename) に渡せます。
+
+```json title="レスポンス例"
+[
+  {
+    "fileName": "mpm_0.0.25.jar",
+    "sizeBytes": 10485760,
+    "lastModified": "2026-09-01T12:00:00Z",
+    "pluginName": "mpm",
+    "pluginVersion": "0.0.25",
+    "running": false,
+    "pendingDeletion": true
+  },
+  {
+    "fileName": "mpm_0.0.26.jar",
+    "sizeBytes": 10493952,
+    "lastModified": "2026-09-12T03:21:45Z",
+    "pluginName": "mpm",
+    "pluginVersion": "0.0.26",
+    "running": true,
+    "pendingDeletion": false
+  }
+]
+```
+
+| フィールド | 説明 |
+| --- | --- |
+| `fileName` | ファイル名（`plugins/` からの相対） |
+| `sizeBytes` | ファイルサイズ（バイト） |
+| `lastModified` | 最終更新日時（ISO-8601, UTC） |
+| `pluginName` / `pluginVersion` | `plugin.yml` / `paper-plugin.yml` から読み取った値。持たないjarや壊れたjarでは `null` |
+| `running` | 現在実行中のmpm自身のjarなら `true`（削除はサーバー停止時に回されます） |
+| `pendingDeletion` | サーバー停止時の削除が予約済みなら `true` |
+
 ## 書き込み系エンドポイント
 
 ### POST `/plugins/update`
@@ -586,6 +628,48 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/MineAuth-addon-pure-ti
 それ以外の値はすべて偽として扱われます。
 :::
 
+### DELETE `/jars/{fileName}`
+
+`plugins/` ディレクトリ直下のjarファイルを、ファイル名を指定して直接削除します。
+
+`POST /plugins/{name}/uninstall` がmpmの管理情報（`mpm.json`・メタデータ）とjarをまとめて処理するのに対し、
+このエンドポイントは**ファイルそのものだけ**を削除し、管理情報には一切触れません。
+mpm自身を更新したあとに残ってしまった旧バージョンのjarや、mpmの管理外にあるjarを片付ける用途を想定しています。
+
+削除できるのは `plugins/` 直下にある拡張子 `.jar` のファイルに限られます。
+サブディレクトリやパス区切り文字（`/`・`\`・`:`）、`..` を含む指定、`.jar` 以外の拡張子は `400 Bad Request` を返し、
+ファイルが存在しない場合は `404 Not Found` を返します。
+
+```json title="レスポンス例（即時削除）"
+{
+  "fileName": "mpm_0.0.25.jar",
+  "deferred": false,
+  "message": "File 'mpm_0.0.25.jar' deleted successfully."
+}
+```
+
+実行中のmpm自身のjarを指定した場合や、OSがjarをロックしている環境（Windowsなど）で削除に失敗した場合は、
+即時削除の代わりにサーバー停止時の削除を予約し、`deferred: true` を返します。
+このときファイルはまだディスク上に残っており、サーバーを停止したタイミングで削除されます。
+
+```json title="レスポンス例（削除予約）"
+{
+  "fileName": "mpm_0.0.25.jar",
+  "deferred": true,
+  "message": "File 'mpm_0.0.25.jar' is in use and will be deleted when the server stops."
+}
+```
+
+:::warning
+管理下のプラグインのjarをこのエンドポイントで削除しても、`mpm.json` とメタデータはそのまま残ります。
+その状態は `GET /plugins/verify` や `GET /doctor` で「jarが見つからない」として検出され、
+`POST /plugins/{name}/install` で再配置できます。管理下のプラグインを取り除きたい場合は
+`POST /plugins/{name}/uninstall` を使用してください。
+:::
+
+削除（または削除予約）が完了すると `PluginJarDeleteEvent` が発火し、
+[Webhook通知](/docs/format/config)の `fileDelete` イベントとしてDiscordに通知されます。
+
 ## 非同期ジョブ
 
 全プラグインの一括更新のように時間のかかる処理は、レスポンスを待たせ続けると
@@ -710,8 +794,8 @@ MineAuthのHTTPステータスには `202 Accepted` が用意されていない�
 
 | ステータス | 主な原因 |
 | --- | --- |
-| `400 Bad Request` | 不正な `filter` / ジョブ `type` の値、空の `q` / `version`、存在しないバージョンの指定、未対応のリポジトリ種別 |
-| `404 Not Found` | プラグイン・メタデータ・リポジトリ定義・mpm.json・ジョブが見つからない |
+| `400 Bad Request` | 不正な `filter` / ジョブ `type` の値、空の `q` / `version`、存在しないバージョンの指定、未対応のリポジトリ種別、`plugins/` 直下の `.jar` として解決できないファイル名 |
+| `404 Not Found` | プラグイン・メタデータ・リポジトリ定義・mpm.json・ジョブ・jarファイルが見つからない |
 | `409 Conflict` | 更新（または同種のジョブ）が既に実行中、ロック状態の不一致、`sync:` プラグインのバージョン切り替え、逆依存が存在する削除、api-version非互換 |
 | `500 Internal Server Error` | ダウンロード失敗・整合性検証失敗・メタデータ保存失敗など、サーバー側の処理失敗 |
 | `503 Service Unavailable` | 上流リポジトリ（Modrinth / Hangar / SpigotMC / GitHub）が一時的に応答しない |

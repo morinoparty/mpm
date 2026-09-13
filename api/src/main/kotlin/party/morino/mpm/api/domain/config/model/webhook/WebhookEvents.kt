@@ -36,5 +36,8 @@ data class WebhookEvents(
     val unlock: Boolean = true,
 
     // プラグイン更新可能検出時の通知
-    val outdated: Boolean = true
+    val outdated: Boolean = true,
+
+    // plugins/ 直下のJARファイル直接削除時の通知
+    val fileDelete: Boolean = true
 )

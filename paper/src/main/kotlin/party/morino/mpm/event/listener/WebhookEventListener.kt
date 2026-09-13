@@ -17,6 +17,7 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
+import party.morino.mpm.event.lifecycle.PluginJarDeleteEvent
 import party.morino.mpm.event.lifecycle.PluginRemoveEvent
 import party.morino.mpm.event.lifecycle.PluginUninstallEvent
 import party.morino.mpm.event.state.PluginLockEvent
@@ -159,6 +160,34 @@ class WebhookEventListener :
                 listOf(
                     "Plugin" to event.installedPlugin.pluginId,
                     "Version" to event.currentVersion
+                )
+        )
+    }
+
+    /**
+     * JARファイル直接削除イベントの通知
+     * PluginJarDeleteEventはCancellableではないためignoreCancelledは不要
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onPluginJarDelete(event: PluginJarDeleteEvent) {
+        if (!webhookNotifier.isEventEnabled(WebhookEventType.FILE_DELETE)) return
+
+        // 実行中のJARは停止時まで残るため、削除済みか予約済みかを区別して伝える
+        val description =
+            if (event.deferred) {
+                "JARファイル '${event.fileName}' の削除が予約されました（サーバー停止時に削除されます）"
+            } else {
+                "JARファイル '${event.fileName}' が削除されました"
+            }
+        webhookNotifier.notify(
+            eventType = WebhookEventType.FILE_DELETE,
+            title = "Plugin File Deleted",
+            description = description,
+            color = COLOR_RED,
+            fields =
+                listOf(
+                    "File" to event.fileName,
+                    "Deferred" to event.deferred.toString()
                 )
         )
     }

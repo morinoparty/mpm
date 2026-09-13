@@ -347,6 +347,32 @@ sealed class MpmError {
         }
     }
 
+    // plugins/ 配下のファイル操作に関するエラー
+    sealed class FileError : MpmError() {
+        // ファイル名が不正（パス区切りを含む・.jar でない など）
+        data class InvalidFileName(
+            val fileName: String,
+            val reason: String
+        ) : FileError() {
+            override val message: String = "Invalid file name '$fileName': $reason"
+        }
+
+        // 指定されたファイルが plugins/ 配下に存在しない
+        data class NotFound(
+            val fileName: String
+        ) : FileError() {
+            override val message: String = "File not found in plugins directory: $fileName"
+        }
+
+        // ファイルの削除に失敗した（削除予約への切り替えもできなかった場合）
+        data class DeleteFailed(
+            val fileName: String,
+            val reason: String
+        ) : FileError() {
+            override val message: String = "Failed to delete $fileName: $reason"
+        }
+    }
+
     // 汎用エラー
     data class Unknown(
         override val message: String

@@ -204,6 +204,7 @@ class DiscordWebhookNotifier :
             WebhookEventType.LOCK -> events.lock
             WebhookEventType.UNLOCK -> events.unlock
             WebhookEventType.OUTDATED -> events.outdated
+            WebhookEventType.FILE_DELETE -> events.fileDelete
         }
 
     /**

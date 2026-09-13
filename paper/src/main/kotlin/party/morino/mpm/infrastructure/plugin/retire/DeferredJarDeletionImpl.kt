@@ -60,6 +60,8 @@ class DeferredJarDeletionImpl :
         }
     }
 
+    override fun isScheduled(jarFile: File): Boolean = synchronized(lock) { jarFile.name in load().files }
+
     override fun deleteScheduled(): List<File> =
         synchronized(lock) {
             val pluginsDir = pluginDirectory.getPluginsDirectory()
