@@ -22,6 +22,7 @@ import party.morino.mpm.infrastructure.mineauth.model.outdated.OutdatedPluginRes
  * @property fileMissing メタデータはあるがJARが見つからないプラグイン名
  * @property unmanagedPlugins mpm管理外のプラグイン名
  * @property outdatedPlugins 更新が利用可能なプラグイン
+ * @property pinnedBehindUpstream 固定バージョンで運用中だが上流にそれより新しい版があるプラグイン（情報）
  * @property missingFromLock mpm.json管理下だがmpm-lock.yamlに記録がないプラグイン名
  * @property staleLockEntries mpm-lock.yamlにあるがmpm.json管理下にないプラグイン名
  * @property warnings 診断中に発生した警告メッセージ
@@ -34,6 +35,7 @@ data class DoctorReportResponse(
     val fileMissing: List<String>,
     val unmanagedPlugins: List<String>,
     val outdatedPlugins: List<OutdatedPluginResponse>,
+    val pinnedBehindUpstream: List<OutdatedPluginResponse>,
     val missingFromLock: List<String>,
     val staleLockEntries: List<String>,
     val warnings: List<String>
@@ -50,6 +52,7 @@ data class DoctorReportResponse(
                 fileMissing = report.fileMissing,
                 unmanagedPlugins = report.unmanagedPlugins,
                 outdatedPlugins = report.outdatedPlugins.map { OutdatedPluginResponse.from(it) },
+                pinnedBehindUpstream = report.pinnedBehindUpstream.map { OutdatedPluginResponse.from(it) },
                 missingFromLock = report.missingFromLock,
                 staleLockEntries = report.staleLockEntries,
                 warnings = report.warnings

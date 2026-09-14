@@ -18,6 +18,7 @@ import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
+import party.morino.mpm.application.plugin.describeTransition
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -239,10 +240,13 @@ class UpdateCommand : KoinComponent {
                 val updatableInfos = needsUpdate.filter { it.pluginName in updatable }
                 val lockedInfos = needsUpdate.filter { it.pluginName in locked }
                 val unknownInfos = needsUpdate.filter { it.pluginName in unknown }
+                // 固定バージョンに揃っているが上流にそれより新しい版があるもの（更新では変わらない情報）
+                val pinnedBehindInfos = result.outdatedPlugins.filter { !it.needsUpdate && it.hasNewerUpstream }
 
                 if (updatableInfos.isEmpty() &&
                     lockedInfos.isEmpty() &&
                     unknownInfos.isEmpty() &&
+                    pinnedBehindInfos.isEmpty() &&
                     result.errors.isEmpty()
                 ) {
                     sender.sendRichMessage("<green>[Dry-run] すべてのプラグインは最新です。</green>")
@@ -253,7 +257,7 @@ class UpdateCommand : KoinComponent {
                         )
                         updatableInfos.forEach { info ->
                             sender.sendRichMessage(
-                                "  ↑ ${info.pluginName}: ${info.currentVersion} → ${info.latestVersion}"
+                                "  ↑ ${info.pluginName}: ${info.describeTransition()}"
                             )
                         }
                     }
@@ -263,7 +267,7 @@ class UpdateCommand : KoinComponent {
                         )
                         lockedInfos.forEach { info ->
                             sender.sendRichMessage(
-                                "  🔒 ${info.pluginName}: ${info.currentVersion} → ${info.latestVersion}"
+                                "  🔒 ${info.pluginName}: ${info.describeTransition()}"
                             )
                         }
                     }
@@ -273,6 +277,16 @@ class UpdateCommand : KoinComponent {
                         )
                         unknownInfos.forEach { info ->
                             sender.sendRichMessage("  ⚠ ${info.pluginName}")
+                        }
+                    }
+                    if (pinnedBehindInfos.isNotEmpty()) {
+                        sender.sendRichMessage(
+                            "<yellow>[Dry-run] ${pinnedBehindInfos.size}個のプラグインは固定バージョンより新しい版があります (更新対象外):</yellow>"
+                        )
+                        pinnedBehindInfos.forEach { info ->
+                            sender.sendRichMessage(
+                                "  📌 ${info.pluginName}: ${info.currentVersion} (最新: ${info.latestVersion})"
+                            )
                         }
                     }
                     sender.sendRichMessage("<gray>[Dry-run] 実際の更新は行われていません。</gray>")

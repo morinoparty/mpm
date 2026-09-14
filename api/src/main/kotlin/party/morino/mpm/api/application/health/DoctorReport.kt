@@ -20,7 +20,9 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
  * @param hashMismatches 整合性検証でハッシュ不一致となったプラグイン名
  * @param fileMissing メタデータはあるがJARファイルが見つからないプラグイン名
  * @param unmanagedPlugins mpm管理外（orphan）のプラグイン名
- * @param outdatedPlugins 更新が利用可能なプラグイン
+ * @param outdatedPlugins 更新が利用可能なプラグイン（`mpm update` で更新先へ揃うもの）
+ * @param pinnedBehindUpstream 固定バージョンで運用中だが、上流にそれより新しい版があるプラグイン
+ *   （`mpm update` では変わらない。pin の見直しを促す情報で、異常ではない）
  * @param missingFromLock mpm.json管理下だがmpm-lock.yamlに記録がないプラグイン名（ロックのドリフト）
  * @param staleLockEntries mpm-lock.yamlにあるがmpm.jsonの管理下にないプラグイン名（ロックのドリフト）
  * @param warnings チェック中に発生した警告・エラーメッセージ
@@ -33,12 +35,14 @@ data class DoctorReport(
     val outdatedPlugins: List<OutdatedInfo>,
     val missingFromLock: List<String>,
     val staleLockEntries: List<String>,
-    val warnings: List<String>
+    val warnings: List<String>,
+    val pinnedBehindUpstream: List<OutdatedInfo> = emptyList()
 ) {
     /**
      * 対処が必要な「実際の問題」が1つでもあるか
      *
-     * 管理外プラグイン（[unmanagedPlugins]）・更新可能（[outdatedPlugins]）・[warnings] は判定に含めない。
+     * 管理外プラグイン（[unmanagedPlugins]）・更新可能（[outdatedPlugins]）・
+     * 固定バージョンの取り残し（[pinnedBehindUpstream]）・[warnings] は判定に含めない。
      * 特に [warnings] にはネットワークの一時障害などによるチェック失敗が含まれうるため、
      * これを「異常」と扱うと健全なサーバーを誤って赤判定してしまう。判定は確定した問題のみに基づく。
      */

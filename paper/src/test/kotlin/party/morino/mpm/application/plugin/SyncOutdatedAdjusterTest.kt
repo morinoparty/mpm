@@ -43,6 +43,33 @@ class SyncOutdatedAdjusterTest {
     }
 
     @Test
+    @DisplayName("Sync child follows root's pinned target while inheriting the upstream latest")
+    fun syncChildFollowsPinnedRoot() {
+        // 根が 1.0.0 に固定（target）されていて上流には 2.0.0（latest）がある。
+        // 子は根の固定値に揃うべきで、needsUpdate は target との比較で決まる
+        val outdated =
+            listOf(
+                OutdatedInfo(
+                    "Root",
+                    currentVersion = "1.0.0",
+                    latestVersion = "2.0.0",
+                    targetVersion = "1.0.0",
+                    needsUpdate = false
+                ),
+                OutdatedInfo("Child", currentVersion = "1.0.0", latestVersion = "9.9.9", needsUpdate = true)
+            )
+
+        val adjusted = adjustSyncOutdated(outdated, mapOf("Child" to "Root"))
+
+        val child = adjusted.first { it.pluginName == "Child" }
+        // 更新先は根の固定値、上流の最新は根の latest を引き継ぐ
+        assertEquals("1.0.0", child.targetVersion)
+        assertEquals("2.0.0", child.latestVersion)
+        assertFalse(child.needsUpdate, "根の固定値と一致している子は更新不要であるべき")
+        assertTrue(child.hasNewerUpstream)
+    }
+
+    @Test
     @DisplayName("Sync child already at parent version is not outdated")
     fun syncChildAlreadySynced() {
         // 親も子も 2.0.0（同期済み）。子のリポジトリlatestが新しくても更新不要と判定される

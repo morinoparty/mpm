@@ -256,14 +256,21 @@ class PluginInfoServiceImpl :
             createUrlData(firstRepository.type, firstRepository.repositoryId)
                 ?: return MpmError.PluginError.UnsupportedRepository(firstRepository.type).left()
 
-        // 比較対象となる「あるべきバージョン」を決める
+        // 「更新先（target）」と「上流の最新（latest）」を別々に決める。
+        //
+        // target: mpm.json の指定が指す、インストールされているべきバージョン
         // - Fixed: mpm.jsonが指定するバージョンそのもの（pin / rollback の固定をリポジトリ最新で巻き戻さない）
         // - Tag: 該当チャンネルの最新
         // - それ以外: 絶対的な最新
         // Tag/latestではチャンネル設定(versionMatcher/useUpstreamLabel)を尊重する
+        //
+        // latest: mpm.json の指定に関わらず、リポジトリが今提供している最新
+        // - Fixed でもここは上流を見る。固定値を latest として記録すると、metadata / list / doctor から
+        //   「上流に新しい版がある」というシグナルが消えてしまうため（issue #452）
+        // - Tag / Latest では target と同じ値
         val pluginSpec = project.getPluginSpec(name)
         val versionSpecifier = (pluginSpec as? PluginSpec.Managed)?.versionRequirement
-        val latestVersionName =
+        val targetVersionName =
             if (versionSpecifier is VersionSpecifier.Fixed) {
                 // 固定指定はリポジトリを参照しない。installAll側のresolveExpectedVersionと同じ方針
                 versionSpecifier.version
@@ -299,15 +306,35 @@ class PluginInfoServiceImpl :
                         ).left()
                 }
             }
+        val upstreamLatestName =
+            if (versionSpecifier is VersionSpecifier.Fixed) {
+                // 固定指定では上流の最新は「参考情報」であり、チェックの成否（installed == pinned）には関係しない。
+                // そのため上流障害でチェック全体を失敗させず、前回記録した latest を維持して警告だけ残す。
+                // 固定値へ倒すと、一時障害のたびに「上流に新版がある」情報が消えて #452 の状態に戻ってしまう
+                try {
+                    ChannelVersionResolver.resolveLatest(downloaderRepository, urlData, firstRepository).version
+                } catch (e: Exception) {
+                    plugin.logger.warning("[$name] 上流の最新バージョンの取得に失敗しました（前回の記録を維持）: ${e.message}")
+                    metadata.mpmInfo.version.latest.raw
+                        .ifBlank { targetVersionName }
+                }
+            } else {
+                targetVersionName
+            }
 
-        // 現在のバージョンと最新バージョンを正規化して比較
+        // 現在のバージョンと更新先バージョンを正規化して比較
         val versionPattern = metadata.mpmInfo.versionPattern
         val currentNormalized = VersionDetail.fromRaw(metadata.mpmInfo.version.current.raw, versionPattern).normalized
-        val latestNormalized = VersionDetail.fromRaw(latestVersionName, versionPattern).normalized
+        val targetNormalized = VersionDetail.fromRaw(targetVersionName, versionPattern).normalized
         val currentVersion = metadata.mpmInfo.version.current.raw
-        val needsUpdate = currentNormalized != latestNormalized
+        val needsUpdate = currentNormalized != targetNormalized
 
-        // チェック結果をメタデータへ書き戻す。
+        // mpm.json の固定値は正規化表記（例: "0.3.9"）で、上流の raw（例: "v0.3.9"）と文字面が違うことがある。
+        // 正規化して同じ版なら「上流に新版がある」とは扱わず、表示上も raw を揃えて誤った注記を防ぐ
+        val latestNormalized = VersionDetail.fromRaw(upstreamLatestName, versionPattern).normalized
+        val latestVersionName = if (latestNormalized == targetNormalized) targetVersionName else upstreamLatestName
+
+        // チェック結果（上流の最新）をメタデータへ書き戻す。
         // list（yaml読み出し）と outdated（fresh解決）の表示がずれ続けるのを防ぐ。
         // ここではイベントを発火しない。checkOutdated は info / doctor / HTTP API など
         // 多くの経路から呼ばれるため、ここで通知すると同じ内容が何度も飛ぶ。
@@ -325,6 +352,7 @@ class PluginInfoServiceImpl :
             pluginName = name.value,
             currentVersion = currentVersion,
             latestVersion = latestVersionName,
+            targetVersion = targetVersionName,
             needsUpdate = needsUpdate,
             latestChanged = latestChanged
         ).right()
@@ -363,9 +391,9 @@ class PluginInfoServiceImpl :
             )
         }
 
-        // Sync子の表示バージョンを親の更新先（latest）に合わせる（dry-run/outdated表示の一貫性）。
+        // Sync子の表示バージョンを親の更新先（target）に合わせる（dry-run/outdated表示の一貫性）。
         // 実際の更新では sync: プラグインは自身のリポジトリlatestではなく親のバージョンに追従するため、
-        // 表示上も親のlatestを更新先とし、needsUpdate も親のlatestと比較して判定する。
+        // 表示上も親のtargetを更新先とし、needsUpdate も親のtargetと比較して判定する。
         // 子 -> 同期先（親）のマップを構築し、補正は純粋関数 adjustSyncOutdated に委譲する。
         val syncTargets =
             project.plugins
