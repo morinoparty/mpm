@@ -17,15 +17,19 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
  *
  * @property name プラグイン名
  * @property currentVersion 現在のバージョン
- * @property latestVersion 利用可能な最新バージョン
- * @property needsUpdate 更新が必要かどうか（正規化済みバージョンで比較した結果）
+ * @property latestVersion 上流リポジトリの最新バージョン（mpm.json の指定に関わらない）
+ * @property targetVersion mpm.json の指定が指す更新先バージョン（固定バージョンならその固定値）
+ * @property needsUpdate 更新が必要かどうか（現在のバージョンと targetVersion を正規化済みで比較した結果）
+ * @property hasNewerUpstream latestVersion が targetVersion と異なるか（固定バージョンが上流に置いていかれている目印）
  */
 @Serializable
 data class OutdatedPluginResponse(
     val name: String,
     val currentVersion: String,
     val latestVersion: String,
-    val needsUpdate: Boolean
+    val targetVersion: String,
+    val needsUpdate: Boolean,
+    val hasNewerUpstream: Boolean
 ) {
     companion object {
         /**
@@ -36,7 +40,9 @@ data class OutdatedPluginResponse(
                 name = info.pluginName,
                 currentVersion = info.currentVersion,
                 latestVersion = info.latestVersion,
-                needsUpdate = info.needsUpdate
+                targetVersion = info.targetVersion,
+                needsUpdate = info.needsUpdate,
+                hasNewerUpstream = info.hasNewerUpstream
             )
     }
 }

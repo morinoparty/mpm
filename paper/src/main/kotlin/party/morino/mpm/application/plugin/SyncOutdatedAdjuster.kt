@@ -15,15 +15,17 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
  * sync: プラグイン（子）の更新情報を、同期チェーンの根の更新先バージョンに揃える純粋関数
  *
  * sync: プラグインは実際の更新時、自身のリポジトリの最新ではなく親のバージョンに追従する。
- * そのため dry-run / outdated 表示でも「更新先」を追従先の latest とし、
- * needsUpdate もその latest と現在バージョンの比較で判定するように補正する。
+ * そのため dry-run / outdated 表示でも「更新先」を追従先の target とし、
+ * needsUpdate もその target と現在バージョンの比較で判定するように補正する。
+ * 上流の最新（latest）も同様に根の値へ揃える。子自身のリポジトリの最新は追従先が決まっている以上
+ * 参考にならず、根が固定バージョンで上流に置いていかれている場合は子にも同じ状況が当てはまるため。
  *
  * ## なぜ「直近の親」ではなく「チェーンの根」を見るのか
- * 多段sync（孫 -> 子 -> 親）では、中間ノードの [OutdatedInfo.latestVersion] は
+ * 多段sync（孫 -> 子 -> 親）では、中間ノードの [OutdatedInfo.targetVersion] は
  * 補正前の値、つまり「中間ノード自身のリポジトリの最新」である。
  * sync: を使う理由がまさに「子のリポジトリは親と別に新しい版を出す」ことなので、
  * 直近の親の値をそのまま引くと孫だけが実際には入らない版を追ってしまう。
- * チェーンを根まで遡り、非sync（＝自分でバージョンを決める）ノードの latest に揃える。
+ * チェーンを根まで遡り、非sync（＝自分でバージョンを決める）ノードの target に揃える。
  *
  * バージョン比較は raw 文字列の一致で行う。sync: の子は親と同一バージョンの成果物を配布するため、
  * 同期済みであれば両者の raw は一致する。
@@ -36,7 +38,7 @@ fun adjustSyncOutdated(
     outdated: List<OutdatedInfo>,
     syncTargets: Map<String, String>
 ): List<OutdatedInfo> {
-    // プラグイン名で引けるように索引化（追従先の latest を参照するため）
+    // プラグイン名で引けるように索引化（追従先の target / latest を参照するため）
     val byName = outdated.associateBy { it.pluginName }
     return outdated.map { info ->
         // sync: 指定でなければそのまま
@@ -44,10 +46,11 @@ fun adjustSyncOutdated(
         // 循環している場合は追従先が定まらないため補正しない
         val root = resolveSyncRoot(info.pluginName, syncTargets) ?: return@map info
         // 根の更新先バージョンが解決できなければそのまま（根のチェックに失敗した場合など）
-        val rootLatest = byName[root]?.latestVersion ?: return@map info
+        val rootInfo = byName[root] ?: return@map info
         info.copy(
-            latestVersion = rootLatest,
-            needsUpdate = info.currentVersion != rootLatest
+            latestVersion = rootInfo.latestVersion,
+            targetVersion = rootInfo.targetVersion,
+            needsUpdate = info.currentVersion != rootInfo.targetVersion
         )
     }
 }

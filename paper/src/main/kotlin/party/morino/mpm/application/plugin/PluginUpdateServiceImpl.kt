@@ -226,7 +226,7 @@ class PluginUpdateServiceImpl :
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
                         oldVersion = outdatedInfo.currentVersion,
-                        newVersion = outdatedInfo.latestVersion,
+                        newVersion = outdatedInfo.targetVersion,
                         success = false,
                         errorMessage = "メタデータの読み込みに失敗しました"
                     )
@@ -241,7 +241,7 @@ class PluginUpdateServiceImpl :
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
                         oldVersion = outdatedInfo.currentVersion,
-                        newVersion = outdatedInfo.latestVersion,
+                        newVersion = outdatedInfo.targetVersion,
                         success = false,
                         errorMessage = LOCKED_ERROR_MESSAGE,
                         // ロックは異常ではなく意図的な据え置きなので、sync連動側と同じくスキップとして扱う。
@@ -267,7 +267,7 @@ class PluginUpdateServiceImpl :
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
                         oldVersion = outdatedInfo.currentVersion,
-                        newVersion = outdatedInfo.latestVersion,
+                        newVersion = outdatedInfo.targetVersion,
                         success = false,
                         errorMessage = preflightError
                     )
@@ -283,7 +283,7 @@ class PluginUpdateServiceImpl :
                     PluginUpdateEvent(
                         installedPlugin = InstalledPlugin(outdatedInfo.pluginName),
                         beforeVersion = VersionSpecifier.Fixed(outdatedInfo.currentVersion),
-                        targetVersion = VersionSpecifier.Fixed(outdatedInfo.latestVersion)
+                        targetVersion = VersionSpecifier.Fixed(outdatedInfo.targetVersion)
                     )
                 )
 
@@ -296,7 +296,7 @@ class PluginUpdateServiceImpl :
                     UpdateResult(
                         pluginName = outdatedInfo.pluginName,
                         oldVersion = outdatedInfo.currentVersion,
-                        newVersion = outdatedInfo.latestVersion,
+                        newVersion = outdatedInfo.targetVersion,
                         success = false,
                         errorMessage = "更新がキャンセルされました"
                     )
@@ -306,7 +306,7 @@ class PluginUpdateServiceImpl :
 
             // イベント通過後にダウンロード開始を通知
             progressCallback?.invoke(
-                "<gray>[${outdatedInfo.pluginName}] ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion} ダウンロード中..."
+                "<gray>[${outdatedInfo.pluginName}] ${outdatedInfo.currentVersion} → ${outdatedInfo.targetVersion} ダウンロード中..."
             )
 
             // 最新バージョンでインストール（既存のファイルは上書きされる、forceフラグを伝播）
@@ -323,7 +323,7 @@ class PluginUpdateServiceImpl :
                         UpdateResult(
                             pluginName = outdatedInfo.pluginName,
                             oldVersion = outdatedInfo.currentVersion,
-                            newVersion = outdatedInfo.latestVersion,
+                            newVersion = outdatedInfo.targetVersion,
                             success = false,
                             errorMessage = error.message
                         )
@@ -338,7 +338,7 @@ class PluginUpdateServiceImpl :
                         UpdateResult(
                             pluginName = outdatedInfo.pluginName,
                             oldVersion = outdatedInfo.currentVersion,
-                            newVersion = outdatedInfo.latestVersion,
+                            newVersion = outdatedInfo.targetVersion,
                             success = true
                         )
                     )
@@ -431,7 +431,7 @@ class PluginUpdateServiceImpl :
                     UpdateResult(
                         pluginName = name.value,
                         oldVersion = outdatedInfo?.currentVersion ?: "unknown",
-                        newVersion = outdatedInfo?.latestVersion ?: "unknown",
+                        newVersion = outdatedInfo?.targetVersion ?: "unknown",
                         success = true,
                         errorMessage = null
                     )
@@ -463,7 +463,7 @@ class PluginUpdateServiceImpl :
                     PluginUpdateEvent(
                         installedPlugin = InstalledPlugin(name.value),
                         beforeVersion = VersionSpecifier.Fixed(outdatedInfo.currentVersion),
-                        targetVersion = VersionSpecifier.Fixed(outdatedInfo.latestVersion)
+                        targetVersion = VersionSpecifier.Fixed(outdatedInfo.targetVersion)
                     )
                 )
             if (updateEvent.isCancelled) {
@@ -482,7 +482,7 @@ class PluginUpdateServiceImpl :
                         UpdateResult(
                             pluginName = name.value,
                             oldVersion = outdatedInfo.currentVersion,
-                            newVersion = outdatedInfo.latestVersion,
+                            newVersion = outdatedInfo.targetVersion,
                             success = true,
                             errorMessage = null
                         )

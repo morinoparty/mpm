@@ -37,6 +37,7 @@ import party.morino.mpm.api.domain.project.dto.getSyncDependencies
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.application.plugin.describeTransition
 import party.morino.mpm.event.state.PluginOutdatedEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import java.time.ZonedDateTime
@@ -416,7 +417,7 @@ class UpdateSchedulerImpl :
             val notes = listOfNotNull(specs[info.pluginName], extraNote)
             val suffix = if (notes.isEmpty()) "" else " (${notes.joinToString(", ")})"
             plugin.logger.info(
-                "  - ${info.pluginName}: ${info.currentVersion} -> ${info.latestVersion}$suffix"
+                "  - ${info.pluginName}: ${info.describeTransition()}$suffix"
             )
         }
     }

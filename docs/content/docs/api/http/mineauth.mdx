@@ -156,6 +156,18 @@ mpmの全エンドポイントは、ユーザートークン・サービスト�
 `currentVersion` と `latestVersion` の文字列比較では判定できません。
 mpm内部の判定は正規化済みのバージョン同士を比較しているため、表記の揺れがあると結果が食い違います。
 
+各エントリは「上流の最新」と「更新先」を分けて持ちます。
+
+| フィールド | 意味 |
+|---|---|
+| `latestVersion` | リポジトリが今提供している最新バージョン。`mpm.json` の指定に関わらず常に上流を参照します |
+| `targetVersion` | `mpm.json` の指定が指す更新先。固定バージョンならその固定値、`latest` / `tag:` なら `latestVersion` と同じです |
+| `needsUpdate` | `currentVersion` と `targetVersion` の正規化済み比較。`POST /plugins/update` が揃えるのはこの差分です |
+| `hasNewerUpstream` | `latestVersion` と `targetVersion` が異なるか。固定バージョンのプラグインが上流に置いていかれている目印です |
+
+固定バージョンのプラグインは `needsUpdate: false` のまま `hasNewerUpstream: true` になりえます。
+これは更新操作では解消されず、指定の見直し（`latest` へ戻す、または `POST /plugins/{name}/version` で切り替える）が必要です。
+
 ```json title="レスポンス例"
 {
   "outdated": [
@@ -163,7 +175,17 @@ mpm内部の判定は正規化済みのバージョン同士を比較してい�
       "name": "GriefPrevention",
       "currentVersion": "17.0.1",
       "latestVersion": "17.0.2",
-      "needsUpdate": true
+      "targetVersion": "17.0.2",
+      "needsUpdate": true,
+      "hasNewerUpstream": false
+    },
+    {
+      "name": "PlasmoVoice",
+      "currentVersion": "spigot-2.1.3",
+      "latestVersion": "spigot-2.1.16",
+      "targetVersion": "spigot-2.1.3",
+      "needsUpdate": false,
+      "hasNewerUpstream": true
     }
   ],
   "errors": [
@@ -238,6 +260,10 @@ mpm内部の判定は正規化済みのバージョン同士を比較してい�
 `metadata/<plugin>.yaml` に記録された情報を返します。ダウンロード元・sha256・インストール履歴を含みます。
 メタデータが存在しない場合は `404 Not Found` を返します。
 
+`latestVersion` は直近の更新チェック（`GET /plugins/outdated` やスケジュール実行）が記録した
+上流の最新バージョンで、`mpm.json` の指定が固定バージョンであっても上流の値が入ります。
+更新先の指定を知りたい場合は `GET /plugins/outdated` の `targetVersion` を参照してください。
+
 ```json title="レスポンス例"
 {
   "name": "QuickShop-Hikari",
@@ -307,7 +333,11 @@ mpm内部の判定は正規化済みのバージョン同士を比較してい�
 ### GET `/doctor`
 
 依存関係・整合性・更新・ロックのドリフトなどをまとめて診断します。
-`hasProblems` は、対処が必要な問題があるかどうかを表します（管理外プラグイン・更新可能・警告は判定に含みません）。
+`hasProblems` は、対処が必要な問題があるかどうかを表します
+（管理外プラグイン・更新可能・固定バージョンの取り残し・警告は判定に含みません）。
+
+`outdatedPlugins` は `POST /plugins/update` で更新先へ揃うもの、`pinnedBehindUpstream` は
+固定バージョンに揃っているものの上流にそれより新しい版があるものです。両者は重複しません。
 
 ```json title="レスポンス例"
 {
@@ -321,7 +351,19 @@ mpm内部の判定は正規化済みのバージョン同士を比較してい�
       "name": "GriefPrevention",
       "currentVersion": "17.0.1",
       "latestVersion": "17.0.2",
-      "needsUpdate": true
+      "targetVersion": "17.0.2",
+      "needsUpdate": true,
+      "hasNewerUpstream": false
+    }
+  ],
+  "pinnedBehindUpstream": [
+    {
+      "name": "PlasmoVoice",
+      "currentVersion": "spigot-2.1.3",
+      "latestVersion": "spigot-2.1.16",
+      "targetVersion": "spigot-2.1.3",
+      "needsUpdate": false,
+      "hasNewerUpstream": true
     }
   ],
   "missingFromLock": [],
