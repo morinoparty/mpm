@@ -26,6 +26,7 @@ import party.morino.mpm.api.application.plugin.PluginJarFileService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.application.scheduler.OutdatedNotificationLedger
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
@@ -79,6 +80,7 @@ import party.morino.mpm.infrastructure.plugin.retire.DeferredJarDeletionImpl
 import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
+import party.morino.mpm.infrastructure.scheduler.OutdatedNotificationLedgerImpl
 import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.control.BackupCommand
@@ -342,6 +344,8 @@ open class Mpm :
 
                 // スケジューラーの登録
                 single<UpdateScheduler> { UpdateSchedulerImpl() }
+                // outdated 通知の通知済み台帳（定期チェックだけが書く）
+                single<OutdatedNotificationLedger> { OutdatedNotificationLedgerImpl() }
 
                 // 非同期ジョブ（HTTP APIの長時間処理）の登録
                 single<JobService> { JobServiceImpl() }

@@ -185,6 +185,8 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
 
 また、上流で新しいバージョンが公開されたことを検知した回だけ送信されるため、
 更新できない状態が続いているプラグインが毎回通知されることはありません。
+この判定は定期チェック専用の通知済み台帳（`plugins/mpm/outdated-notified.json`）で行うため、
+`mpm outdated` を手動で実行したあとでも定期チェックの通知は抜けません。
 詳しくは [config.json の webhook 設定](/docs/format/config)をご覧ください。
 </Callout>
 
@@ -245,13 +247,14 @@ cron実行時に実際にダウンロードして更新されるのは、**浮�
 ```log
 [mpm] [Scheduled] Checking for plugin updates...
 [mpm] [Scheduled] 1 plugin(s) will be auto-updated (latest / tag:):
-[mpm]   - LuckPerms: 5.4.100 -> 5.4.102 (latest)
+[mpm]   - LuckPerms: 5.4.100 → 5.4.102 (latest)
 [mpm] [Scheduled] 1 plugin(s) sync to a parent and follow only when the parent updates:
-[mpm]   - LuckPermsExtension: 5.4.100 -> 5.4.102 (sync:LuckPerms)
-[mpm] [Scheduled] 1 plugin(s) have updates available but are pinned to a fixed version (not updated):
-[mpm]   - Vault: 1.7.2 -> 1.7.3 (1.7.3)
+[mpm]   - LuckPermsExtension: 5.4.100 → 5.4.102 (sync:LuckPerms)
+[mpm] [Scheduled] 2 plugin(s) have updates available but are pinned to a fixed version (not updated):
+[mpm]   - Vault: 1.7.2 → 1.7.3 (1.7.3)
+[mpm]   - AdvancedPortals: 2.6.1 → 2.6.1 (最新: 2.8.0) (2.6.1)
 [mpm] [Scheduled] 1 plugin(s) have updates available but are locked (not updated):
-[mpm]   - EssentialsX: 2.20.0 -> 2.21.0 (latest, locked)
+[mpm]   - EssentialsX: 2.20.0 → 2.21.0 (latest, locked)
 [mpm] [Scheduled] ✓ LuckPerms を 5.4.100 → 5.4.102 に更新
 [mpm] [Scheduled] ✓ LuckPermsExtension を 5.4.100 → 5.4.102 に更新（LuckPerms に追従）
 ```
@@ -260,10 +263,13 @@ cron実行時に実際にダウンロードして更新されるのは、**浮�
 また、cron実行で実際に更新されたプラグインが1つも無かった場合は
 `No plugins were updated.` と表示されます（起動時チェックでは表示されません）。
 
-固定バージョンのプラグインは、比較対象が「リポジトリ上の最新バージョン」ではなく
+固定バージョンのプラグインは、更新先が「リポジトリ上の最新バージョン」ではなく
 「`mpm.json` に固定したバージョン」です。
 そのため上の例の `Vault` は「1.7.2 がインストールされているが `mpm.json` は 1.7.3 に固定されている」
-という状態を表しており、リポジトリに 1.7.4 が出ていてもこの報告には現れません。
+という状態を表しています。
+一方 `AdvancedPortals` のように固定値どおりにインストールされていても、上流にそれより新しい版がある場合は
+「(最新: x)」を添えて報告されます。これは `mpm update` では解消されず、
+`mpm pin` / `mpm switch` による固定の見直しが必要なことを示します。
 
 メタデータの読み込みに失敗してロック状態を判定できなかったプラグインは、
 安全のため更新対象から外され、警告として報告されます。

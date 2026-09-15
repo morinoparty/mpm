@@ -18,8 +18,8 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
  * 新しく検知したもの」に限る。そのため次の2段で絞り込む。
  *
  * 1. 分類による絞り込み（mpmが自動で解消するものは通知しない）
- * 2. [OutdatedInfo.latestChanged] による絞り込み
- *    （更新可能な状態が続いているだけのものを毎回鳴らさない）
+ * 2. 通知済み台帳（[party.morino.mpm.api.application.scheduler.OutdatedNotificationLedger]）による絞り込み
+ *    （同じ最新バージョンを既に通知済みなら鳴らさない。上流に新しい版が出たときだけ通す）
  *
  * 外部依存を持たない純粋関数にしてあるので、通知対象の方針変更はこのファイルだけで完結する。
  */
@@ -30,11 +30,13 @@ internal object NotifiableOutdatedSelector {
      * @param classification 分類結果
      * @param failedAutoUpdates 自動更新を試みて失敗したプラグイン名
      *   （mpmが試みて直せなかったものなので、更新成功時と違って人に知らせる必要がある）
+     * @param notifiedLatest 通知済みの「プラグイン名 -> 通知時の最新バージョン（raw）」
      * @return 通知すべき更新情報
      */
     fun select(
         classification: UpdateCandidateClassification,
-        failedAutoUpdates: Set<String>
+        failedAutoUpdates: Set<String>,
+        notifiedLatest: Map<String, String>
     ): List<OutdatedInfo> {
         val candidates =
             buildList {
@@ -52,7 +54,8 @@ internal object NotifiableOutdatedSelector {
                 addAll(classification.unknown)
             }
 
-        // 同じ内容を繰り返し鳴らさない。新しい上流リリースを検知した回だけ通す。
-        return candidates.filter { it.latestChanged }
+        // 同じ内容を繰り返し鳴らさない。通知したときと同じ最新バージョンのままなら黙り、
+        // 上流に新しい版が出て latest が変わったときだけもう一度通す
+        return candidates.filter { notifiedLatest[it.pluginName] != it.latestVersion }
     }
 }

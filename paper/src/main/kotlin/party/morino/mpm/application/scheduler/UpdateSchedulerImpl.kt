@@ -26,6 +26,7 @@ import party.morino.mpm.api.application.model.UpdateResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.application.scheduler.OutdatedNotificationLedger
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.plugin.model.PluginName
@@ -63,6 +64,9 @@ class UpdateSchedulerImpl :
     private val updateService: PluginUpdateService by inject()
     private val infoService: PluginInfoService by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
+
+    // outdated 通知の「通知済み」台帳（同じ最新バージョンを繰り返し鳴らさないために使う）
+    private val notificationLedger: OutdatedNotificationLedger by inject()
 
     // mpm.jsonのバージョン指定（latest / tag: / sync: / 固定）を読むために使用する
     private val projectRepository: ProjectRepository by inject()
@@ -163,7 +167,7 @@ class UpdateSchedulerImpl :
             val (classification, hasCheckErrors) = runCheck(prefix, specs) ?: return@launch
             reportClassification(prefix, classification, specs, hasCheckErrors)
             // 起動時は更新を行わないため、自動更新の失敗は無い
-            publishOutdatedEvents(classification, emptySet())
+            publishOutdatedEvents(prefix, classification, emptySet(), specs.keys)
         }
     }
 
@@ -260,7 +264,7 @@ class UpdateSchedulerImpl :
         }
 
         // 更新を試みた後に通知する。成功したものは PluginUpdateEvent 側で通知されるため除外される
-        publishOutdatedEvents(classification, failedAutoUpdates)
+        publishOutdatedEvents(prefix, classification, failedAutoUpdates, specs.keys)
 
         if (anyUpdated) {
             // ロックファイルの再生成は PluginUpdateService.update 側で行われる（#448）
@@ -278,16 +282,29 @@ class UpdateSchedulerImpl :
      * 同じ内容の通知が何度も飛んでいた。発火をここに集約することで、
      * 「mpmが自律的に行ったチェック」だけが通知されるようになる。
      *
+     * 同じ最新バージョンを毎回鳴らさないよう、通知済み台帳と突き合わせてから発火し、
+     * 発火したものを台帳に書き戻す。メタデータの `version.latest` は `mpm outdated` などの
+     * 手動操作でも書き換わるため、重複抑制の基準には使わない（使うと手動チェックが先に走った
+     * 時点で「変化」が消費され、定期チェックからは一度も通知されなくなる）。
+     *
      * PaperMCではイベントをメインスレッドで発火する必要があるため BukkitDispatcher を使う。
      *
+     * @param prefix ログ出力の接頭辞
      * @param classification 分類結果
      * @param failedAutoUpdates 自動更新に失敗したプラグイン名
+     * @param managedPlugins mpm.json に記載されているプラグイン名（台帳から外れたものを掃除するために使う）
      */
     private suspend fun publishOutdatedEvents(
+        prefix: String,
         classification: UpdateCandidateClassification,
-        failedAutoUpdates: Set<String>
+        failedAutoUpdates: Set<String>,
+        managedPlugins: Set<String>
     ) {
-        for (target in NotifiableOutdatedSelector.select(classification, failedAutoUpdates)) {
+        val targets =
+            NotifiableOutdatedSelector.select(classification, failedAutoUpdates, notificationLedger.load())
+        if (targets.isEmpty()) return
+
+        for (target in targets) {
             BukkitDispatcher.callEventSync(
                 plugin,
                 PluginOutdatedEvent(
@@ -297,6 +314,13 @@ class UpdateSchedulerImpl :
                 )
             )
         }
+
+        // 台帳の書き込み失敗は通知そのものを妨げない（次回に重複しうるだけ）ため、警告に留める
+        notificationLedger
+            .record(targets.associate { it.pluginName to it.latestVersion }, managedPlugins)
+            .onLeft { reason ->
+                plugin.logger.warning("$prefix 通知済みの記録に失敗しました: $reason")
+            }
     }
 
     /**
@@ -325,9 +349,18 @@ class UpdateSchedulerImpl :
                     )
                 }
 
-                val needsUpdate = checkResult.outdatedPlugins.filter { it.needsUpdate }
+                // 更新先との差分（needsUpdate）だけでなく、固定バージョンのまま上流に新しい版が出たもの
+                // （hasNewerUpstream）も候補に含める。後者は `mpm update` では解消されず、
+                // pin の見直しが要るものなので、報告と通知の対象にする。
+                // ただし sync: の子は根の latest / target をそのまま引き継いでいるだけなので、
+                // 「上流に新しい版がある」のは根の事情であり、子まで候補にすると根と二重に鳴る
+                val candidates =
+                    checkResult.outdatedPlugins.filter { info ->
+                        val isSync = specs[info.pluginName]?.let(VersionSpecifierParser::isSyncFormat) == true
+                        info.needsUpdate || (info.hasNewerUpstream && !isSync)
+                    }
                 val classification =
-                    UpdateCandidateClassifier.classify(needsUpdate, specs, ::resolveLockState)
+                    UpdateCandidateClassifier.classify(candidates, specs, ::resolveLockState)
                 classification to checkResult.errors.isNotEmpty()
             }
         )

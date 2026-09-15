@@ -70,6 +70,40 @@ class SyncOutdatedAdjusterTest {
     }
 
     @Test
+    @DisplayName("Sync child compares versions after normalization, not by raw string")
+    fun syncChildComparesNormalizedVersions() {
+        // 根は mpm.json の固定値 "0.3.10"（正規化表記）、子は GitHub のタグ "v0.3.10" で記録されている。
+        // raw 同士では一致しないが、同じ版なので更新不要と判定されるべき
+        val outdated =
+            listOf(
+                OutdatedInfo(
+                    "MineAuth",
+                    currentVersion = "v0.3.10",
+                    latestVersion = "0.3.10",
+                    targetVersion = "0.3.10",
+                    needsUpdate = false
+                ),
+                OutdatedInfo(
+                    "MineAuth-addon-vault",
+                    currentVersion = "v0.3.10",
+                    latestVersion = "v0.3.10",
+                    needsUpdate = false
+                )
+            )
+
+        val adjusted =
+            adjustSyncOutdated(
+                outdated,
+                mapOf("MineAuth-addon-vault" to "MineAuth"),
+                versionPatterns = mapOf("MineAuth-addon-vault" to null)
+            )
+
+        val child = adjusted.first { it.pluginName == "MineAuth-addon-vault" }
+        assertEquals("0.3.10", child.targetVersion)
+        assertFalse(child.needsUpdate, "正規化すれば同じ版なので更新不要であるべき")
+    }
+
+    @Test
     @DisplayName("Sync child already at parent version is not outdated")
     fun syncChildAlreadySynced() {
         // 親も子も 2.0.0（同期済み）。子のリポジトリlatestが新しくても更新不要と判定される
