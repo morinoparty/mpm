@@ -13,14 +13,19 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 
 /**
- * 更新が必要なプラグインを、mpm.jsonのバージョン指定とロック状態で分類する
+ * 更新候補のプラグインを、mpm.jsonのバージョン指定とロック状態で分類する
+ *
+ * 候補には「更新先と現在が異なるもの（needsUpdate）」に加えて、
+ * 「固定バージョンのまま上流に新しい版が出たもの（hasNewerUpstream）」も含まれる。
+ * 後者は checkOnly / locked に落ちるだけで、自動更新（autoUpdate）へは入らない
+ * （latest / tag: 指定では target と latest が常に一致するため hasNewerUpstream にならない）。
  *
  * スケジューラ本体はBukkit依存でテストしづらいため、
  * 判定ロジックだけを外部依存の無い純粋関数として切り出している
  */
 object UpdateCandidateClassifier {
     /**
-     * 更新が必要なプラグインを6分類する
+     * 更新候補のプラグインを6分類する
      *
      * 判定の優先順位:
      * 1. ロック状態が判定できない（メタデータ読み込み失敗） -> unknown
@@ -29,13 +34,13 @@ object UpdateCandidateClassifier {
      * 4. 動的指定 (latest / tag:) -> autoUpdate
      * 5. それ以外（Fixed / pattern: / mpm.json未記載） -> checkOnly
      *
-     * @param needsUpdate 更新が必要と判定されたプラグインの一覧
+     * @param candidates 更新候補（needsUpdate または hasNewerUpstream）と判定されたプラグインの一覧
      * @param specs mpm.jsonの「プラグイン名 -> バージョン指定文字列」マップ
      * @param lockStateOf プラグイン名からロック状態を解決する関数
      * @return 6分類の結果
      */
     fun classify(
-        needsUpdate: List<OutdatedInfo>,
+        candidates: List<OutdatedInfo>,
         specs: Map<String, String>,
         lockStateOf: (String) -> LockState
     ): UpdateCandidateClassification {
@@ -46,7 +51,7 @@ object UpdateCandidateClassifier {
         val locked = mutableListOf<OutdatedInfo>()
         val unknown = mutableListOf<OutdatedInfo>()
 
-        for (info in needsUpdate) {
+        for (info in candidates) {
             val lockState = lockStateOf(info.pluginName)
             // メタデータが読めない場合は誤って更新対象にしないようunknownに隔離する
             if (lockState == LockState.UNKNOWN) {

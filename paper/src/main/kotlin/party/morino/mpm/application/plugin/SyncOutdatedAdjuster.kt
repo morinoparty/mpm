@@ -10,6 +10,7 @@
 package party.morino.mpm.application.plugin
 
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
+import party.morino.mpm.api.domain.plugin.model.VersionDetail
 
 /**
  * sync: プラグイン（子）の更新情報を、同期チェーンの根の更新先バージョンに揃える純粋関数
@@ -27,16 +28,20 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
  * 直近の親の値をそのまま引くと孫だけが実際には入らない版を追ってしまう。
  * チェーンを根まで遡り、非sync（＝自分でバージョンを決める）ノードの target に揃える。
  *
- * バージョン比較は raw 文字列の一致で行う。sync: の子は親と同一バージョンの成果物を配布するため、
- * 同期済みであれば両者の raw は一致する。
+ * バージョン比較は子の versionPattern で正規化した値で行う（[OutdatedInfo.needsUpdate] の契約と同じ）。
+ * 根が固定バージョンの場合、根の target は mpm.json の正規化表記（例: "0.3.10"）になる一方、
+ * 子の current は自身のリポジトリの raw（例: GitHub のタグ "v0.3.10"）で記録されているため、
+ * raw 同士を比べると同期済みの子まで「更新が必要」と誤判定してしまう。
  *
  * @param outdated 各プラグインの更新情報（親・子の両方を含む）
  * @param syncTargets 子プラグイン名 -> 同期先（親）プラグイン名 のマップ
+ * @param versionPatterns 子プラグイン名 -> バージョン抽出パターン のマップ（未登録・null はデフォルトの semver）
  * @return 子の更新先バージョンと needsUpdate を補正した新しいリスト（親や非同期プラグインはそのまま）
  */
 fun adjustSyncOutdated(
     outdated: List<OutdatedInfo>,
-    syncTargets: Map<String, String>
+    syncTargets: Map<String, String>,
+    versionPatterns: Map<String, String?> = emptyMap()
 ): List<OutdatedInfo> {
     // プラグイン名で引けるように索引化（追従先の target / latest を参照するため）
     val byName = outdated.associateBy { it.pluginName }
@@ -47,10 +52,14 @@ fun adjustSyncOutdated(
         val root = resolveSyncRoot(info.pluginName, syncTargets) ?: return@map info
         // 根の更新先バージョンが解決できなければそのまま（根のチェックに失敗した場合など）
         val rootInfo = byName[root] ?: return@map info
+        // 子の current と根の target を同じパターンで正規化して比べる（"v0.3.10" と "0.3.10" を同一視する）
+        val pattern = versionPatterns[info.pluginName]
+        val currentNormalized = VersionDetail.normalizeWithPattern(info.currentVersion, pattern)
+        val targetNormalized = VersionDetail.normalizeWithPattern(rootInfo.targetVersion, pattern)
         info.copy(
             latestVersion = rootInfo.latestVersion,
             targetVersion = rootInfo.targetVersion,
-            needsUpdate = info.currentVersion != rootInfo.targetVersion
+            needsUpdate = currentNormalized != targetNormalized
         )
     }
 }

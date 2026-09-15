@@ -91,6 +91,30 @@ class UpdateCandidateClassifierTest {
     }
 
     @Test
+    @DisplayName("a pinned plugin with a newer upstream is check-only, never auto-updated")
+    fun testPinnedWithNewerUpstreamIsCheckOnly() {
+        // 固定値 2.6.1 に一致していて更新先との差分は無いが、上流には 2.8.0 が出ている
+        val pinned =
+            OutdatedInfo(
+                pluginName = "AdvancedPortals",
+                currentVersion = "2.6.1",
+                latestVersion = "2.8.0",
+                targetVersion = "2.6.1",
+                needsUpdate = false
+            )
+        assertTrue(pinned.hasNewerUpstream)
+
+        val result =
+            UpdateCandidateClassifier.classify(listOf(pinned), mapOf("AdvancedPortals" to "2.6.1")) {
+                LockState.UNLOCKED
+            }
+
+        // pin の見直しが要るものとして報告・通知はするが、自動更新には入らない
+        assertEquals(listOf("AdvancedPortals"), names(result.checkOnly))
+        assertTrue(result.autoUpdate.isEmpty())
+    }
+
+    @Test
     @DisplayName("reports empty classification when nothing needs update")
     fun testEmptyClassification() {
         val result = UpdateCandidateClassifier.classify(emptyList(), emptyMap()) { LockState.UNLOCKED }

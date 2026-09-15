@@ -19,13 +19,12 @@ import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 class NotifiableOutdatedSelectorTest {
     private fun info(
         name: String,
-        latestChanged: Boolean = true
+        latestVersion: String = "2.0.0"
     ) = OutdatedInfo(
         pluginName = name,
         currentVersion = "1.0.0",
-        latestVersion = "2.0.0",
-        needsUpdate = true,
-        latestChanged = latestChanged
+        latestVersion = latestVersion,
+        needsUpdate = true
     )
 
     private fun classification(
@@ -51,7 +50,8 @@ class NotifiableOutdatedSelectorTest {
         val result =
             NotifiableOutdatedSelector.select(
                 classification(autoUpdate = listOf(info("LuckPerms"))),
-                failedAutoUpdates = emptySet()
+                failedAutoUpdates = emptySet(),
+                notifiedLatest = emptyMap()
             )
         assertTrue(result.isEmpty())
     }
@@ -62,7 +62,8 @@ class NotifiableOutdatedSelectorTest {
         val result =
             NotifiableOutdatedSelector.select(
                 classification(autoUpdate = listOf(info("LuckPerms"))),
-                failedAutoUpdates = setOf("LuckPerms")
+                failedAutoUpdates = setOf("LuckPerms"),
+                notifiedLatest = emptyMap()
             )
         assertEquals(listOf("LuckPerms"), result.map { it.pluginName })
     }
@@ -73,7 +74,8 @@ class NotifiableOutdatedSelectorTest {
         val result =
             NotifiableOutdatedSelector.select(
                 classification(syncFollower = listOf(info("MineAuth-addon-vault"))),
-                failedAutoUpdates = emptySet()
+                failedAutoUpdates = emptySet(),
+                notifiedLatest = emptyMap()
             )
         assertTrue(result.isEmpty())
     }
@@ -89,7 +91,8 @@ class NotifiableOutdatedSelectorTest {
                     lockedSync = listOf(info("PAPIProxyBridge")),
                     unknown = listOf(info("Broken"))
                 ),
-                failedAutoUpdates = emptySet()
+                failedAutoUpdates = emptySet(),
+                notifiedLatest = emptyMap()
             )
         assertEquals(
             listOf("Vault", "WorldEdit", "PAPIProxyBridge", "Broken").sorted(),
@@ -98,14 +101,28 @@ class NotifiableOutdatedSelectorTest {
     }
 
     @Test
-    @DisplayName("an unchanged latest version is not announced again")
-    fun testUnchangedLatestIsNotRepeated() {
+    @DisplayName("an already announced latest version is not announced again")
+    fun testAlreadyAnnouncedLatestIsNotRepeated() {
         // 更新可能な状態が続いているだけのプラグインを毎日鳴らさない
         val result =
             NotifiableOutdatedSelector.select(
-                classification(locked = listOf(info("WorldEdit", latestChanged = false))),
-                failedAutoUpdates = emptySet()
+                classification(locked = listOf(info("WorldEdit", latestVersion = "2.0.0"))),
+                failedAutoUpdates = emptySet(),
+                notifiedLatest = mapOf("WorldEdit" to "2.0.0")
             )
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    @DisplayName("a newer upstream release is announced even if an older one was")
+    fun testNewerLatestIsAnnouncedAgain() {
+        // 台帳にあるのは 2.0.0 の通知。上流が 3.0.0 を出したらもう一度鳴らす
+        val result =
+            NotifiableOutdatedSelector.select(
+                classification(checkOnly = listOf(info("Vault", latestVersion = "3.0.0"))),
+                failedAutoUpdates = emptySet(),
+                notifiedLatest = mapOf("Vault" to "2.0.0")
+            )
+        assertEquals(listOf("Vault"), result.map { it.pluginName })
     }
 }

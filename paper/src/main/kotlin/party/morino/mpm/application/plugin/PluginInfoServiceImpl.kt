@@ -339,22 +339,23 @@ class PluginInfoServiceImpl :
         // ここではイベントを発火しない。checkOutdated は info / doctor / HTTP API など
         // 多くの経路から呼ばれるため、ここで通知すると同じ内容が何度も飛ぶ。
         // 「mpmが自律的に行ったチェック」だけを通知したいので、発火は UpdateScheduler に集約する。
-        val latestChanged =
-            pluginMetadataManager
-                .recordCheckResult(name.value, latestVersionName)
-                .getOrElse { reason ->
-                    // 書き戻しの失敗はチェック自体を失敗させない（表示は fresh の値で正しい）
-                    plugin.logger.warning("[$name] チェック結果の記録に失敗しました: $reason")
-                    false
-                }
+        // 通知の重複抑制も「latest が前回記録から変わったか」ではなく、スケジューラが持つ
+        // 通知済み台帳（OutdatedNotificationLedger）で行う。ここで返る「変化したか」を使うと、
+        // 手動の `mpm outdated` が先に latest を書き戻した時点で cron からは変化が見えなくなり、
+        // 通知が一度も飛ばなくなるため。
+        pluginMetadataManager
+            .recordCheckResult(name.value, latestVersionName)
+            .onLeft { reason ->
+                // 書き戻しの失敗はチェック自体を失敗させない（表示は fresh の値で正しい）
+                plugin.logger.warning("[$name] チェック結果の記録に失敗しました: $reason")
+            }
 
         return OutdatedInfo(
             pluginName = name.value,
             currentVersion = currentVersion,
             latestVersion = latestVersionName,
             targetVersion = targetVersionName,
-            needsUpdate = needsUpdate,
-            latestChanged = latestChanged
+            needsUpdate = needsUpdate
         ).right()
     }
 
@@ -402,7 +403,17 @@ class PluginInfoServiceImpl :
                         ((spec as? PluginSpec.Managed)?.versionRequirement as? VersionSpecifier.Sync)?.targetPlugin
                     target?.let { pluginName.value to it }
                 }.toMap()
-        val adjustedList = adjustSyncOutdated(outdatedInfoList, syncTargets)
+        // 子の current（自身のリポジトリの raw）と根の target（固定なら正規化表記）を
+        // 同じ物差しで比べるため、sync: 子のバージョン抽出パターンをメタデータから引く
+        val versionPatterns =
+            syncTargets.keys.associateWith { childName ->
+                pluginMetadataManager
+                    .loadMetadata(childName)
+                    .getOrNull()
+                    ?.mpmInfo
+                    ?.versionPattern
+            }
+        val adjustedList = adjustSyncOutdated(outdatedInfoList, syncTargets, versionPatterns)
 
         return OutdatedCheckResult(adjustedList, checkErrors).right()
     }

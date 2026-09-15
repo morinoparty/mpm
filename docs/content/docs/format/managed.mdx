@@ -303,8 +303,10 @@ version:
 このとき書き換えられるのは `latest` と `lastChecked` だけで、
 `current` や `download`、インストール履歴には手を触れません。
 
-`latest` の値が前回の記録から変化したかどうかは、
-[Discord Webhook の `outdated` 通知](/docs/format/config)を繰り返し送らないための判定にも使われます。
+なお、[Discord Webhook の `outdated` 通知](/docs/format/config)を繰り返し送らないための判定には
+この `latest` ではなく、定期チェックだけが書き込む別の台帳（`outdated-notified.json`）を使います。
+`latest` は手動の `mpm outdated` でも書き換わるため、これを判定に使うと
+手動チェックのあとの定期チェックで通知が抜けてしまうためです。
 </Callout>
 
 #### download

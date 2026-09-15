@@ -37,6 +37,7 @@ import party.morino.mpm.api.domain.downloader.model.VersionData
 import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
+import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -1360,7 +1361,13 @@ class PluginUpdateServiceImpl :
             // （ロック判定より前に行うことで、更新不要なロック済みの子を誤って失敗扱いにしない）
             // これは「追従が完了している正常な状態」であり据え置きではないため、blocklistには入れない。
             // ここで打ち切ると、中間ノードがたまたま親と一致していた場合に孫が永久に取り残される。
-            if (targetVersion == currentVersion) {
+            // 親と子でリポジトリが違うと raw の表記（"v0.3.10" と "0.3.10"）がずれうるため、
+            // 子の versionPattern で正規化して比べる
+            val childVersionPattern = childMetadata.getOrNull()?.mpmInfo?.versionPattern
+            val alreadySynced =
+                VersionDetail.normalizeWithPattern(targetVersion, childVersionPattern) ==
+                    VersionDetail.normalizeWithPattern(currentVersion, childVersionPattern)
+            if (alreadySynced) {
                 continue
             }
 

@@ -35,13 +35,7 @@ data class OutdatedInfo(
     // 固定バージョンならその固定値、latest / tag: なら [latestVersion] と同じ。
     // `mpm update` が実際に揃える先はこちらで、[needsUpdate] もこの値との比較で判定する。
     // 省略時は [latestVersion] と同じ値になる。
-    val targetVersion: String = latestVersion,
-    // このチェックで latest が前回メタデータに記録された値から変化したか
-    //
-    // 「新しい上流リリースを検知した瞬間」を表す。更新可能な状態が続いているだけの
-    // プラグインは毎回のチェックで false になるため、通知の重複抑制に使える。
-    // メタデータを読めなかった場合など、判定できないときは false とする。
-    val latestChanged: Boolean = false
+    val targetVersion: String = latestVersion
 ) {
     /**
      * 上流の最新が更新先と異なるか（＝固定バージョンが上流に置いていかれているか）
