@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -145,7 +145,8 @@ open class SpigotDownloader : AbstractPluginDownloader() {
             "https://api.spiget.org/v2/resources/${urlData.resourceId}/versions/" +
                 "${version.downloadId}/download/proxy"
         val fileName = "${details.name}-${version.version}.jar"
-        return downloadFile(downloadUrl, fileName)
+        // Spigetはダウンロード前にファイルサイズを提供しないため、サイズ検証は行わない
+        return downloadFileOrThrow(downloadUrl, fileName)
     }
 
     /**
@@ -154,6 +155,7 @@ open class SpigotDownloader : AbstractPluginDownloader() {
      * @param fileNamePattern ファイル名に一致する正規表現パターン（SpigotMCでは使用しない）
      * @return ダウンロードしたファイル
      */
+    @Deprecated("PluginDownloader.downloadLatest を参照。versionMatcher を無視するため使用しないこと。")
     override suspend fun downloadLatest(
         url: String,
         fileNamePattern: String?

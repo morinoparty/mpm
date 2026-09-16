@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -217,22 +217,23 @@ open class HangarDownloader : AbstractPluginDownloader() {
         val response = getRequest(url, "application/json")
         val versionInfo = json.decodeFromString<HangarVersion>(response)
 
-        // ダウンロード可能なプラットフォームを選択（url, fileName）
-        val (downloadUrl, fileName) = selectDownload(versionInfo, fileNamePattern)
-        return downloadFile(downloadUrl, fileName)
+        // ダウンロード可能なプラットフォームを選択（url, fileName, 期待サイズ）
+        val (downloadUrl, fileName, expectedSizeBytes) = selectDownload(versionInfo, fileNamePattern)
+        // Hangarはファイルサイズを提供するため、ダウンロード後にバイト数を検証する
+        return downloadFileOrThrow(downloadUrl, fileName, expectedSizeBytes)
     }
 
     /**
-     * ダウンロード対象のプラットフォームを選択し、URLとファイル名を返す
+     * ダウンロード対象のプラットフォームを選択し、URL・ファイル名・期待サイズを返す
      *
      * @param version バージョン情報
      * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション）
-     * @return ダウンロードURLとファイル名のペア
+     * @return ダウンロードURL、ファイル名、期待するファイルサイズ（不明な場合はnull）
      */
     private fun selectDownload(
         version: HangarVersion,
         fileNamePattern: String?
-    ): Pair<String, String> {
+    ): Triple<String, String, Long?> {
         // ダウンロード対象のプラットフォームを選択（見つからなければ例外）
         val chosenPlatform =
             selectPlatform(version, fileNamePattern)
@@ -248,7 +249,9 @@ open class HangarDownloader : AbstractPluginDownloader() {
                 ?: throw Exception("ダウンロードURLが見つかりません")
         // ファイル名はfileInfoから、無ければバージョン名から生成
         val fileName = download.fileInfo?.name ?: "${version.name}.jar"
-        return downloadUrl to fileName
+        // 外部ホストの場合などfileInfoが無い、または0の場合はサイズ不明として扱う
+        val expectedSizeBytes = download.fileInfo?.sizeBytes?.takeIf { it > 0 }
+        return Triple(downloadUrl, fileName, expectedSizeBytes)
     }
 
     /**
@@ -288,6 +291,7 @@ open class HangarDownloader : AbstractPluginDownloader() {
      * @param fileNamePattern ファイル名に一致する正規表現パターン（オプション）
      * @return ダウンロードしたファイル
      */
+    @Deprecated("PluginDownloader.downloadLatest を参照。versionMatcher を無視するため使用しないこと。")
     override suspend fun downloadLatest(
         url: String,
         fileNamePattern: String?

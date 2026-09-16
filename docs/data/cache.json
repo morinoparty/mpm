@@ -1,0 +1,31 @@
+{
+    "commands": [
+        {
+            "command": "mpm cache list",
+            "status": "newly",
+            "category": "cache",
+            "section": "キャッシュ一覧",
+            "description": "キャッシュされているメタデータのURL・サイズ・取得日時を一覧表示します"
+        },
+        {
+            "command": "mpm cache size",
+            "status": "newly",
+            "category": "cache",
+            "section": "サイズ確認",
+            "description": "キャッシュディレクトリ全体の合計サイズとエントリ数を表示します"
+        },
+        {
+            "command": "mpm cache clean [[--expired]]",
+            "status": "newly",
+            "category": "cache",
+            "section": "キャッシュ削除",
+            "description": "キャッシュを削除します。--expired を付けるとTTLを超過したエントリのみを削除します",
+            "arguments": [
+                {
+                    "name": "--expired",
+                    "required": false
+                }
+            ]
+        }
+    ]
+}

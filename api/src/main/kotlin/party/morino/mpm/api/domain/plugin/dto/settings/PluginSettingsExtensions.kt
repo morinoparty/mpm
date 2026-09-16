@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -13,6 +13,11 @@ import party.morino.mpm.api.domain.config.model.GlobalSettings
 
 /**
  * PluginSettingsの値をGlobalSettingsでフォールバックして解決済みの値を取得する
+ *
+ * **現在mpm本体はこの関数を呼び出していない。**
+ * ロックの判定は `metadata/<プラグイン名>.yaml` の `settings.lock == true` だけで行っており、
+ * GlobalSettings へのフォールバックは存在しない（nullはfalseと同じ扱い）。
+ * この関数を配線するとcronの更新対象判定が変わるため、利用者の判断なしに有効化しないこと。
  *
  * @param globalSettings グローバル設定
  * @return 解決済みのプラグイン設定

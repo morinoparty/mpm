@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -18,27 +18,59 @@ import java.util.jar.JarFile
 
 object PluginDataUtils {
     /**
-     * YAMLからapi-versionの値を安全に文字列として取得する
-     * SnakeYAMLは "api-version: 1.20" をDouble 1.2としてパースするため、
-     * Number型の場合は元の表現を復元する
+     * plugin.yml / paper-plugin.yml の生テキストから api-version を書かれたままの表記で取り出す
+     *
+     * SnakeYAML はクォートなしの `api-version: 1.20` を Double 1.2 に、`1.9` を Double 1.9 に変換してしまい、
+     * パース後の値からは「1.2 / 1.20」「1.9 / 1.90」を区別できない。
+     * そのため YAML ローダーを通す前のテキストを行単位で走査し、作者が書いた文字列をそのまま返す。
+     *
+     * - 行頭（トップレベル）の `api-version:` のみを対象にし、ネストしたキーは拾わない
+     * - シングル/ダブルクォートは剥がす
+     * - 行末の `# コメント` は取り除く
+     * - CRLF 改行にも対応する
+     *
+     * @param yamlText plugin.yml / paper-plugin.yml の内容
+     * @return api-version の文字列。見つからない、または空の場合は null
+     */
+    internal fun extractRawApiVersion(yamlText: String): String? {
+        // 先頭に UTF-8 BOM があると1行目の `^` にマッチしないため取り除く
+        val match = RAW_API_VERSION_REGEX.find(yamlText.removePrefix("\uFEFF")) ?: return null
+        val value =
+            match.groupValues[1]
+                .trim()
+                // クォートされていない値のみ、行末コメントを取り除く（`1.20 # comment` のような書き方）
+                .let { raw ->
+                    if (raw.startsWith("'") || raw.startsWith("\"")) raw else raw.substringBefore(" #").trim()
+                }
+                // クォートを剥がす（`'1.20'` / `"1.20"`）
+                .removeSurrounding("'")
+                .removeSurrounding("\"")
+                .trim()
+        return value.ifBlank { null }
+    }
+
+    /**
+     * SnakeYAML がパースした api-version の値を文字列に変換する（フォールバック用）
+     *
+     * 通常は [extractRawApiVersion] で生テキストから取得するため、ここに来るのは
+     * 生テキストから取り出せなかった場合だけである。
+     * Number 型に変換されている場合は元の表記を復元できないため、そのまま文字列化する。
+     * （以前は「小数部が1桁なら 0 を補う」ヒューリスティックで 1.9 を 1.90 にしてしまい、
+     * 1.21 サーバーで誤って非互換と判定していた）
      */
     internal fun parseApiVersion(raw: Any?): String {
         if (raw == null) return ""
         // String型ならそのまま返す（クォートされたYAML値）
         if (raw is String) return raw
-        // Number型の場合、SnakeYAMLがfloatとしてパースしている
-        // 例: 1.20 → Double(1.2), 1.21 → Double(1.21)
-        if (raw is Number) {
-            val str = raw.toString()
-            // "1.2" のようにマイナーバージョンが1桁の場合、"1.20"に復元する
-            val parts = str.split(".")
-            if (parts.size == 2 && parts[1].length == 1) {
-                return "${parts[0]}.${parts[1]}0"
-            }
-            return str
-        }
         return raw.toString()
     }
+
+    /**
+     * 行頭の `api-version:` を捕捉する正規表現
+     *
+     * `[ \t]*` で区切りを許容し、値は行末（CR を除く）まで取り込む
+     */
+    private val RAW_API_VERSION_REGEX = Regex("""^api-version:[ \t]*([^\r\n]*)""", RegexOption.MULTILINE)
 
     fun getPluginData(file: File): PluginData? {
         // JarFileをuse{}で確実にクローズする（リソースリーク防止）
@@ -59,16 +91,14 @@ object PluginDataUtils {
     private fun getPaperPluginData(jarFile: JarFile): PluginData.PaperPluginData {
         val paperYml = jarFile.getEntry("paper-plugin.yml")
         // InputStream/BufferedReaderをuse{}で確実にクローズする（リソースリーク防止）
-        val yamlData =
-            jarFile.getInputStream(paperYml).bufferedReader().use { reader ->
-                val yaml = Yaml(SafeConstructor(LoaderOptions()))
-                yaml.load<Map<String, Any>>(reader)
-            }
+        // api-version を書かれたままの表記で取り出すため、テキストを一度読み込んでから YAML としてパースする
+        val yamlText = jarFile.getInputStream(paperYml).bufferedReader().use { it.readText() }
+        val yamlData = Yaml(SafeConstructor(LoaderOptions())).load<Map<String, Any>>(yamlText)
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
         val main = (yamlData["main"] ?: "").toString()
         val description = (yamlData["description"] ?: "").toString()
-        val apiVersion = parseApiVersion(yamlData["api-version"])
+        val apiVersion = extractRawApiVersion(yamlText) ?: parseApiVersion(yamlData["api-version"])
         val bootstrapper = (yamlData["bootstrapper"] ?: "").toString()
         val loader = (yamlData["loader"] ?: "").toString()
         val author = (yamlData["author"] ?: "").toString()
@@ -129,18 +159,16 @@ object PluginDataUtils {
     private fun getBukkitPluginData(jarFile: JarFile): PluginData.BukkitPluginData {
         val pluginYml = jarFile.getEntry("plugin.yml")
         // InputStream/BufferedReaderをuse{}で確実にクローズする（リソースリーク防止）
-        val yamlData =
-            jarFile.getInputStream(pluginYml).bufferedReader().use { reader ->
-                val yaml = Yaml(SafeConstructor(LoaderOptions()))
-                yaml.load<Map<String, Any>>(reader)
-            }
+        // api-version を書かれたままの表記で取り出すため、テキストを一度読み込んでから YAML としてパースする
+        val yamlText = jarFile.getInputStream(pluginYml).bufferedReader().use { it.readText() }
+        val yamlData = Yaml(SafeConstructor(LoaderOptions())).load<Map<String, Any>>(yamlText)
         val name = (yamlData["name"] ?: "").toString()
         val version = (yamlData["version"] ?: "").toString()
         val main = (yamlData["main"] ?: "").toString()
         val description = (yamlData["description"] ?: "").toString()
         val author = (yamlData["author"] ?: "").toString()
         val website = (yamlData["website"] ?: "").toString()
-        val apiVersion = parseApiVersion(yamlData["api-version"])
+        val apiVersion = extractRawApiVersion(yamlText) ?: parseApiVersion(yamlData["api-version"])
 
         // Bukkit形式の依存関係を解析
         val depend = parseStringList(yamlData["depend"])

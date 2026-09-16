@@ -23,12 +23,12 @@ mpmの設定は、**プロジェクト設定** と **プラグイン設定** の
 
 ```
 your-server/
-├── mpm.json          ← このファイル（プロジェクト設定）
-├── mpm-lock.yaml     ← 自動生成されるロックファイル
 ├── plugins/
 │   └── mpm/
-│       ├── config.json  ← サーバー固有のmpm設定
-│       └── metadata/    ← 個別プラグインの詳細情報
+│       ├── mpm.json      ← このファイル（プロジェクト設定）
+│       ├── mpm-lock.yaml ← 自動生成されるロックファイル
+│       ├── config.json   ← サーバー固有のmpm設定
+│       └── metadata/     ← 個別プラグインの詳細情報
 └── ...
 ```
 
@@ -36,6 +36,7 @@ your-server/
 
 ```jsonc title="mpm.json"
 {
+    "schemaVersion": 2,                  // ファイルのスキーマ版数
     "name": "main-server",               // プロジェクト名
     "version": "1.0.0",                  // プロジェクトのバージョン
     "plugins": {
@@ -46,6 +47,31 @@ your-server/
 ```
 
 ## フィールド詳細
+
+### 📐 schemaVersion（スキーマ版数）
+
+`mpm.json` というファイル自体の構造の版数です。現在の版数は `2` です。
+
+```json
+{
+    "schemaVersion": 2
+}
+```
+
+- **デフォルト値:** `1`（記載がない場合は旧形式として扱われます）
+- mpmが `mpm.json` を書き込むたびに現行の版数が記録されるため、手で編集する必要はありません
+- 版数が古いファイルは、サーバー起動時に自動で現行の構造へ移行されます
+
+<Callout type="warn" title="version との違い">
+`version` は「あなたのプロジェクトのバージョン」で、自由に付けられる値です。
+一方 `schemaVersion` は「mpmが定めるファイル形式の版数」で、mpmが管理します。
+名前は似ていますが役割はまったく異なるため、混同しないようご注意ください。
+</Callout>
+
+<Callout type="info" title="自動移行について">
+版数の扱いと起動時の自動移行の詳細は
+[スキーマ版数と自動移行](/docs/format/schema-migration) をご覧ください。
+</Callout>
 
 ### name（プロジェクト名）
 
@@ -93,11 +119,27 @@ your-server/
 
 | 形式 | 説明 | 例 |
 |------|------|-----|
-| `"X.Y.Z"` | 固定バージョン | `"5.4.97"` |
+| `"X.Y.Z"` | 固定バージョン（リポジトリ上のタグ表記でも正規化表記でも可） | `"5.4.97"` / `"v5.4.97"` |
 | `"latest"` | 最新バージョン | `"latest"` |
 | `"tag:チャンネル"` | リリースチャンネル指定 | `"tag:beta"` |
 | `"sync:PluginName"` | 別プラグインと同期 | `"sync:QuickShop"` |
 | `"unmanaged"` | 手動管理 | `"unmanaged"` |
+
+<Callout type="info" title="固定バージョンは更新で巻き戻りません">
+`"X.Y.Z"` のように固定バージョンを指定したプラグインは、`mpm update` やスケジュール自動更新の比較対象が
+リポジトリ上の最新バージョンではなく、この固定バージョンになります。
+`mpm pin` や [`mpm rollback`](/docs/commands/plugin-management/lifecycle) はこの形式に書き換えるため、
+固定したバージョンが次の更新で勝手に巻き戻ることはありません。
+</Callout>
+
+<Callout type="info" title="🏷️ タグ表記と正規化表記のどちらでも解決されます">
+mpm はまず、指定された文字列をリポジトリ上のバージョン名としてそのまま問い合わせます。
+見つからない場合はリリース一覧を取得し、正規化表記（バージョン番号だけを抜き出した表記）で突き合わせます。
+そのため、GitHub のように `v` 接頭辞付きのタグを使うリポジトリでも `"0.3.9"` と書けますし、
+逆にタグそのままの `"v0.3.9"` と書いても解決されます。
+ただし正規化表記で書いた場合はリリース一覧の取得が1往復余分にかかるため、
+`mpm pin` が書き込むタグそのままの表記を使うのが最も高速です。
+</Callout>
 
 #### 🏷️ tag指定（リリースチャンネル）
 
@@ -159,9 +201,19 @@ GitHubは `prerelease` の2値（true/false）しか持たないため、`tag:be
 
 **制限事項:**
 - 同期対象プラグインは `mpm.json` に存在する必要があります
-- 同期の連鎖（sync:A → sync:B）はサポートされていません
-- 循環依存（A → B → A）は検出されエラーになります
+- 同期対象プラグインが `unmanaged`（手動管理）の場合はエラーになります
+- 親が固定バージョン指定の場合、子はその文字列をそのまま追従します。親が正規化表記で書かれていても、
+  上記の解決規則によってリポジトリ上の実際のタグへ解決されます
+- 同期の連鎖（`A` ← `sync:A` の `B` ← `sync:B` の `C`）は許可されています。インストールも更新も、親に近い順に処理されます
+- 連鎖している場合でも、1回の `mpm install` で連鎖の末端まで同じバージョンに揃います。
+  親が更新される予定であれば、その更新後のバージョンを基準に子孫の要否を判定するためです。
+  親が `latest` や `tag:` のように実行してみるまでバージョンが分からない指定の場合も、
+  子孫をいったん対象に含めたうえで、親のバージョンが確定した時点で既に同期済みの子は何もせずに済ませます
+- ロック中（`lock: true`）のプラグインは、親が更新されても追従しません。
+  その子孫も「ロックされた親のバージョン」を基準に判定されるため、連鎖はそこで止まります
+- 循環依存（A → B → A、および自分自身への `sync:`）は検出されエラーになります
 - `sync:` 指定のプラグインは [`mpm pin` / `mpm pin-all`](/docs/commands/plugin-management/lifecycle) で固定できません（固定すると同期関係が壊れるため、対象から除外されます）
+- 同じ理由から、`sync:` 指定のプラグインは [`mpm rollback`](/docs/commands/plugin-management/lifecycle) の対象にもできません（親プラグインを切り戻すと、子も連動して切り戻されます）
 
 <Callout type="info" title="ユースケース">
 QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで特に便利です。
@@ -176,6 +228,7 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 
 ```json
 {
+    "schemaVersion": 2,
     "name": "my-server",
     "version": "1.0.0",
     "plugins": {
@@ -189,6 +242,7 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 
 ```json
 {
+    "schemaVersion": 2,
     "name": "production-server",
     "version": "2.0.0",
     "plugins": {
@@ -207,3 +261,4 @@ QuickShopやEssentialsXなど、多くのアドオンを持つプラグインで
 - [config.json](/docs/format/config) - mpm本体の設定ファイル（リポジトリ・Webhook・スケジュールなど）
 - [mpm-lock.yaml](/docs/format/mpm-lock) - ロックファイル（自動生成）
 - [metadata/*.yaml](/docs/format/managed) - 個別プラグインの詳細情報
+- [スキーマ版数と自動移行](/docs/format/schema-migration) - schemaVersionと起動時の自動移行

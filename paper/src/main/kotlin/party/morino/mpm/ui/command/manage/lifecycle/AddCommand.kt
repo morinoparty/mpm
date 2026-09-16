@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -13,13 +13,11 @@ import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
-import party.morino.mpm.utils.regenerateQuietly
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -35,7 +33,6 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class AddCommand : KoinComponent {
     // KoinによるDI
     private val lifecycleService: PluginLifecycleService by inject()
-    private val lockService: LockService by inject()
     private val mpmPlugin: JavaPlugin by inject()
 
     /**
@@ -121,9 +118,6 @@ class AddCommand : KoinComponent {
                 )
             }
         )
-
-        // 追加・インストール後の実際の状態をロックファイルに反映する
-        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /**
@@ -198,9 +192,6 @@ class AddCommand : KoinComponent {
                     }
                 }
             )
-
-        // 追加・インストール後の実際の状態をロックファイルに反映する
-        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /**

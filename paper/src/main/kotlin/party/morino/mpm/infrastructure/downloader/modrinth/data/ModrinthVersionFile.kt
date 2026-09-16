@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -17,11 +17,13 @@ import kotlinx.serialization.Serializable
  * @param filename ファイル名
  * @param primary プライマリファイルかどうか
  * @param hashes ファイルのハッシュ情報（SHA-1, SHA-512）
+ * @param size ファイルサイズ（バイト）。ダウンロード後の欠損検証に使用する
  */
 @Serializable
 data class ModrinthVersionFile(
     val url: String,
     val filename: String,
     val primary: Boolean,
-    val hashes: ModrinthVersionFileHashes? = null
+    val hashes: ModrinthVersionFileHashes? = null,
+    val size: Long = 0
 )

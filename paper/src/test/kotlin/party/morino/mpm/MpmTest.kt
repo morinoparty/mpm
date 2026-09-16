@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -32,6 +32,8 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.config.model.ConfigData
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.migration.SchemaMigrator
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
@@ -49,8 +51,10 @@ import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.migration.SchemaMigratorImpl
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.mock.config.PluginDirectoryMock
@@ -102,6 +106,9 @@ class MpmTest :
                     }
                 }
 
+                // スキーマ移行の登録（本番のDIグラフと構成を揃えるため。テストからは呼び出さない）
+                single<SchemaMigrator> { SchemaMigratorImpl() }
+
                 // リポジトリマネージャーの登録
                 single<RepositoryManager> {
                     RepositorySourceManagerFactory.create(get(), get())
@@ -114,6 +121,9 @@ class MpmTest :
 
                 // メタデータマネージャーの登録
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
+
+                // pluginsディレクトリのスキャナーの登録
+                single<InstalledJarScanner> { InstalledJarScannerImpl() }
 
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }

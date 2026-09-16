@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright
- * and related and neighboring rights to this software to the public domain worldwide.
- * This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -101,8 +99,12 @@ class MpmProject private constructor(
      * 以下のエラーをチェックする:
      * - ターゲットプラグインが存在しない
      * - ターゲットがunmanagedである
-     * - ターゲットもSync指定である
-     * - 循環依存がある
+     * - 循環依存がある（自己参照を含む）
+     *
+     * 多段 sync（`A <- sync:A の B <- sync:B の C`）は許可する。
+     * 更新経路は多段でも親から順に追従を伝播できるため、ここで拒否すると
+     * インストール経路だけが失敗して挙動が食い違うためである。
+     * 判定は DTO 側の [party.morino.mpm.api.domain.project.dto.validateSyncDependencies] と同一。
      */
     fun validateSyncDependencies(): Either<MpmError, Unit> {
         // 各プラグインのSync依存関係をチェック
@@ -123,7 +125,7 @@ class MpmProject private constructor(
                     ).left()
             }
 
-            // ターゲットがUnmanagedの場合はエラー
+            // ターゲットがUnmanagedの場合はエラー（追従すべきバージョンが管理されていない）
             if (targetSpec is PluginSpec.Unmanaged) {
                 return MpmError.ProjectError
                     .SyncDependencyError(
@@ -131,14 +133,7 @@ class MpmProject private constructor(
                     ).left()
             }
 
-            // ターゲットもSync指定の場合はエラー
-            val targetManaged = targetSpec as? PluginSpec.Managed
-            if (targetManaged?.versionRequirement is VersionSpecifier.Sync) {
-                return MpmError.ProjectError
-                    .SyncDependencyError(
-                        "Plugin '${pluginName.value}' syncs to '${sync.targetPlugin}' which also uses sync"
-                    ).left()
-            }
+            // ターゲットがSync指定（多段sync）であっても、循環していなければ追従は成立するため許可する
         }
 
         // 循環依存をチェック
@@ -152,7 +147,9 @@ class MpmProject private constructor(
     /**
      * Sync依存関係における循環依存を検出する
      *
-     * DFS（深さ優先探索）を使用して循環を検出する
+     * DFS（深さ優先探索）を使用して循環を検出する。
+     * 多段 sync を許可したため、`A -> B -> A` に加えて `A -> A`（自己参照）も
+     * ここで唯一検出される。
      *
      * @return 循環が見つかった場合は循環を構成するプラグイン名のリスト、見つからない場合はnull
      */

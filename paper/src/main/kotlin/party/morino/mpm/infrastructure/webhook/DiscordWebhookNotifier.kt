@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -204,6 +204,7 @@ class DiscordWebhookNotifier :
             WebhookEventType.LOCK -> events.lock
             WebhookEventType.UNLOCK -> events.unlock
             WebhookEventType.OUTDATED -> events.outdated
+            WebhookEventType.FILE_DELETE -> events.fileDelete
         }
 
     /**

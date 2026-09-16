@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -43,6 +43,67 @@ class SyncOutdatedAdjusterTest {
     }
 
     @Test
+    @DisplayName("Sync child follows root's pinned target while inheriting the upstream latest")
+    fun syncChildFollowsPinnedRoot() {
+        // 根が 1.0.0 に固定（target）されていて上流には 2.0.0（latest）がある。
+        // 子は根の固定値に揃うべきで、needsUpdate は target との比較で決まる
+        val outdated =
+            listOf(
+                OutdatedInfo(
+                    "Root",
+                    currentVersion = "1.0.0",
+                    latestVersion = "2.0.0",
+                    targetVersion = "1.0.0",
+                    needsUpdate = false
+                ),
+                OutdatedInfo("Child", currentVersion = "1.0.0", latestVersion = "9.9.9", needsUpdate = true)
+            )
+
+        val adjusted = adjustSyncOutdated(outdated, mapOf("Child" to "Root"))
+
+        val child = adjusted.first { it.pluginName == "Child" }
+        // 更新先は根の固定値、上流の最新は根の latest を引き継ぐ
+        assertEquals("1.0.0", child.targetVersion)
+        assertEquals("2.0.0", child.latestVersion)
+        assertFalse(child.needsUpdate, "根の固定値と一致している子は更新不要であるべき")
+        assertTrue(child.hasNewerUpstream)
+    }
+
+    @Test
+    @DisplayName("Sync child compares versions after normalization, not by raw string")
+    fun syncChildComparesNormalizedVersions() {
+        // 根は mpm.json の固定値 "0.3.10"（正規化表記）、子は GitHub のタグ "v0.3.10" で記録されている。
+        // raw 同士では一致しないが、同じ版なので更新不要と判定されるべき
+        val outdated =
+            listOf(
+                OutdatedInfo(
+                    "MineAuth",
+                    currentVersion = "v0.3.10",
+                    latestVersion = "0.3.10",
+                    targetVersion = "0.3.10",
+                    needsUpdate = false
+                ),
+                OutdatedInfo(
+                    "MineAuth-addon-vault",
+                    currentVersion = "v0.3.10",
+                    latestVersion = "v0.3.10",
+                    needsUpdate = false
+                )
+            )
+
+        val adjusted =
+            adjustSyncOutdated(
+                outdated,
+                mapOf("MineAuth-addon-vault" to "MineAuth"),
+                versionPatterns = mapOf("MineAuth-addon-vault" to null)
+            )
+
+        val child = adjusted.first { it.pluginName == "MineAuth-addon-vault" }
+        assertEquals("0.3.10", child.targetVersion)
+        assertFalse(child.needsUpdate, "正規化すれば同じ版なので更新不要であるべき")
+    }
+
+    @Test
     @DisplayName("Sync child already at parent version is not outdated")
     fun syncChildAlreadySynced() {
         // 親も子も 2.0.0（同期済み）。子のリポジトリlatestが新しくても更新不要と判定される
@@ -57,6 +118,42 @@ class SyncOutdatedAdjusterTest {
         val child = adjusted.first { it.pluginName == "Child" }
         assertEquals("2.0.0", child.latestVersion)
         assertFalse(child.needsUpdate, "親と同期済みの子は更新不要であるべき")
+    }
+
+    @Test
+    @DisplayName("Grandchild in a three-level chain follows the root's latest")
+    fun multiLevelSyncFollowsRoot() {
+        // 根: 1.0.0 → 2.0.0、中間と孫はそれぞれ自身のリポジトリに別の最新版を持つ。
+        // 中間の 3.0.0 を引いてしまうと、孫だけが実際には入らない版を追うことになる。
+        val outdated =
+            listOf(
+                OutdatedInfo("Root", currentVersion = "1.0.0", latestVersion = "2.0.0", needsUpdate = true),
+                OutdatedInfo("Middle", currentVersion = "1.0.0", latestVersion = "3.0.0", needsUpdate = true),
+                OutdatedInfo("Leaf", currentVersion = "1.0.0", latestVersion = "5.0.0", needsUpdate = true)
+            )
+
+        val adjusted = adjustSyncOutdated(outdated, mapOf("Middle" to "Root", "Leaf" to "Middle"))
+
+        // 中間も孫も根のlatestに揃う
+        assertEquals("2.0.0", adjusted.first { it.pluginName == "Middle" }.latestVersion)
+        assertEquals("2.0.0", adjusted.first { it.pluginName == "Leaf" }.latestVersion)
+        assertTrue(adjusted.first { it.pluginName == "Leaf" }.needsUpdate)
+    }
+
+    @Test
+    @DisplayName("Circular sync targets are left unchanged instead of looping")
+    fun circularSyncIsLeftUnchanged() {
+        // 手で編集されたmpm.jsonの循環sync。この経路はバリデーションを通らないため実際に流れてくる
+        val outdated =
+            listOf(
+                OutdatedInfo("A", currentVersion = "1.0.0", latestVersion = "2.0.0", needsUpdate = true),
+                OutdatedInfo("B", currentVersion = "1.0.0", latestVersion = "3.0.0", needsUpdate = true)
+            )
+
+        val adjusted = adjustSyncOutdated(outdated, mapOf("A" to "B", "B" to "A"))
+
+        // 追従先が定まらないため補正せずそのまま返す（無限ループもしない）
+        assertEquals(outdated, adjusted)
     }
 
     @Test

@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -17,6 +17,7 @@ import org.koin.core.component.inject
 import party.morino.mpm.api.domain.webhook.WebhookEventType
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
+import party.morino.mpm.event.lifecycle.PluginJarDeleteEvent
 import party.morino.mpm.event.lifecycle.PluginRemoveEvent
 import party.morino.mpm.event.lifecycle.PluginUninstallEvent
 import party.morino.mpm.event.state.PluginLockEvent
@@ -159,6 +160,34 @@ class WebhookEventListener :
                 listOf(
                     "Plugin" to event.installedPlugin.pluginId,
                     "Version" to event.currentVersion
+                )
+        )
+    }
+
+    /**
+     * JARファイル直接削除イベントの通知
+     * PluginJarDeleteEventはCancellableではないためignoreCancelledは不要
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    fun onPluginJarDelete(event: PluginJarDeleteEvent) {
+        if (!webhookNotifier.isEventEnabled(WebhookEventType.FILE_DELETE)) return
+
+        // 実行中のJARは停止時まで残るため、削除済みか予約済みかを区別して伝える
+        val description =
+            if (event.deferred) {
+                "JARファイル '${event.fileName}' の削除が予約されました（サーバー停止時に削除されます）"
+            } else {
+                "JARファイル '${event.fileName}' が削除されました"
+            }
+        webhookNotifier.notify(
+            eventType = WebhookEventType.FILE_DELETE,
+            title = "Plugin File Deleted",
+            description = description,
+            color = COLOR_RED,
+            fields =
+                listOf(
+                    "File" to event.fileName,
+                    "Deferred" to event.deferred.toString()
                 )
         )
     }

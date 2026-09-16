@@ -17,6 +17,5 @@
 
 ## 続けて作業する
 
-現在行っている作業が終了したら、codex(model GPT-5.4, effort xhigh)のskillを使ってreviewを受けてください。
-その後修正を行い、再度reviewを受け、問題がなければbranchを切ってcommit push pr作成を行ってください。
+現在行っている作業が終了したら、branchを切ってcommit push pr作成を行ってください。
 その後、issueの一覧を取得し、続けて作業をしてください。

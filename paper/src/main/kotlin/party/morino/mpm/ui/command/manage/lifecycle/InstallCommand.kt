@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -10,12 +10,9 @@
 package party.morino.mpm.ui.command.manage.lifecycle
 
 import org.bukkit.command.CommandSender
-import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
-import party.morino.mpm.utils.regenerateQuietly
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -31,8 +28,6 @@ import revxrsal.commands.bukkit.annotation.CommandPermission
 class InstallCommand : KoinComponent {
     // KoinによるDI
     private val updateService: PluginUpdateService by inject()
-    private val lockService: LockService by inject()
-    private val plugin: JavaPlugin by inject()
 
     /**
      * mpm.jsonに定義されたプラグインを一括インストールするコマンド
@@ -103,12 +98,6 @@ class InstallCommand : KoinComponent {
                 } else if (result.failed.isEmpty()) {
                     // すべて成功した場合
                     sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。")
-                }
-
-                // frozenインストールはロックファイルどおりに導入するだけなので再生成しない。
-                // 通常インストール後は、実際の状態を反映するためロックファイルを再生成する
-                if (!frozen) {
-                    lockService.regenerateQuietly(plugin.logger)
                 }
             }
         )

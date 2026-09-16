@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -14,11 +14,14 @@ import arrow.core.getOrElse
 import arrow.core.left
 import arrow.core.right
 import com.charleskorn.kaml.Yaml
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
 import party.morino.mpm.api.domain.downloader.model.VersionData
+import party.morino.mpm.api.domain.migration.SchemaVersions
 import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.dto.MetadataDownloadInfoDto
 import party.morino.mpm.api.domain.plugin.dto.MpmInfoDto
@@ -31,10 +34,14 @@ import party.morino.mpm.api.domain.plugin.dto.version.VersionManagementDto
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryConfig
+import party.morino.mpm.infrastructure.migration.AtomicFileWriter
+import party.morino.mpm.infrastructure.migration.SchemaVersionGuard
 import java.io.File
+import java.nio.file.Files
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * プラグインメタデータ管理の実装クラス
@@ -44,6 +51,36 @@ import java.time.format.DateTimeFormatter
 class PluginMetadataManagerImpl :
     PluginMetadataManager,
     KoinComponent {
+    companion object {
+        // 読み込めなくなったメタデータの退避先に付与する拡張子
+        private const val QUARANTINE_SUFFIX = ".corrupt"
+
+        // 退避先の連番の上限。これを超えたら退避先を作らずエラーにする（原本は消さない）
+        private const val MAX_QUARANTINE_INDEX = 99
+
+        // メタデータの「読み込み→加工→保存」を直列化するプラグイン単位のロック。
+        // 定期チェックの書き戻しも、add / install / update / lock / unlock の書き込みも、
+        // すべてこの同じロックを経由させることで、両者が互いを巻き戻せないようにしている。
+        //
+        // companion object（JVM的には静的）に置いているのは意図的である。
+        // 本番では Koin の single で1インスタンスだが、テストなどが直接 new した
+        // インスタンスと同じロックを共有できないと、直列化が無音で効かなくなるため。
+        //
+        // キーはプラグイン名。ロックの取得自体は名前の検証より前に行われるため、
+        // 不正な名前でもエントリは作られる（名前の拒否は loadMetadata / saveMetadata 側で行う）。
+        // ただし Mutex は小さく、到達経路も mpm.json と認証付きHTTP APIに限られるので、
+        // 通常の運用では管理対象プラグインの数（高々数十）に収まる。よって破棄処理は設けない。
+        private val metadataLocks = ConcurrentHashMap<String, Mutex>()
+
+        /**
+         * プラグイン名に対応するロックを取得する（無ければ生成する）
+         *
+         * @param pluginName プラグイン名
+         * @return そのプラグイン専用のMutex
+         */
+        private fun lockFor(pluginName: String): Mutex = metadataLocks.computeIfAbsent(pluginName) { Mutex() }
+    }
+
     // Koinによる依存性注入
     private val pluginDirectory: PluginDirectory by inject()
 
@@ -90,20 +127,68 @@ class PluginMetadataManagerImpl :
     private fun resolveMetadataFile(
         metadataDir: File,
         pluginName: String
+    ): Either<String, File> = resolveInMetadataDir(metadataDir, pluginName) { "$it.yaml" }
+
+    /**
+     * metadataディレクトリ直下のファイルパスを安全に解決する
+     *
+     * [resolveMetadataFile] と退避先（`.corrupt`）の解決で同じ防御を使い回すための共通処理。
+     * 退避先にもサニタイズと正規化パス検証を必ず通すことで、防御を迂回する経路を作らない。
+     *
+     * @param metadataDir metadataディレクトリ
+     * @param pluginName プラグイン名
+     * @param fileName サニタイズ済みの名前から実ファイル名を組み立てる関数
+     * @return 安全に解決できた場合はFile、不正な場合はエラーメッセージ
+     */
+    private fun resolveInMetadataDir(
+        metadataDir: File,
+        pluginName: String,
+        fileName: (String) -> String
     ): Either<String, File> {
         val safeName = sanitizePluginName(pluginName).getOrElse { return it.left() }
-        val metadataFile = File(metadataDir, "$safeName.yaml")
+        val resolved = File(metadataDir, fileName(safeName))
 
         // 正規化後のパスが metadata ディレクトリ直下を指すか検証する
         // canonicalFileの解決に失敗した場合も安全側に倒して拒否する
         val withinDir =
             runCatching {
-                metadataFile.canonicalFile.parentFile == metadataDir.canonicalFile
+                resolved.canonicalFile.parentFile == metadataDir.canonicalFile
             }.getOrElse { false }
         if (!withinDir) {
             return "不正なプラグイン名です: $pluginName".left()
         }
-        return metadataFile.right()
+        return resolved.right()
+    }
+
+    /**
+     * まだ使われていない退避先ファイルを決める
+     *
+     * `<名前>.yaml.corrupt` から順に、既存ファイルとぶつからない連番を探す。
+     * 上書きしないのは、過去に退避した原本（復旧の唯一の手がかり）を失わないため。
+     *
+     * @param metadataDir metadataディレクトリ
+     * @param pluginName プラグイン名
+     * @return 空いている退避先、見つからない場合はエラーメッセージ
+     */
+    private fun findQuarantineDestination(
+        metadataDir: File,
+        pluginName: String
+    ): Either<String, File> {
+        for (index in 0..MAX_QUARANTINE_INDEX) {
+            // 0番目は連番なしの `.corrupt`、以降は `.corrupt.1` のように連番を付ける
+            val suffix = if (index == 0) "" else ".$index"
+            val candidate =
+                resolveInMetadataDir(metadataDir, pluginName) {
+                    "$it.yaml$QUARANTINE_SUFFIX$suffix"
+                }.getOrElse { return it.left() }
+            if (!candidate.exists()) {
+                return candidate.right()
+            }
+        }
+        return (
+            "退避先のファイル名が枯渇しました: $pluginName.yaml$QUARANTINE_SUFFIX ～ " +
+                "$pluginName.yaml$QUARANTINE_SUFFIX.$MAX_QUARANTINE_INDEX"
+        ).left()
     }
 
     override suspend fun createMetadata(
@@ -182,6 +267,65 @@ class PluginMetadataManagerImpl :
         return metadata.right()
     }
 
+    /**
+     * プラグイン単位のロックを取って [block] を実行する
+     *
+     * ロックの所有者は呼び出し側であり、[loadMetadata] / [saveMetadata] などは自分では
+     * ロックを取らない。詳しい呼び出し規約は [PluginMetadataManager.withMetadataLock] を参照。
+     */
+    override suspend fun <T> withMetadataLock(
+        pluginName: String,
+        block: suspend () -> T
+    ): T = lockFor(pluginName).withLock { block() }
+
+    /**
+     * 更新チェックの結果をメタデータへ記録する
+     *
+     * 定期チェックはインストール処理と並行して走りうるため、書き込みは [withMetadataLock] と
+     * 同じプラグイン単位のロックの中で行う。ロックを共有しているので、インストール経路の
+     * 「読み込み→加工→保存」がこのチェックの書き戻しと交差することはない。
+     *
+     * その上で、ロックの中でも書き込み直前にメタデータを読み直し、そこへ `latest` と
+     * `lastChecked` だけを載せて保存する。これはロックを経由しない書き手（起動時のスキーマ
+     * マイグレーションなど）に対する二重の防御で、最悪でも自分が書こうとした latest を
+     * 落とすだけで済み（次回のチェックで書き直される）、インストール状態は決して壊さない。
+     *
+     * ロックを内部で取るため、[withMetadataLock] のブロックの中から呼んではならない。
+     */
+    override suspend fun recordCheckResult(
+        pluginName: String,
+        latestVersion: String
+    ): Either<String, Boolean> =
+        withMetadataLock(pluginName) {
+            // 書き込み直前の内容を基準にする（並行して行われた更新を巻き戻さないため）
+            val current = loadMetadata(pluginName).getOrElse { return@withMetadataLock it.left() }
+
+            val previousLatestRaw = current.mpmInfo.version.latest.raw
+            val changed = previousLatestRaw != latestVersion
+
+            val normalizedLatest =
+                VersionDetail.normalizeWithPattern(latestVersion, current.mpmInfo.versionPattern)
+            val now = Instant.now().atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT)
+
+            val updated =
+                current.copy(
+                    mpmInfo =
+                        current.mpmInfo.copy(
+                            version =
+                                current.mpmInfo.version.copy(
+                                    latest =
+                                        VersionDetailDto(
+                                            raw = latestVersion,
+                                            normalized = normalizedLatest
+                                        ),
+                                    lastChecked = now
+                                )
+                        )
+                )
+
+            saveMetadata(pluginName, updated).map { changed }
+        }
+
     override suspend fun updateMetadata(
         pluginName: String,
         versionData: VersionData,
@@ -259,6 +403,16 @@ class PluginMetadataManagerImpl :
         }
     }
 
+    /**
+     * メタデータを metadata/xxx.yaml に保存する
+     *
+     * ディスク上のファイルが現行スキーマ版数より新しい場合は、書き込むと
+     * ダウングレードになってしまうため保存せずにエラーを返す。
+     *
+     * @param pluginName プラグイン名
+     * @param metadata 保存するメタデータ
+     * @return 成功した場合はUnit、失敗した場合は理由
+     */
     override fun saveMetadata(
         pluginName: String,
         metadata: ManagedPluginDto
@@ -272,13 +426,134 @@ class PluginMetadataManagerImpl :
         // 安全なファイルパスを解決（パストラバーサル防止）
         val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
 
-        // メタデータをYAML形式で保存
+        // 未来版数のファイルを巻き戻さないためのガード（書き込み前に必ず判定する）
+        SchemaVersionGuard.ensureYamlWritable(metadataFile).onLeft { return it.left() }
+
+        // 書き込み時は常に現行スキーマ版数をスタンプする
+        // （マイグレート済みの metadata が保存のたびにレガシー版数へ巻き戻るのを防ぐ）
+        val stamped = metadata.copy(schemaVersion = SchemaVersions.CURRENT)
+
+        // シリアライズ失敗はファイルに触れる前に弾く（Either を返す契約のため例外を漏らさない）
+        val yamlString =
+            runCatching { Yaml.default.encodeToString(ManagedPluginDto.serializer(), stamped) }
+                .getOrElse { return "メタデータの保存に失敗しました: ${it.message}".left() }
+
+        // 一時ファイル経由で置換する。直接 writeText すると書き込み途中のクラッシュで
+        // 半端なYAMLが残り、次回の読み込みが「破損」と判定して退避＋作り直しに進んでしまう。
+        // その作り直しでは lock などの設定が失われるため、他の永続化処理と同じく原子的に書き換える。
+        return AtomicFileWriter.write(metadataFile, yamlString)
+    }
+
+    /**
+     * メタデータファイルを置き換え（上書き・退避して作り直し）てよいかを判定する
+     *
+     * ディスク上のファイルを読むだけで、いかなる副作用も持たない。
+     * ダウンロードやJARの差し替え、イベント発火といった破壊的・不可逆な操作に入る前に呼び、
+     * 中止すべき場合は何も壊していない段階で引き返すために使う。
+     *
+     * @param pluginName プラグイン名
+     * @return 置き換えてよい場合はUnit、未来のスキーマ版数のため中止すべき場合はその理由
+     */
+    override fun ensureMetadataReplaceable(pluginName: String): Either<String, Unit> {
+        // 判定対象の特定にも通常の読み書きと同じパス検証を通す（パストラバーサル防止）
+        val metadataDir = pluginDirectory.getMetadataDirectory()
+        val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
+
+        // 「上書きしてよいか」と「退避して作り直してよいか」は同じ判定でよい。
+        // どちらも現行版数のファイルで既存の内容を実質的に置き換える破壊的操作であり、
+        // 未来版数のファイルに対してだけ拒否したいという条件が一致するため。
+        return SchemaVersionGuard.ensureYamlWritable(metadataFile)
+    }
+
+    /**
+     * 読み込めなくなったメタデータファイルを退避（隔離）する
+     *
+     * 移動は同一ディレクトリ内のリネームであり、失敗しても原本はその場に残る。
+     * 退避先は必ず未使用の名前を選ぶため、[Files.move] に REPLACE_EXISTING は渡さない。
+     *
+     * @param pluginName プラグイン名
+     * @return 退避した場合はその退避先ファイル、対象ファイルが存在しない場合はnull、失敗時はエラーメッセージ
+     */
+    override fun quarantineMetadata(pluginName: String): Either<String, File?> {
+        // 退避元も通常の読み書きと同じパス検証を通す（パストラバーサル防止）
+        val metadataDir = pluginDirectory.getMetadataDirectory()
+        val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
+
+        // そもそもファイルが無ければ退避するものは無い（新規インストールの通常経路）
+        if (!metadataFile.exists()) {
+            return null.right()
+        }
+
+        // 未来版数のファイルは「破損」ではなく「このmpmでは解釈できないだけ」なので退避しない。
+        // 退避してしまうと原本が消え、続く作り直しで SchemaVersionGuard が
+        // 「新規作成」としか見えなくなり、ダウングレード防止が迂回される。
+        // 呼び出し側は事前に ensureMetadataReplaceable で中止できるが、
+        // 経路の増減に関わらず必ず守られるようここでも判定する。
+        SchemaVersionGuard.ensureYamlWritable(metadataFile).onLeft { return it.left() }
+
+        val destination = findQuarantineDestination(metadataDir, pluginName).getOrElse { return it.left() }
+
         return try {
-            val yamlString = Yaml.default.encodeToString(ManagedPluginDto.serializer(), metadata)
-            metadataFile.writeText(yamlString)
+            Files.move(metadataFile.toPath(), destination.toPath())
+            destination.right()
+        } catch (e: Exception) {
+            "メタデータの退避に失敗しました: ${e.message}".left()
+        }
+    }
+
+    /**
+     * 退避したメタデータファイルを元の場所へ戻す
+     *
+     * 退避と同じディレクトリ内のリネームであり、失敗しても退避先の内容はその場に残る。
+     * 元のパスを上書きしないため [Files.move] に REPLACE_EXISTING は渡さない。
+     *
+     * @param pluginName プラグイン名
+     * @param quarantinedFile [quarantineMetadata] が返した退避先ファイル
+     * @return 戻せた場合はUnit、失敗時はエラーメッセージ
+     */
+    override fun restoreQuarantinedMetadata(
+        pluginName: String,
+        quarantinedFile: File
+    ): Either<String, Unit> {
+        // 戻し先も通常の読み書きと同じパス検証を通す（パストラバーサル防止）
+        val metadataDir = pluginDirectory.getMetadataDirectory()
+        val metadataFile = resolveMetadataFile(metadataDir, pluginName).getOrElse { return it.left() }
+
+        // 退避先として渡されたパスも metadata ディレクトリ直下であることを検証する。
+        // 呼び出し側が持ち回った File をそのまま信用すると、防御を迂回する経路になりうる
+        val withinDir =
+            runCatching {
+                quarantinedFile.canonicalFile.parentFile == metadataDir.canonicalFile
+            }.getOrElse { false }
+        if (!withinDir) {
+            return "不正な退避先です: ${quarantinedFile.path}".left()
+        }
+
+        // ディレクトリ境界だけでは「このプラグインの退避成果物か」までは担保できない。
+        // 別プラグインの健全な `Other.yaml` を渡されると、それを
+        // `<このプラグイン名>.yaml` へ移動して Other のメタデータを無音で失わせてしまう。
+        // 退避先の命名規則（[findQuarantineDestination]）に一致することまで検証する
+        val safeName = sanitizePluginName(pluginName).getOrElse { return it.left() }
+        if (!quarantinedFile.name.startsWith("$safeName.yaml$QUARANTINE_SUFFIX")) {
+            return "不正な退避先です: ${quarantinedFile.path}".left()
+        }
+
+        // 退避先が無ければ戻すものが無い（既に手動で戻された場合など）
+        if (!quarantinedFile.exists()) {
+            return "退避したメタデータが見つかりません: ${quarantinedFile.name}".left()
+        }
+
+        // 元のパスに何かある場合は上書きしない。
+        // 読めないファイルで有効なファイルを潰す方が被害が大きいため、失敗として報告する
+        if (metadataFile.exists()) {
+            return "元のメタデータファイルが既に存在するため戻せません: ${metadataFile.name}".left()
+        }
+
+        return try {
+            Files.move(quarantinedFile.toPath(), metadataFile.toPath())
             Unit.right()
         } catch (e: Exception) {
-            "メタデータの保存に失敗しました: ${e.message}".left()
+            "メタデータの復元に失敗しました: ${e.message}".left()
         }
     }
 

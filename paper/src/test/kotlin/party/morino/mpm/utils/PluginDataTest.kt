@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -10,15 +10,11 @@
 package party.morino.mpm.utils
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.yaml.snakeyaml.LoaderOptions
-import org.yaml.snakeyaml.Yaml
-import org.yaml.snakeyaml.constructor.SafeConstructor
 import party.morino.mpm.api.model.plugin.PluginData
-import party.morino.mpm.utils.PluginDataUtils
 import java.io.File
 
 class PluginDataTest {
@@ -38,68 +34,43 @@ class PluginDataTest {
     }
 
     @Test
-    @DisplayName("parseApiVersion preserves trailing zero from SnakeYAML float")
-    fun testParseApiVersionTrailingZero() {
-        // SnakeYAML parses "api-version: 1.20" as Double 1.2
-        assertEquals("1.20", PluginDataUtils.parseApiVersion(1.2))
+    @DisplayName("extractRawApiVersion keeps unquoted 1.9 as written")
+    fun testExtractRawApiVersionSingleDigitMinor() {
+        // 以前は 1.9 が 1.90 に化けて 1.21 サーバーで非互換扱いになっていた
+        assertEquals("1.9", PluginDataUtils.extractRawApiVersion("name: Foo\napi-version: 1.9\nmain: a.b.C\n"))
     }
 
     @Test
-    @DisplayName("parseApiVersion keeps normal version string as-is")
-    fun testParseApiVersionString() {
+    @DisplayName("extractRawApiVersion distinguishes unquoted 1.20 from 1.2")
+    fun testExtractRawApiVersionTrailingZero() {
+        assertEquals("1.20", PluginDataUtils.extractRawApiVersion("api-version: 1.20"))
+        assertEquals("1.2", PluginDataUtils.extractRawApiVersion("api-version: 1.2"))
+    }
+
+    @Test
+    @DisplayName("extractRawApiVersion strips quotes, comments and CRLF")
+    fun testExtractRawApiVersionQuotesCommentsCrlf() {
+        assertEquals("1.20", PluginDataUtils.extractRawApiVersion("api-version: '1.20'"))
+        assertEquals("1.21", PluginDataUtils.extractRawApiVersion("api-version: \"1.21\""))
+        assertEquals("1.13", PluginDataUtils.extractRawApiVersion("api-version: 1.13 # oldest supported"))
+        assertEquals("1.21", PluginDataUtils.extractRawApiVersion("name: Foo\r\napi-version:\t1.21\r\nmain: a\r\n"))
+        assertEquals("1.20", PluginDataUtils.extractRawApiVersion("\uFEFFapi-version: 1.20\nname: Foo\n"))
+    }
+
+    @Test
+    @DisplayName("extractRawApiVersion ignores nested keys and returns null when absent")
+    fun testExtractRawApiVersionNestedAndMissing() {
+        // ネストした api-version はトップレベルのキーではないので拾わない
+        assertNull(PluginDataUtils.extractRawApiVersion("dependencies:\n  api-version: 1.20\n"))
+        assertNull(PluginDataUtils.extractRawApiVersion("name: Foo\n"))
+        assertNull(PluginDataUtils.extractRawApiVersion("api-version:\n"))
+    }
+
+    @Test
+    @DisplayName("parseApiVersion fallback stringifies without guessing trailing zero")
+    fun testParseApiVersionFallback() {
         assertEquals("1.21", PluginDataUtils.parseApiVersion("1.21"))
-        assertEquals("1.20", PluginDataUtils.parseApiVersion("1.20"))
-    }
-
-    @Test
-    @DisplayName("parseApiVersion handles multi-digit minor version")
-    fun testParseApiVersionMultiDigit() {
-        // SnakeYAML parses "api-version: 1.21" as Double 1.21
-        assertEquals("1.21", PluginDataUtils.parseApiVersion(1.21))
-        assertEquals("1.13", PluginDataUtils.parseApiVersion(1.13))
-    }
-
-    @Test
-    @DisplayName("parseApiVersion handles null and empty")
-    fun testParseApiVersionNullEmpty() {
+        assertEquals("1.9", PluginDataUtils.parseApiVersion(1.9))
         assertEquals("", PluginDataUtils.parseApiVersion(null))
-        assertEquals("", PluginDataUtils.parseApiVersion(""))
-    }
-
-    @Test
-    @DisplayName("SnakeYAML cannot distinguish unquoted 1.2 from 1.20")
-    fun testSnakeYamlCannotDistinguish() {
-        val yaml = Yaml(SafeConstructor(LoaderOptions()))
-
-        // SnakeYAML parses both as the same Double
-        val parsed120 = yaml.load<Map<String, Any>>("api-version: 1.20")
-        val parsed12 = yaml.load<Map<String, Any>>("api-version: 1.2")
-        assertEquals(
-            parsed120["api-version"],
-            parsed12["api-version"],
-            "SnakeYAML treats unquoted 1.2 and 1.20 as the same Double"
-        )
-
-        // parseApiVersion restores trailing zero for both
-        assertEquals("1.20", PluginDataUtils.parseApiVersion(parsed120["api-version"]))
-        assertEquals("1.20", PluginDataUtils.parseApiVersion(parsed12["api-version"]))
-    }
-
-    @Test
-    @DisplayName("Quoted strings are preserved correctly by SnakeYAML")
-    fun testSnakeYamlQuotedStringsPreserved() {
-        val yaml = Yaml(SafeConstructor(LoaderOptions()))
-
-        // Quoted values are preserved as strings
-        val quoted120 = yaml.load<Map<String, Any>>("api-version: '1.20'")
-        val quoted12 = yaml.load<Map<String, Any>>("api-version: '1.2'")
-
-        assertEquals("1.20", PluginDataUtils.parseApiVersion(quoted120["api-version"]))
-        assertEquals("1.2", PluginDataUtils.parseApiVersion(quoted12["api-version"]))
-        assertNotEquals(
-            PluginDataUtils.parseApiVersion(quoted120["api-version"]),
-            PluginDataUtils.parseApiVersion(quoted12["api-version"]),
-            "Quoted strings should be distinguishable"
-        )
     }
 }

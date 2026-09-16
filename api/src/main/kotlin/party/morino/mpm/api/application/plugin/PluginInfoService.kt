@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright
- * and related and neighboring rights to this software to the public domain worldwide.
- * This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -17,6 +15,7 @@ import party.morino.mpm.api.application.model.outdated.OutdatedCheckResult
 import party.morino.mpm.api.application.model.outdated.OutdatedInfo
 import party.morino.mpm.api.application.model.verify.VerifyEntry
 import party.morino.mpm.api.application.plugin.model.detail.PluginDetail
+import party.morino.mpm.api.domain.plugin.dto.version.HistoryEntryDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionDetail
@@ -44,6 +43,17 @@ interface PluginInfoService {
      * @return バージョン一覧
      */
     suspend fun getVersions(name: PluginName): Either<MpmError, List<VersionDetail>>
+
+    /**
+     * 指定プラグインのインストール履歴を取得する
+     *
+     * メタデータ（metadata/<plugin>.yaml）に記録された履歴を、古い順のまま返す。
+     * `mpm rollback` の切り戻し先解決や、web console の履歴表示から利用する。
+     *
+     * @param name プラグイン名
+     * @return 履歴エントリ一覧（古い順）。メタデータが無い場合は [MpmError.PluginError.MetadataNotFound]
+     */
+    suspend fun getHistory(name: PluginName): Either<MpmError, List<HistoryEntryDto>>
 
     /**
      * 指定プラグインの更新情報を取得する

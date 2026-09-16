@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright
- * and related and neighboring rights to this software to the public domain worldwide.
- * This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -95,6 +93,20 @@ object VersionSpecifierParser {
     fun isTagFormat(versionString: String): Boolean =
         versionString.startsWith(TAG_PREFIX, ignoreCase = true) &&
             versionString.length > TAG_PREFIX.length
+
+    /**
+     * バージョン文字列が「動的にバージョンが決まる指定」かどうかを判定する
+     *
+     * latestとtag:は解決のたびにバージョンが変わりうるため、
+     * cron自動更新の駆動要因となる。Fixed / sync: / pattern: は動的ではない。
+     *
+     * 判定は [parse] と同じく大文字小文字を区別しない
+     *
+     * @param versionString 判定対象のバージョン文字列
+     * @return latestまたはtag:形式の場合はtrue
+     */
+    fun isDynamic(versionString: String): Boolean =
+        versionString.equals("latest", ignoreCase = true) || isTagFormat(versionString)
 
     /**
      * Tag形式のバージョン文字列からタグ名を抽出する

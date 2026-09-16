@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -80,20 +80,6 @@ class ServerBackupManagerImpl :
                 // マスタースイッチが無効な場合はバックアップを作成しない
                 if (!backupSettings.enabled) {
                     return@withContext MpmError.BackupError.Failed("バックアップ機能が無効化されています").left()
-                }
-
-                // update/install起因の自動バックアップは、それぞれの設定が無効な場合はスキップする
-                // （手動バックアップはマスタースイッチのみに従う）
-                when (reason) {
-                    BackupReason.UPDATE ->
-                        if (!backupSettings.autoBackupOnUpdate) {
-                            return@withContext MpmError.BackupError.Failed("update時の自動バックアップは無効化されています").left()
-                        }
-                    BackupReason.INSTALL ->
-                        if (!backupSettings.autoBackupOnInstall) {
-                            return@withContext MpmError.BackupError.Failed("install時の自動バックアップは無効化されています").left()
-                        }
-                    BackupReason.MANUAL -> Unit
                 }
 
                 val pluginsDir = pluginDirectory.getPluginsDirectory()

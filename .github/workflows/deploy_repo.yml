@@ -1,0 +1,96 @@
+name: deploy repo
+
+# mpmのプラグインカタログを配信するCloudflare Workerをデプロイする。
+#
+# repo/ 配下の変更時に自動デプロイする。加えて、委譲先のindexを取り込んだ
+# スナップショットを新鮮に保つため週次でも実行する
+# （スナップショットは委譲先がダウンしたときの「床」になるため、
+#  古いまま放置すると障害時に配信される定義が古くなる）。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "repo/**"
+      - ".github/workflows/deploy_repo.yml"
+  schedule:
+    # 毎週月曜 04:00 JST (19:00 UTC 日曜)
+    - cron: "0 19 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# デプロイの同時実行を防ぐ（後発が先発を追い越して古い内容を配信しないように）
+concurrency:
+  group: deploy-repo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # mpm はルートに package.json を持たないため、pnpm のバージョンを読む
+      # package.json を明示する（repo/package.json の packageManager を参照させる）
+      - uses: pnpm/action-setup@v6
+        name: Install pnpm
+        with:
+          run_install: false
+          package_json_file: repo/package.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ./repo/pnpm-lock.yaml
+
+      - name: Install
+        working-directory: repo
+        run: pnpm install --frozen-lockfile
+
+      # gen:list は委譲先のindexを取得してスナップショットを更新する。
+      # 委譲先が落ちていても既存スナップショットを保って続行するが、
+      # 前回あったプラグインが消えていた場合はここで失敗する（単調性チェック）。
+      - name: Generate catalog
+        working-directory: repo
+        run: pnpm run gen:list
+
+      # 生成物がコミット済みの内容と食い違ったら、そのまま配信せず知らせる。
+      # 委譲先に新しいプラグインが増えた場合はここで差分が出るので、
+      # スナップショットを更新するコミットを入れるきっかけになる。
+      - name: Report generated diff
+        working-directory: repo
+        run: |
+          if ! git diff --quiet -- public/paper; then
+            echo "::notice::生成物がコミット済みの内容と異なります（委譲先の更新が取り込まれました）"
+            git diff --stat -- public/paper
+          fi
+
+      # デプロイ用の認証情報は BSM morinoparty プロジェクトから取得する
+      # （他リポジトリの Worker デプロイと同じ方式）
+      - name: Get deploy credentials from Bitwarden Secrets Manager
+        uses: bitwarden/sm-action@v3.0.1
+        with:
+          access_token: ${{ secrets.NIKOMARU_BITWARDEN_SECRET_MANAGER_ACCESS_TOKEN }}
+          secrets: |
+            d1a5c5d9-41cc-48f0-9035-b49901583491 > CLOUDFLARE_API_TOKEN
+            030fee6d-fdc5-4434-9d3d-b4c30037356a > CLOUDFLARE_ACCOUNT_ID
+
+      # sm-action は env にしか出さないため、wrangler-action の with: から参照できるよう output 化
+      - name: Expose deploy credentials as step outputs
+        id: bws-deploy
+        run: |
+          echo "cloudflare_api_token=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_OUTPUT"
+          echo "cloudflare_account_id=$CLOUDFLARE_ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ steps.bws-deploy.outputs.cloudflare_api_token }}
+          accountId: ${{ steps.bws-deploy.outputs.cloudflare_account_id }}
+          workingDirectory: repo
+          command: deploy

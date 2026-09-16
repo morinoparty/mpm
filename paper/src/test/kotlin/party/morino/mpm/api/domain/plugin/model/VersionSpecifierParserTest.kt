@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright and related
- * and neighboring rights to this software to the public domain worldwide.
- * This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -179,6 +177,26 @@ class VersionSpecifierParserTest {
         fun testExtractSyncTargetSpecialChars() {
             val result = VersionSpecifierParser.extractSyncTarget("sync:QuickShop-Hikari-Addon")
             assertEquals("QuickShop-Hikari-Addon", result)
+        }
+    }
+
+    @Nested
+    @DisplayName("isDynamic() tests")
+    inner class IsDynamicTest {
+        @Test
+        @DisplayName("isDynamic accepts latest and tag only")
+        fun testIsDynamic() {
+            // latest と tag: だけが cron 自動更新の駆動要因となる
+            assertTrue(VersionSpecifierParser.isDynamic("latest"))
+            assertTrue(VersionSpecifierParser.isDynamic("LATEST"))
+            assertTrue(VersionSpecifierParser.isDynamic("tag:stable"))
+            // 固定・sync・pattern・unmanaged は動的ではない
+            assertFalse(VersionSpecifierParser.isDynamic("1.2.3"))
+            assertFalse(VersionSpecifierParser.isDynamic("sync:QuickShop"))
+            assertFalse(VersionSpecifierParser.isDynamic("pattern:^1\\..*"))
+            assertFalse(VersionSpecifierParser.isDynamic("unmanaged"))
+            // タグ名が空の "tag:" は Tag 形式として扱わない
+            assertFalse(VersionSpecifierParser.isDynamic("tag:"))
         }
     }
 }

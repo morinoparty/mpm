@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -10,6 +10,7 @@
 package party.morino.mpm.api.domain.project.dto
 
 import kotlinx.serialization.Serializable
+import party.morino.mpm.api.domain.migration.SchemaVersions
 
 /**
  * mpm.json ファイルのデータ構造
@@ -18,6 +19,9 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class MpmConfig(
+    // ファイルのスキーマ版数（フィールドが無いレガシーファイルは1として扱う）
+    // 注: プロジェクト自体のバージョンである version とは別物
+    val schemaVersion: Int = SchemaVersions.LEGACY,
     // プロジェクト名
     val name: String,
     // プロジェクトのバージョン

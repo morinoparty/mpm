@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -9,7 +9,13 @@
 
 package party.morino.mpm.infrastructure.plugin.service
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -56,6 +62,95 @@ class PluginMetadataManagerImplTest {
                 )
             assertTrue(result.isLeft())
             assertTrue(result.leftOrNull()?.contains("不正な") == true)
+        }
+    }
+
+    @Test
+    @DisplayName("recordCheckResult reports whether latest moved, and only touches latest")
+    fun recordCheckResultTracksLatestChange() {
+        runBlocking {
+            val name = "RecordCheckPlugin"
+            val metadata =
+                manager
+                    .createMetadata(
+                        pluginName = name,
+                        repository = RepositoryConfig(type = "modrinth", repositoryId = "test"),
+                        versionData = VersionData(downloadId = "dl", version = "1.0.0"),
+                        action = "install",
+                        channel = null
+                    ).getOrNull()!!
+            manager.saveMetadata(name, metadata)
+
+            // 新しい上流リリースを検知した回は true
+            val first = manager.recordCheckResult(name, "2.0.0")
+            assertTrue(first.isRight())
+            assertTrue(first.getOrNull() == true)
+
+            // 同じ値をもう一度書き込んでも、変化なしとして false
+            val second = manager.recordCheckResult(name, "2.0.0")
+            assertTrue(second.getOrNull() == false)
+
+            // latest と lastChecked 以外は書き換えない（履歴も伸びない）
+            val stored = manager.loadMetadata(name).getOrNull()!!
+            assertEquals("2.0.0", stored.mpmInfo.version.latest.raw)
+            assertEquals("1.0.0", stored.mpmInfo.version.current.raw)
+            assertEquals("dl", stored.mpmInfo.download.downloadId)
+            assertEquals(metadata.mpmInfo.history.size, stored.mpmInfo.history.size)
+
+            manager.deleteMetadata(name)
+        }
+    }
+
+    @Test
+    @DisplayName("withMetadataLock serializes concurrent access for the same plugin")
+    fun withMetadataLockSerializesSamePlugin() {
+        runBlocking {
+            val name = "LockPlugin"
+            // 先行するコルーチンにロックを握らせ、解放の合図を待たせる
+            val holderEntered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val holder =
+                launch {
+                    manager.withMetadataLock(name) {
+                        holderEntered.complete(Unit)
+                        release.await()
+                    }
+                }
+            holderEntered.await()
+
+            // ロックが握られている間、同じプラグインへの取得は待たされる
+            val blocked = withTimeoutOrNull(200) { manager.withMetadataLock(name) { true } }
+            assertNull(blocked)
+
+            // 解放後は待っていた側が進める
+            release.complete(Unit)
+            holder.join()
+            val afterRelease = withTimeout(1000) { manager.withMetadataLock(name) { true } }
+            assertTrue(afterRelease)
+        }
+    }
+
+    @Test
+    @DisplayName("withMetadataLock does not block a different plugin")
+    fun withMetadataLockIsPerPlugin() {
+        runBlocking {
+            val holderEntered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val holder =
+                launch {
+                    manager.withMetadataLock("PluginA") {
+                        holderEntered.complete(Unit)
+                        release.await()
+                    }
+                }
+            holderEntered.await()
+
+            // ロックはプラグイン単位なので、別プラグインは待たされない
+            val other = withTimeout(1000) { manager.withMetadataLock("PluginB") { true } }
+            assertTrue(other)
+
+            release.complete(Unit)
+            holder.join()
         }
     }
 

@@ -1,0 +1,109 @@
+---
+title: キャッシュ
+description: HTTPメタデータキャッシュの確認と削除を行うコマンドです
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+HTTPメタデータキャッシュの確認と削除を行うコマンドです。
+
+## 概要
+
+`mpm cache` コマンドは、mpmが上流リポジトリ（Modrinth / Hangar / SpigotMC / GitHub）から取得したメタデータのキャッシュを管理します。
+
+バージョン一覧やプロジェクト情報の取得は、`mpm outdated` や `mpm versions` を実行するたびに繰り返し発生します。
+mpmはこれらのレスポンスを短いTTLでキャッシュすることで、ネットワーク往復とAPIレート制限の消費を抑えています。
+キャッシュ対象はメタデータのみで、プラグインのJARファイルはキャッシュされません。
+
+<Callout type="info" title="必要な権限">
+`mpm cache` の各サブコマンドには `mpm.command.cache` パーミッションが必要です。
+</Callout>
+
+## コマンド一覧
+
+<CommandList category="cache" />
+
+## 使い方
+
+### 🗂️ キャッシュ一覧の確認
+
+```bash
+/mpm cache list
+```
+
+キャッシュされているエントリを、取得日時の新しい順に表示します。各エントリには以下の情報が表示されます。
+
+| 表示項目 | 説明 |
+|---------|------|
+| 状態 | `[FRESH]`（有効）または `[EXPIRED]`（TTLを超過、または読み取れない壊れたエントリ） |
+| URL | キャッシュ元のリクエストURL（60文字を超える場合は末尾が省略されます）。エントリが壊れている場合はファイル名が表示されます |
+| サイズ | エントリファイルのサイズ |
+| 取得日時 | キャッシュに保存された日時 |
+
+<Callout type="info" title="表示件数の上限">
+チャット欄を埋め尽くさないよう、一覧に表示されるのは最大15件です。
+15件を超える場合は「... 他 N 件」と残りの件数が表示されます。
+</Callout>
+
+### 📏 キャッシュサイズの確認
+
+```bash
+/mpm cache size
+```
+
+キャッシュディレクトリ全体の合計サイズとファイル数を表示します。
+TTLを超過したエントリが残っている場合は、その件数と `/mpm cache clean --expired` の案内も表示されます。
+
+### 🧹 キャッシュの削除
+
+```bash
+# すべてのキャッシュを削除する
+/mpm cache clean
+
+# TTLを超過したエントリのみを削除する
+/mpm cache clean --expired
+```
+
+削除したエントリ数と解放されたサイズが表示されます。削除対象がない場合はその旨が表示されます。
+
+| コマンド | 削除される範囲 |
+|---------|---------------|
+| `/mpm cache clean` | `plugins/mpm/cache/` 配下のすべてのファイル |
+| `/mpm cache clean --expired` | TTLを超過したメタデータエントリと、読み取れない壊れたエントリ |
+
+<Callout type="info" title="キャッシュを消しても壊れません">
+キャッシュはあくまで取得結果の控えです。削除しても管理情報は失われず、次回のコマンド実行時に上流から再取得されます。
+上流でバージョンを公開したのにmpmが古い情報を返す場合は、`/mpm cache clean` を実行してから再度お試しください。
+</Callout>
+
+## キャッシュディレクトリ構造
+
+キャッシュは `plugins/mpm/cache/` 配下に保存されます。
+メタデータのエントリは、リクエストURLのSHA-256ハッシュをファイル名とするJSONファイルです。
+
+```
+plugins/mpm/
+└── cache/
+    └── metadata/
+        ├── 1a2b3c....json    # キャッシュエントリ（URLのSHA-256ハッシュ.json）
+        └── 4d5e6f....json
+```
+
+## 自動的な整理
+
+キャッシュはコマンドから削除しなくても、一定回数の書き込みごとに自動で整理されます。
+
+- TTL（`metadataTtlSeconds`）を超過したエントリは削除されます
+- エントリ数が上限（`maxMetadataEntries`）を超えた場合、最終更新が古いものから削除されます
+
+整理は書き込み20回ごとに行われるため、`mpm cache list` に `[EXPIRED]` のエントリが残っていることがあります。
+すぐに片付けたい場合は `/mpm cache clean --expired` を実行してください。
+
+TTLや上限の値は `config.json` の `settings.cache` で変更できます。詳しくは
+[プラグイン設定（config.json）](/docs/format/config)をご覧ください。
+
+## 関連ドキュメント
+
+- [プラグイン設定 (config.json)](/docs/format/config) - キャッシュのTTL・エントリ数上限の設定
+- [ライフサイクル管理コマンド](/docs/commands/plugin-management/lifecycle) - プラグインのインストール・更新
+- [バックアップコマンド](/docs/commands/backup) - プラグインのバックアップ・リストア

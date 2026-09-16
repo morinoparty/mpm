@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -14,6 +14,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.health.DoctorReport
 import party.morino.mpm.api.application.health.DoctorService
+import party.morino.mpm.application.plugin.describeTransition
 import party.morino.mpm.utils.escapeMiniMessage
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Description
@@ -103,11 +104,22 @@ class DoctorCommand : KoinComponent {
             sender.sendRichMessage("<yellow>⚠ 更新があります:</yellow>")
             report.outdatedPlugins.forEach {
                 val name = it.pluginName.escapeMiniMessage()
-                val cur = it.currentVersion.escapeMiniMessage()
-                val latest = it.latestVersion.escapeMiniMessage()
-                sender.sendRichMessage("<yellow>  - $name: $cur → $latest</yellow>")
+                sender.sendRichMessage("<yellow>  - $name: ${it.describeTransition().escapeMiniMessage()}</yellow>")
             }
             sender.sendRichMessage("<gray>    → 'mpm update' で更新できます。</gray>")
+        }
+
+        // 📌 固定バージョンが上流に置いていかれている（情報）
+        // 'mpm update' では変わらないため、更新可能とは分けて pin の見直しを促す
+        if (report.pinnedBehindUpstream.isNotEmpty()) {
+            sender.sendRichMessage("<yellow>📌 固定バージョンより新しい版があります:</yellow>")
+            report.pinnedBehindUpstream.forEach {
+                val name = it.pluginName.escapeMiniMessage()
+                val cur = it.currentVersion.escapeMiniMessage()
+                val latest = it.latestVersion.escapeMiniMessage()
+                sender.sendRichMessage("<yellow>  - $name: $cur (最新: $latest)</yellow>")
+            }
+            sender.sendRichMessage("<gray>    → 'mpm add <plugin> latest' で最新追従に戻せます。</gray>")
         }
 
         // 🟡 管理外プラグイン（情報）
@@ -128,10 +140,13 @@ class DoctorCommand : KoinComponent {
         when {
             report.hasProblems ->
                 sender.sendRichMessage("<red>対処が必要な項目があります。上記のヒントを参照してください。</red>")
-            report.outdatedPlugins.isEmpty() && report.unmanagedPlugins.isEmpty() && report.warnings.isEmpty() ->
+            report.outdatedPlugins.isEmpty() &&
+                report.pinnedBehindUpstream.isEmpty() &&
+                report.unmanagedPlugins.isEmpty() &&
+                report.warnings.isEmpty() ->
                 sender.sendRichMessage("<green>✓ 問題は見つかりませんでした。すべて健全です。</green>")
             else ->
-                sender.sendRichMessage("<green>✓ 異常はありません（更新・管理外・未完了チェックは情報です）。</green>")
+                sender.sendRichMessage("<green>✓ 異常はありません（更新・固定・管理外・未完了チェックは情報です）。</green>")
         }
     }
 }

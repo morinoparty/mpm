@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -13,6 +13,7 @@ import org.bukkit.command.CommandSender
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.application.plugin.describeTransition
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Description
 import revxrsal.commands.annotation.Subcommand
@@ -53,18 +54,29 @@ class OutdatedCommand : KoinComponent {
 
                 // 更新が必要なプラグインのみフィルタリング
                 val needsUpdateList = result.outdatedPlugins.filter { it.needsUpdate }
+                // 更新先には揃っているが、固定バージョンより新しい版が上流にあるもの（mpm update では変わらない）
+                val pinnedBehindList = result.outdatedPlugins.filter { !it.needsUpdate && it.hasNewerUpstream }
 
-                if (needsUpdateList.isEmpty() && result.errors.isEmpty()) {
+                if (needsUpdateList.isEmpty() && pinnedBehindList.isEmpty() && result.errors.isEmpty()) {
                     sender.sendRichMessage("<green>すべてのプラグインは最新です。</green>")
                 } else {
                     if (needsUpdateList.isNotEmpty()) {
                         sender.sendRichMessage("<yellow>以下のプラグインに更新があります:</yellow>")
                         needsUpdateList.forEach { outdatedInfo ->
                             sender.sendRichMessage(
-                                "  - ${outdatedInfo.pluginName}: ${outdatedInfo.currentVersion} → ${outdatedInfo.latestVersion}"
+                                "  - ${outdatedInfo.pluginName}: ${outdatedInfo.describeTransition()}"
                             )
                         }
                         sender.sendRichMessage("<gray>更新するには 'mpm update' を実行してください。</gray>")
+                    }
+                    if (pinnedBehindList.isNotEmpty()) {
+                        sender.sendRichMessage("<yellow>📌 固定バージョンより新しい版があります:</yellow>")
+                        pinnedBehindList.forEach { info ->
+                            sender.sendRichMessage(
+                                "  - ${info.pluginName}: ${info.currentVersion} (最新: ${info.latestVersion})"
+                            )
+                        }
+                        sender.sendRichMessage("<gray>'mpm add <plugin> latest' で最新追従に戻せます。</gray>")
                     }
                 }
             }

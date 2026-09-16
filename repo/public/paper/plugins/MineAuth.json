@@ -4,6 +4,13 @@
   "license": "GPL-3.0-or-later",
   "website": "https://modrinth.com/plugin/mineauth",
   "source": "https://github.com/morinoparty/MineAuth",
+  "delegate": {
+    "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json",
+    "allowedSources": [
+      "github:morinoparty/MineAuth",
+      "modrinth:9LoU3yUC"
+    ]
+  },
   "repositories": [
     {
       "type": "modrinth",

@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright
- * and related and neighboring rights to this software to the public domain worldwide.
- * This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -81,8 +79,8 @@ class DoctorServiceImpl :
                 infoService.list(PluginFilter.UNMANAGED).map { it.name.value }
             }
 
-        // 4. 更新可能なプラグイン
-        val outdatedPlugins =
+        // 4. 更新チェック（更新可能なもの / 固定バージョンが上流に置いていかれているもの）
+        val checkedPlugins =
             runDiagnostic("更新チェック", warnings, emptyList()) {
                 infoService.checkAllOutdated().fold(
                     {
@@ -92,10 +90,15 @@ class DoctorServiceImpl :
                     { result ->
                         // 個別プラグインのチェックエラーは警告として記録する
                         result.errors.forEach { warnings.add("${it.pluginName}: ${it.errorMessage}") }
-                        result.outdatedPlugins.filter { it.needsUpdate }
+                        result.outdatedPlugins
                     }
                 )
             }
+        // `mpm update` で更新先へ揃うもの
+        val outdatedPlugins = checkedPlugins.filter { it.needsUpdate }
+        // 更新先には揃っているが、固定バージョンより新しい版が上流にあるもの。
+        // needsUpdate と重ねて数えないよう、更新が不要なものに限る（issue #452）
+        val pinnedBehindUpstream = checkedPlugins.filter { !it.needsUpdate && it.hasNewerUpstream }
 
         // 5. ロックファイルのドリフト
         val lock = lockService.find()
@@ -124,7 +127,8 @@ class DoctorServiceImpl :
             outdatedPlugins = outdatedPlugins,
             missingFromLock = missingFromLock,
             staleLockEntries = staleLockEntries,
-            warnings = warnings
+            warnings = warnings,
+            pinnedBehindUpstream = pinnedBehindUpstream
         ).right()
     }
 

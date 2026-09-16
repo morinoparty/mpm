@@ -1,4 +1,5 @@
 {
+  "schemaVersion": 2,
   "repositories": [
     {
       "type": "local",
@@ -18,8 +19,7 @@
     "schedule": {
       "enabled": false,
       "cron": "0 4 * * *",
-      "checkOnStartup": true,
-      "dryRun": false
+      "checkOnStartup": true
     }
   }
 }

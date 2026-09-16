@@ -1,3 +1,12 @@
+/*
+ * Written in 2026 by Nikomaru <nikomaru@nikomaru.dev>
+ *
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
+ *
+ * You should have received a copy of the CC0 Public Domain Dedication along with this software.
+ * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+ */
+
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import xyz.jpenilla.resourcefactory.bukkit.bukkitPluginYaml
 
@@ -58,6 +67,11 @@ dependencies {
 
     // Test dependencies
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // MineAuth API はプロダクションでは compileOnly だが、
+    // HTTP ハンドラーの登録契約（アノテーション・シリアライズ可能性）を検証するため
+    // テストではクラスパスに載せる
+    testImplementation(libs.mineauth.api)
 
     testImplementation(libs.bundles.junit)
     testImplementation(libs.bundles.koin.test)
@@ -150,7 +164,10 @@ sourceSets.main {
         }
         bukkitPluginYaml {
             name = "mpm"
-            version = "miencraft_plugin_version"
+            // paperPluginYaml と同じく project.version を使う。
+            // 以前はプレースホルダー文字列がそのまま埋め込まれており、
+            // 配布されたjarのplugin.ymlに文字列が残っていた。
+            version = project.version.toString()
             website = "https://mpm.plugin.morino.party"
             main = "$group.mpm.Mpm"
             apiVersion = "1.20"
@@ -186,7 +203,8 @@ publishing {
         create<MavenPublication>("maven") {
             groupId = group.toString()
             artifactId = "mpm-app"
-            version = version
+            // MavenPublication.version への自己代入になっていたため project.version を明示する
+            version = project.version.toString()
             from(components["kotlin"])
         }
     }

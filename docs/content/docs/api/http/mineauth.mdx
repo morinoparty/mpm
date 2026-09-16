@@ -17,7 +17,8 @@ mpmはMineAuthの`MineAuthApi`（v2）に対応しています。サーバー起
 
 1. `MineAuth` プラグインがサーバーに存在するか確認する
 2. 存在する場合、Bukkitの`ServicesManager`経由で`MineAuthApi`インスタンスを取得する
-3. 取得できた場合のみ、mpmのハンドラーを`mpm`名前空間で登録する
+3. エラー応答に使う`HttpError`を1度だけ生成し、MineAuth側のクラスと正しくリンクできるか検証する
+4. すべて成功した場合のみ、mpmのハンドラーを`mpm`名前空間で登録する
 
 登録はall-or-nothingで行われます。いずれかのエンドポイントが検証に失敗した場合は何もマウントされず、
 検証エラーの一覧を含む警告ログを出力したうえで連携を無効化します。いずれの場合もmpm本体の起動は継続します。
@@ -27,70 +28,445 @@ mpmはMineAuthの`MineAuthApi`（v2）に対応しています。サーバー起
 | --- | --- | --- |
 | MineAuth未導入 | `MineAuth not found - HTTP API integration disabled` | 連携なしで起動 |
 | APIサービス取得不可 | `MineAuth found but MineAuthApi service is unavailable - HTTP API integration disabled` | 連携なしで起動 |
-| 登録検証エラー | `MineAuth endpoint registration failed - HTTP API will be unavailable: ...` | 連携なしで起動 |
+| `HttpError`の生成に失敗（クラスローダー不整合） | `MineAuth integration failed: HttpError could not be constructed (...) - HTTP API will be unavailable. ...` | 連携なしで起動 |
+| 登録検証エラー | `MineAuth integration failed (...): ... - HTTP API will be unavailable` | 連携なしで起動 |
 | 連携成功 | `MineAuth integration enabled - N endpoints registered under /api/v1/plugins/mpm/` | エンドポイント有効化 |
 
 ## 認証・権限
 
-登録されるすべてのエンドポイントは`@Authenticated`により認証必須で、権限 `mpm.api` によって保護されます。
+登録されるすべてのエンドポイントは`@Authenticated`により認証必須です。
+権限は、サーバーの状態を変更しない読み取り専用の操作と、状態を変更する操作とで分割されています。
 
-- **ユーザートークン**: 権限 `mpm.api` を持つプレイヤーのトークンからのみアクセスできます。
-- **サービストークン**: 各エンドポイントが `callers` にサービストークンを明示的に許可しているためアクセスできます。サービストークンは管理者が発行する信頼された資格情報であり、`mpm.api` 権限の評価対象外です。
+| パーミッション | 対象 |
+| --- | --- |
+| `mpm.api.read` | 一覧・詳細・バージョン・履歴・依存関係・診断・検索・ジョブ状態の参照など、読み取り専用のエンドポイント |
+| `mpm.api.write` | 更新・インストール・アンインストール・ロック・バージョン切り替え・ジョブの受付など、状態を変更するエンドポイント |
+| `mpm.api` | 上記2つを子に持つ親パーミッション（後方互換のために維持されます） |
+
+従来どおり `mpm.api` を付与した場合は、これまでと同じくすべてのエンドポイントにアクセスできます。
+閲覧専用のトークンを発行したい場合は `mpm.api.read` のみを付与してください。
+
+- **ユーザートークン**: 対応する権限を持つプレイヤーのトークンからのみアクセスできます。
+- **サービストークン**: 各エンドポイントが `callers` にサービストークンを明示的に許可しているためアクセスできます。
 
 :::info
+`permission` はユーザープリンシパルに対して評価されます。
+サービストークンは管理者が発行する信頼された資格情報であるため権限の評価対象外で、
+エンドポイントごとの `callers` によってアクセスの可否が決まります。
+したがって `mpm.api.read` / `mpm.api.write` の分割はユーザートークンに対して働き、
+サービストークンについては `callers` がアクセス制御になります。
+
 MineAuth v2では、旧APIにあった「サービストークンによる権限の暗黙的なバイパス」は廃止され、
-エンドポイントごとに `callers` で明示的に許可する方式に変わりました。mpmの全エンドポイントは
-ユーザートークン・サービストークンの両方を許可するよう設定されています。
+エンドポイントごとに `callers` で明示的に許可する方式に変わりました。
+mpmの全エンドポイントは、ユーザートークン・サービストークンの両方を許可するよう設定しています。
 :::
 
 ## エンドポイント一覧
 
 すべてのエンドポイントは `/api/v1/plugins/mpm/` を起点にマウントされます。
 
+### 読み取り系（`mpm.api.read`）
+
 | メソッド | パス | 説明 |
 | --- | --- | --- |
-| GET | `/plugins` | 管理中のプラグイン一覧を取得する |
-| GET | `/plugins/outdated` | 更新可能なプラグインの一覧を取得する |
+| GET | `/plugins` | プラグイン一覧を取得する（`filter` で絞り込み可能） |
+| GET | `/plugins/outdated` | 更新チェックの結果を取得する |
+| GET | `/plugins/verify` | インストール済みプラグインの整合性を再検証する |
+| GET | `/plugins/{name}` | プラグインの詳細情報を取得する |
+| GET | `/plugins/{name}/versions` | 利用可能なバージョン一覧を取得する |
+| GET | `/plugins/{name}/metadata` | メタデータ（ダウンロード元・sha256・履歴）を取得する |
+| GET | `/plugins/{name}/history` | インストール履歴を取得する |
+| GET | `/plugins/{name}/deps` | 依存関係情報を取得する |
+| GET | `/doctor` | サーバーのプラグイン管理状態を一括診断する |
+| GET | `/search` | リポジトリを横断してプラグインを検索する |
+| GET | `/repositories` | 設定されているリポジトリソースの一覧を取得する |
+| GET | `/jars` | `plugins/` 直下のjarファイル一覧を取得する |
+| GET | `/jobs` | 非同期ジョブの一覧を取得する |
+| GET | `/jobs/{id}` | 非同期ジョブの進捗と結果を取得する |
+
+### 書き込み系（`mpm.api.write`）
+
+| メソッド | パス | 説明 |
+| --- | --- | --- |
 | POST | `/plugins/update` | 管理中の全プラグインを一括更新する |
 | POST | `/plugins/{name}/update` | 指定したプラグインを更新する |
+| POST | `/plugins/{name}/version` | 指定したプラグインを任意のバージョンに切り替える |
+| POST | `/plugins/{name}/add` | 指定したプラグインを管理対象に追加する |
 | POST | `/plugins/{name}/install` | 指定したプラグインをインストールする |
 | POST | `/plugins/{name}/uninstall` | 指定したプラグインをアンインストールする |
+| POST | `/plugins/{name}/lock` | 指定したプラグインをロックする |
+| POST | `/plugins/{name}/unlock` | 指定したプラグインのロックを解除する |
+| DELETE | `/jars/{fileName}` | `plugins/` 直下のjarファイルを直接削除する |
+| POST | `/jobs` | 時間のかかる処理を非同期ジョブとして受け付ける |
 
-### GET /plugins
+## 読み取り系エンドポイント
 
-管理中のプラグインを一覧取得します。
+### GET `/plugins`
+
+プラグインを一覧取得します。クエリパラメータ `filter` で対象を絞り込めます。
+
+| `filter` | 対象 |
+| --- | --- |
+| 省略 / `all` | mpmの管理下にあるプラグイン（既定値） |
+| `managed` | mpmの管理下にあるプラグイン |
+| `unmanaged` | mpmの管理下にないプラグイン（`plugins/` ディレクトリを走査した結果） |
+| `outdated` | 更新が利用可能なプラグイン |
+| `locked` | ロックされているプラグイン |
+
+値は大文字小文字を区別しません。未知の値を指定した場合は `400 Bad Request` を返します。
 
 ```json title="レスポンス例"
 [
   {
     "name": "QuickShop-Hikari",
+    "status": "MANAGED",
+    "isManaged": true,
     "currentVersion": "6.1.0.0",
     "latestVersion": "6.1.0.0",
     "isLocked": false,
     "isOutdated": false,
-    "description": "A powerful and easy-to-use shop plugin"
+    "description": "A powerful and easy-to-use shop plugin",
+    "author": "Ghost_chu",
+    "repository": { "type": "MODRINTH", "id": "quickshop-hikari" },
+    "lastChecked": "2026-08-29T00:00:00Z"
   }
 ]
 ```
 
-### GET /plugins/outdated
+`status` はエントリの由来を表します。
 
-更新が可能なプラグインのみを一覧取得します。
+| `status` | 意味 |
+| --- | --- |
+| `MANAGED` | mpm.jsonに登録され、メタデータも正常に読み込めたプラグイン |
+| `UNMANAGED` | mpmの管理下にないプラグイン |
+| `METADATA_UNAVAILABLE` | mpm.jsonには登録されているが、メタデータファイルを読み込めなかったプラグイン |
+
+:::info
+`status` が `MANAGED` 以外のエントリは、バージョンやリポジトリの情報を持ちません。
+これらのフィールドは内部のセンチネル文字列（`"unmanaged"` / `"unknown"`）ではなく `null` として返されます。
+クライアントは `currentVersion` などがnullでありうる前提で実装してください。
+:::
+
+### GET `/plugins/outdated`
+
+管理中のプラグインについて更新チェックを実行し、その結果を返します。
+チェックに成功したプラグインは `outdated`、チェックに失敗したプラグインは `errors` に入ります。
+
+実際に更新が必要かどうかは各エントリの `needsUpdate` で判定してください。
+`currentVersion` と `latestVersion` の文字列比較では判定できません。
+mpm内部の判定は正規化済みのバージョン同士を比較しているため、表記の揺れがあると結果が食い違います。
+
+各エントリは「上流の最新」と「更新先」を分けて持ちます。
+
+| フィールド | 意味 |
+|---|---|
+| `latestVersion` | リポジトリが今提供している最新バージョン。`mpm.json` の指定に関わらず常に上流を参照します |
+| `targetVersion` | `mpm.json` の指定が指す更新先。固定バージョンならその固定値、`latest` / `tag:` なら `latestVersion` と同じです |
+| `needsUpdate` | `currentVersion` と `targetVersion` の正規化済み比較。`POST /plugins/update` が揃えるのはこの差分です |
+| `hasNewerUpstream` | `latestVersion` と `targetVersion` が異なるか。固定バージョンのプラグインが上流に置いていかれている目印です |
+
+固定バージョンのプラグインは `needsUpdate: false` のまま `hasNewerUpstream: true` になりえます。
+これは更新操作では解消されず、指定の見直し（`latest` へ戻す、または `POST /plugins/{name}/version` で切り替える）が必要です。
+
+```json title="レスポンス例"
+{
+  "outdated": [
+    {
+      "name": "GriefPrevention",
+      "currentVersion": "17.0.1",
+      "latestVersion": "17.0.2",
+      "targetVersion": "17.0.2",
+      "needsUpdate": true,
+      "hasNewerUpstream": false
+    },
+    {
+      "name": "PlasmoVoice",
+      "currentVersion": "spigot-2.1.3",
+      "latestVersion": "spigot-2.1.16",
+      "targetVersion": "spigot-2.1.3",
+      "needsUpdate": false,
+      "hasNewerUpstream": true
+    }
+  ],
+  "errors": [
+    {
+      "name": "SomePlugin",
+      "errorMessage": "Repository not found for SomePlugin"
+    }
+  ]
+}
+```
+
+### GET `/plugins/verify`
+
+インストール済み管理下プラグインのJARのsha256を計算し、メタデータに保存されたハッシュと照合します。
+ネットワークアクセスは行いません。
 
 ```json title="レスポンス例"
 [
   {
-    "name": "GriefPrevention",
-    "currentVersion": "17.0.1",
-    "latestVersion": "17.0.2"
+    "name": "QuickShop-Hikari",
+    "status": "OK",
+    "expectedSha256": "3f2a...",
+    "actualSha256": "3f2a..."
   }
 ]
 ```
 
-### POST /plugins/update
+`status` は `OK` / `MISMATCH`（不一致）/ `NO_HASH`（ハッシュ未保存）/ `FILE_MISSING`（JARが見つからない）のいずれかです。
+
+### GET `/plugins/{name}`
+
+プラグインの詳細情報を取得します。リポジトリのプロジェクト情報APIを参照するため、ネットワークアクセスが発生します。
+
+```json title="レスポンス例"
+{
+  "name": "QuickShop-Hikari",
+  "slug": "quickshop-hikari",
+  "source": "MODRINTH",
+  "description": "A powerful and easy-to-use shop plugin",
+  "homepage": "https://modrinth.com/plugin/quickshop-hikari",
+  "license": "GPL-3.0",
+  "downloads": 123456,
+  "latestVersion": "6.2.0.0",
+  "installedVersion": "6.1.0.0",
+  "isLocked": false
+}
+```
+
+### GET `/plugins/{name}/versions`
+
+インストール可能なバージョンの一覧を新しい順に取得します。バージョン切り替えの選択肢を表示する用途を想定しています。
+
+```json title="レスポンス例"
+[
+  { "raw": "v6.2.0.0", "normalized": "6.2.0" },
+  { "raw": "v6.1.0.0", "normalized": "6.1.0" }
+]
+```
+
+:::warning
+バージョンはリポジトリ定義の**最初のソースからのみ**解決されます。
+複数のダウンロード元が設定されたプラグインでは、2番目以降のソースのバージョンはこの一覧に現れません。
+:::
+
+:::info
+上流リポジトリからのバージョン一覧の取得に失敗した場合は `503 Service Unavailable` を返します。
+リクエスト自体は正当なため、時間を置いてから再試行してください。
+:::
+
+### GET `/plugins/{name}/metadata`
+
+`metadata/<plugin>.yaml` に記録された情報を返します。ダウンロード元・sha256・インストール履歴を含みます。
+メタデータが存在しない場合は `404 Not Found` を返します。
+
+`latestVersion` は直近の更新チェック（`GET /plugins/outdated` やスケジュール実行）が記録した
+上流の最新バージョンで、`mpm.json` の指定が固定バージョンであっても上流の値が入ります。
+更新先の指定を知りたい場合は `GET /plugins/outdated` の `targetVersion` を参照してください。
+
+```json title="レスポンス例"
+{
+  "name": "QuickShop-Hikari",
+  "description": "A powerful and easy-to-use shop plugin",
+  "author": "Ghost_chu",
+  "website": null,
+  "repository": { "type": "MODRINTH", "id": "quickshop-hikari" },
+  "currentVersion": "6.1.0.0",
+  "latestVersion": "6.1.0.0",
+  "lastChecked": "2026-08-29T00:00:00Z",
+  "download": {
+    "downloadId": "AbCdEfGh",
+    "fileName": "QuickShop-Hikari-6.1.0.0.jar",
+    "url": "https://api.modrinth.com/v2/version/AbCdEfGh/file",
+    "sha256": "3f2a..."
+  },
+  "isLocked": false,
+  "history": [
+    { "version": "6.0.9.0", "installedAt": "2026-06-01T00:00:00Z", "action": "install" },
+    { "version": "6.1.0.0", "installedAt": "2026-08-01T00:00:00Z", "action": "update" }
+  ]
+}
+```
+
+### GET `/plugins/{name}/history`
+
+インストール履歴のみを古い順に取得します。詳細ページの履歴表示を想定した軽量なエンドポイントです。
+
+```json title="レスポンス例"
+[
+  { "version": "6.0.9.0", "installedAt": "2026-06-01T00:00:00Z", "action": "install" },
+  { "version": "6.1.0.0", "installedAt": "2026-08-01T00:00:00Z", "action": "update" }
+]
+```
+
+### GET `/plugins/{name}/deps`
+
+依存関係タブが1リクエストで描画できるよう、依存情報・依存ツリー・逆依存・依存経路をまとめて返します。
+クエリパラメータ `soft=true` を指定すると、依存ツリーに `softdepend` も含めます。
+
+```json title="レスポンス例"
+{
+  "name": "QuickShop-Hikari",
+  "info": {
+    "pluginName": "QuickShop-Hikari",
+    "depend": ["Vault"],
+    "softDepend": ["PlaceholderAPI"],
+    "loadBefore": []
+  },
+  "tree": {
+    "root": {
+      "pluginName": "QuickShop-Hikari",
+      "isInstalled": true,
+      "isRequired": true,
+      "children": [
+        { "pluginName": "Vault", "isInstalled": true, "isRequired": true, "children": [] }
+      ]
+    },
+    "missingRequired": [],
+    "missingSoft": ["PlaceholderAPI"]
+  },
+  "reverseDependencies": [],
+  "dependencyChains": []
+}
+```
+
+### GET `/doctor`
+
+依存関係・整合性・更新・ロックのドリフトなどをまとめて診断します。
+`hasProblems` は、対処が必要な問題があるかどうかを表します
+（管理外プラグイン・更新可能・固定バージョンの取り残し・警告は判定に含みません）。
+
+`outdatedPlugins` は `POST /plugins/update` で更新先へ揃うもの、`pinnedBehindUpstream` は
+固定バージョンに揃っているものの上流にそれより新しい版があるものです。両者は重複しません。
+
+```json title="レスポンス例"
+{
+  "hasProblems": false,
+  "missingDependencies": {},
+  "hashMismatches": [],
+  "fileMissing": [],
+  "unmanagedPlugins": ["SomeOldPlugin"],
+  "outdatedPlugins": [
+    {
+      "name": "GriefPrevention",
+      "currentVersion": "17.0.1",
+      "latestVersion": "17.0.2",
+      "targetVersion": "17.0.2",
+      "needsUpdate": true,
+      "hasNewerUpstream": false
+    }
+  ],
+  "pinnedBehindUpstream": [
+    {
+      "name": "PlasmoVoice",
+      "currentVersion": "spigot-2.1.3",
+      "latestVersion": "spigot-2.1.16",
+      "targetVersion": "spigot-2.1.3",
+      "needsUpdate": false,
+      "hasNewerUpstream": true
+    }
+  ],
+  "missingFromLock": [],
+  "staleLockEntries": [],
+  "warnings": []
+}
+```
+
+### GET `/search`
+
+複数のプラットフォーム（Modrinth / Hangar / SpigotMC / GitHub）を横断してプラグインを検索します。
+
+| クエリパラメータ | 必須 | 説明 |
+| --- | --- | --- |
+| `q` | 必須 | 検索キーワード。省略または空文字の場合は `400 Bad Request` |
+| `limit` | 任意 | 取得件数。既定値は10、上限は50（超える値は50に丸められます） |
+
+```bash title="リクエスト例"
+curl "https://<server>/api/v1/plugins/mpm/search?q=shop&limit=5" \
+  -H "Authorization: Bearer <token>"
+```
+
+```json title="レスポンス例"
+[
+  {
+    "source": "MODRINTH",
+    "slug": "quickshop-hikari",
+    "name": "QuickShop-Hikari",
+    "description": "A powerful and easy-to-use shop plugin",
+    "downloads": 123456,
+    "url": "https://modrinth.com/plugin/quickshop-hikari"
+  }
+]
+```
+
+### GET `/repositories`
+
+mpmがプラグイン定義を読み込むリポジトリソースを、優先順位順に返します。
+
+```json title="レスポンス例"
+[
+  { "type": "remote", "identifier": "https://repo.morino.party/" },
+  { "type": "local", "identifier": "plugins/mpm/repository" }
+]
+```
+
+### GET `/jars`
+
+`plugins/` ディレクトリ直下に存在するjarファイルの一覧を、ファイル名順に返します。
+
+mpmの管理情報（`mpm.json`・メタデータ）とは無関係に、ファイルシステム上の事実だけを返します。
+そのため、mpm自身を更新したあとに残った旧バージョンのjarや、mpmの管理外にあるjarもこの一覧に現れます。
+`fileName` はそのまま [`DELETE /jars/{fileName}`](#delete-jarsfilename) に渡せます。
+
+```json title="レスポンス例"
+[
+  {
+    "fileName": "mpm_0.0.25.jar",
+    "sizeBytes": 10485760,
+    "lastModified": "2026-09-01T12:00:00Z",
+    "pluginName": "mpm",
+    "pluginVersion": "0.0.25",
+    "running": false,
+    "pendingDeletion": true
+  },
+  {
+    "fileName": "mpm_0.0.26.jar",
+    "sizeBytes": 10493952,
+    "lastModified": "2026-09-12T03:21:45Z",
+    "pluginName": "mpm",
+    "pluginVersion": "0.0.26",
+    "running": true,
+    "pendingDeletion": false
+  }
+]
+```
+
+| フィールド | 説明 |
+| --- | --- |
+| `fileName` | ファイル名（`plugins/` からの相対） |
+| `sizeBytes` | ファイルサイズ（バイト） |
+| `lastModified` | 最終更新日時（ISO-8601, UTC） |
+| `pluginName` / `pluginVersion` | `plugin.yml` / `paper-plugin.yml` から読み取った値。持たないjarや壊れたjarでは `null` |
+| `running` | 現在実行中のmpm自身のjarなら `true`（削除はサーバー停止時に回されます） |
+| `pendingDeletion` | サーバー停止時の削除が予約済みなら `true` |
+
+## 書き込み系エンドポイント
+
+### POST `/plugins/update`
 
 管理中のプラグインをすべて更新します。クエリパラメータ `force=true` を指定すると、
 api-versionが非互換な場合でも強制的に更新します。
+
+:::warning
+このエンドポイントは管理下の**全プラグイン**をダウンロード・検証・配置するため、
+プラグイン数によっては数分単位の時間がかかります。
+処理が完了するまでレスポンスは返らないため、
+リバースプロキシやブラウザのタイムアウトに到達すると、クライアントは更新の成否を知る手段がなくなります。
+
+そのため、**ブラウザからこのエンドポイントを直接呼び出すことは推奨しません。**
+web consoleからは、プラグインごとの `POST /plugins/{name}/update` か、
+進捗と完了を追跡できる[非同期ジョブ](#非同期ジョブ)（`POST /jobs`）を利用してください。
+:::
 
 ```bash title="リクエスト例"
 curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
@@ -114,8 +490,10 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
 指定したプラグインを更新します。パスパラメータ `name` にはプラグイン名を指定します。
 プラグインが管理対象に存在しない場合は `404 Not Found` を返します。
 
-更新対象に同期している `sync:` プラグイン（子）がある場合、親の更新後バージョンに追従して連動更新します。
-レスポンスは配列で、先頭が親の更新結果、以降が連動更新した子の結果となります。
+更新対象に同期している `sync:` プラグイン（子孫）がある場合、親の更新後バージョンに追従して連動更新します。
+同期の連鎖（A ← `sync:A` の B ← `sync:B` の C）にも伝播するため、
+レスポンスは配列で、先頭が親の更新結果、以降が連動更新した子孫すべての結果となります。
+リクエストで指定していないプラグインの結果も含まれる点に注意してください。
 
 ```json title="レスポンス例"
 [
@@ -132,9 +510,119 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
     "newVersion": "0.2.33",
     "success": true,
     "errorMessage": null
+  },
+  {
+    "pluginName": "MineAuth-addon-luckperms",
+    "oldVersion": "0.2.30",
+    "newVersion": "0.2.30",
+    "success": false,
+    "errorMessage": "プラグインがロックされています",
+    "skipped": true
   }
 ]
 ```
+
+:::info
+`success: false` かつ `skipped: true` の要素は、ロック中である・同期先が更新されなかった、といった
+理由による意図的な据え置きであり、更新の失敗ではありません。
+更新の失敗として利用者へ通知するのは `success: false` かつ `skipped` が `true` でない要素だけにしてください。
+`skipped` が `false` の場合はレスポンスから省略されることがあるため、欠けていれば `false` として扱ってください。
+:::
+
+### POST `/plugins/{name}/version`
+
+管理下のプラグインを、指定したバージョンに切り替えます。
+アップグレードとダウングレードを区別せず、「このプラグインをバージョンXにする」という1つの操作として扱います。
+切り替えに成功すると、mpm.jsonのバージョン指定は固定（`Fixed`）に書き換えられます。
+
+リクエストボディはJSONで指定します。
+
+| フィールド | 必須 | 説明 |
+| --- | --- | --- |
+| `version` | 必須 | 切り替え先バージョン。表記そのまま（raw）でも正規化後の表記でも解決を試みます |
+| `force` | 任意 | `true` の場合、ロック済み・api-version非互換でも強制的に切り替えます（既定値: `false`） |
+| `skipIntegrity` | 任意 | `true` の場合、整合性検証の不一致を無視して続行します（既定値: `false`） |
+
+```bash title="リクエスト例"
+curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/QuickShop-Hikari/version" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"version": "6.0.9.0"}'
+```
+
+```json title="レスポンス例"
+{
+  "pluginName": "QuickShop-Hikari",
+  "oldVersion": "6.1.0.0",
+  "newVersion": "6.0.9.0",
+  "success": true,
+  "errorMessage": null
+}
+```
+
+`sync:` を指定しているプラグインは他プラグインへの追従が目的のため、切り替えを拒否し `409 Conflict` を返します。
+
+切り替えたプラグインに追従している `sync:` プラグイン（子孫）があれば、切り替え後のバージョンへ連動更新します。
+連動更新の結果はレスポンス本体ではなく `errorMessage` に要約として現れますが、
+ロック中などで意図的に据え置かれた子（`skipped: true` に相当するもの）は失敗として数えないため、要約には含まれません。
+
+指定されたバージョンは、まず表記そのままで解決を試み、見つからない場合は正規化して全バージョンと突き合わせます。
+それでも一致しない場合は `400 Bad Request` を返します。
+バージョン一覧の取得自体が上流リポジトリの障害で失敗した場合は `503 Service Unavailable` を返します。
+
+### POST `/plugins/{name}/add`
+
+指定したプラグインをmpmの管理対象に追加します。コンソールの `/mpm add` と同じ操作です。
+
+このエンドポイントが行うのは、mpm.jsonへのエントリ追加とメタデータの作成までです。
+jarのダウンロードと `plugins/` ディレクトリへの配置は行わないため、
+一度も追加したことのないプラグインを実際に導入するには、続けて `POST /plugins/{name}/install` を呼んでください。
+`install` は既存のメタデータを前提とするため、追加前に呼ぶと `404 Not Found` になります。
+
+依存関係の自動追加（コンソール版の依存解決つき追加に相当する処理）は、このエンドポイントの対象外です。
+依存プラグインもmpmの管理下に置きたい場合は、それぞれに対して `add` を呼んでください。
+
+リクエストボディはJSONで指定します。
+
+| フィールド | 必須 | 説明 |
+| --- | --- | --- |
+| `version` | 任意 | バージョン指定。`latest` / `sync:PluginName` / `tag:beta` / 固定バージョンを受け付けます（既定値: `latest`） |
+
+```bash title="リクエスト例"
+curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/MineAuth-addon-pure-tickets/add" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"version": "sync:MineAuth"}'
+```
+
+```json title="レスポンス例"
+{
+  "name": "MineAuth-addon-pure-tickets",
+  "status": "MANAGED",
+  "isManaged": true,
+  "currentVersion": "0.3.8",
+  "latestVersion": "0.3.8",
+  "isLocked": false,
+  "isOutdated": false,
+  "description": null,
+  "author": null,
+  "repository": { "type": "GITHUB", "id": "morinoparty/MineAuth-addon-pure-tickets" },
+  "lastChecked": "2026-09-12T00:00:00Z"
+}
+```
+
+レスポンスは `GET /plugins` の各エントリと同じ形式です。
+ただしこの時点ではjarが存在しないため、`currentVersion` は「追加したバージョン指定から解決された値」であって、
+サーバー上に配置済みのバージョンではありません。
+`install` を呼ばないまま放置すると、mpm.jsonにだけ載ってファイルが無い状態になり、`GET /doctor` が不整合として報告します。
+
+すでに管理下にある場合、またはメタデータがロックされている場合は `409 Conflict` を返します。
+ロックされているプラグインを追加し直したい場合は、先に `POST /plugins/{name}/unlock` を呼んでください。
+
+どのリポジトリソースにも定義が無い場合と、mpm.jsonが未初期化の場合は `404 Not Found` を返します。
+バージョン指定を解決できない場合は `400 Bad Request` を返します
+（`pattern:` は未実装、`sync:` は追従先が未登録・管理外のときに該当します）。
+バージョン一覧の取得自体が上流リポジトリの障害で失敗した場合は `503 Service Unavailable` を返します。
 
 ### POST `/plugins/{name}/install`
 
@@ -162,11 +650,232 @@ curl -X POST "https://<server>/api/v1/plugins/mpm/plugins/update?force=true" \
 }
 ```
 
+### POST `/plugins/{name}/lock` / POST `/plugins/{name}/unlock`
+
+プラグインのバージョンを固定（ロック）、またはその解除を行います。ロックされたプラグインは自動更新の対象外になります。
+
+すでにロック済みのプラグインをロックした場合、またはロックされていないプラグインのロックを解除した場合は
+`409 Conflict` を返します。
+
+```json title="レスポンス例"
+{
+  "name": "QuickShop-Hikari",
+  "isLocked": true,
+  "message": "Plugin 'QuickShop-Hikari' has been locked."
+}
+```
+
 :::warning
 `force` クエリパラメータは `true` / `1` / `yes` / `on`（大文字小文字を区別しない）を真として扱います。
 それ以外の値はすべて偽として扱われます。
 :::
 
+### DELETE `/jars/{fileName}`
+
+`plugins/` ディレクトリ直下のjarファイルを、ファイル名を指定して直接削除します。
+
+`POST /plugins/{name}/uninstall` がmpmの管理情報（`mpm.json`・メタデータ）とjarをまとめて処理するのに対し、
+このエンドポイントは**ファイルそのものだけ**を削除し、管理情報には一切触れません。
+mpm自身を更新したあとに残ってしまった旧バージョンのjarや、mpmの管理外にあるjarを片付ける用途を想定しています。
+
+削除できるのは `plugins/` 直下にある拡張子 `.jar` のファイルに限られます。
+サブディレクトリやパス区切り文字（`/`・`\`・`:`）、`..` を含む指定、`.jar` 以外の拡張子は `400 Bad Request` を返し、
+ファイルが存在しない場合は `404 Not Found` を返します。
+
+```json title="レスポンス例（即時削除）"
+{
+  "fileName": "mpm_0.0.25.jar",
+  "deferred": false,
+  "message": "File 'mpm_0.0.25.jar' deleted successfully."
+}
+```
+
+実行中のmpm自身のjarを指定した場合や、OSがjarをロックしている環境（Windowsなど）で削除に失敗した場合は、
+即時削除の代わりにサーバー停止時の削除を予約し、`deferred: true` を返します。
+このときファイルはまだディスク上に残っており、サーバーを停止したタイミングで削除されます。
+
+```json title="レスポンス例（削除予約）"
+{
+  "fileName": "mpm_0.0.25.jar",
+  "deferred": true,
+  "message": "File 'mpm_0.0.25.jar' is in use and will be deleted when the server stops."
+}
+```
+
+:::warning
+管理下のプラグインのjarをこのエンドポイントで削除しても、`mpm.json` とメタデータはそのまま残ります。
+その状態は `GET /plugins/verify` や `GET /doctor` で「jarが見つからない」として検出され、
+`POST /plugins/{name}/install` で再配置できます。管理下のプラグインを取り除きたい場合は
+`POST /plugins/{name}/uninstall` を使用してください。
+:::
+
+削除（または削除予約）が完了すると `PluginJarDeleteEvent` が発火し、
+[Webhook通知](/docs/format/config)の `fileDelete` イベントとしてDiscordに通知されます。
+
+## 非同期ジョブ
+
+全プラグインの一括更新のように時間のかかる処理は、レスポンスを待たせ続けると
+リバースプロキシやブラウザのタイムアウトに先に到達してしまいます。
+非同期ジョブのエンドポイントは、処理を受け付けた時点でジョブIDを返し、
+クライアントがポーリングで進捗と完了を確認できるようにします。
+
+:::info
+ジョブはメモリ上にのみ保持されるため、サーバーを再起動すると失われます。
+更新処理そのものはメタデータと `mpm-lock.yaml` に永続化されるので、
+失われるのは「進捗ログと結果の記録」だけです。
+
+また、終了済みのジョブは新しいものから50件まで保持され、それを超えた古いジョブは破棄されます。
+破棄されたジョブIDを参照した場合は `404 Not Found` を返します。
+:::
+
+### POST `/jobs`
+
+ジョブを受け付けてバックグラウンドで実行を開始します。
+受け付けた時点で `201 Created` とジョブIDを返し、`Location` ヘッダーに参照先のURLを示します。
+
+| フィールド | 必須 | 説明 |
+| --- | --- | --- |
+| `type` | 必須 | ジョブ種別。現在は `update_all`（管理下の全プラグインを更新）のみ。大文字小文字は区別しません |
+| `force` | 任意 | `true` の場合、api-version非互換でも強制的に更新します（既定値: `false`） |
+| `skipIntegrity` | 任意 | `true` の場合、整合性検証の不一致を無視して続行します（既定値: `false`） |
+
+同じ種別のジョブがすでに実行中の場合は `409 Conflict` を返します。
+未知の `type` を指定した場合は `400 Bad Request` を返します。
+
+```bash title="リクエスト例"
+curl -X POST "https://<server>/api/v1/plugins/mpm/jobs" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "update_all", "force": false}'
+```
+
+```json title="レスポンス例（201 Created）"
+{
+  "id": "0f9c2f4e-1a7b-4c1e-9a55-2c0f0a1b3d21",
+  "type": "UPDATE_ALL",
+  "state": "RUNNING",
+  "createdAt": "2026-09-03T04:10:00Z",
+  "finishedAt": null,
+  "progress": [],
+  "updateResults": null,
+  "errorMessage": null
+}
+```
+
+:::info
+MineAuthのHTTPステータスには `202 Accepted` が用意されていないため、
+「ジョブというリソースを作成した」ものとして `201 Created` を返し、
+`Location` ヘッダー（`/api/v1/plugins/mpm/jobs/{id}`）で参照先を示しています。
+:::
+
+### GET `/jobs/{id}`
+
+ジョブの進捗と結果を取得します。`state` が `RUNNING` の間はポーリングを続け、
+`SUCCEEDED` または `FAILED` になった時点で結果を読み取ります。
+
+| `state` | 意味 |
+| --- | --- |
+| `RUNNING` | 実行中 |
+| `SUCCEEDED` | 正常終了。結果は種別に応じたフィールド（`update_all` なら `updateResults`）に入ります |
+| `FAILED` | 異常終了。理由は `errorMessage` に入ります |
+
+進捗ログの各行は、ゲーム内チャット向けの原文（`raw`、MiniMessage形式）と、
+タグを取り除いた平文（`text`）の両方を持ちます。Webクライアントは通常 `text` を表示します。
+進捗ログは新しいものから200行まで保持されます。
+
+```json title="レスポンス例"
+{
+  "id": "0f9c2f4e-1a7b-4c1e-9a55-2c0f0a1b3d21",
+  "type": "UPDATE_ALL",
+  "state": "SUCCEEDED",
+  "createdAt": "2026-09-03T04:10:00Z",
+  "finishedAt": "2026-09-03T04:12:31Z",
+  "progress": [
+    {
+      "timestamp": "2026-09-03T04:10:02Z",
+      "text": "[GriefPrevention] バージョン '17.0.2' が一致 — ハッシュ検証中...",
+      "raw": "<gray>[GriefPrevention] バージョン '17.0.2' が一致 — ハッシュ検証中..."
+    }
+  ],
+  "updateResults": [
+    {
+      "pluginName": "GriefPrevention",
+      "oldVersion": "17.0.1",
+      "newVersion": "17.0.2",
+      "success": true,
+      "errorMessage": null,
+      "skipped": false
+    }
+  ],
+  "errorMessage": null
+}
+```
+
+存在しないジョブIDを指定した場合は `404 Not Found` を返します。
+
+### GET `/jobs`
+
+保持しているジョブの一覧を、受付が新しい順に返します。
+進捗ログと結果は件数によっては大きくなるため一覧には含みません。必要な場合は `GET /jobs/{id}` を参照してください。
+
+```json title="レスポンス例"
+[
+  {
+    "id": "0f9c2f4e-1a7b-4c1e-9a55-2c0f0a1b3d21",
+    "type": "UPDATE_ALL",
+    "state": "SUCCEEDED",
+    "createdAt": "2026-09-03T04:10:00Z",
+    "finishedAt": "2026-09-03T04:12:31Z"
+  }
+]
+```
+
 ## エラーレスポンス
 
-プラグインが見つからない場合は `404 Not Found`、それ以外の失敗は `500 Internal Server Error` を返します。
+エラーはmpm内部のエラー種別に応じて、以下のHTTPステータスにマッピングされます。
+
+| ステータス | 主な原因 |
+| --- | --- |
+| `400 Bad Request` | 不正な `filter` / ジョブ `type` の値、空の `q` / `version`、存在しないバージョンの指定、未対応のリポジトリ種別、`plugins/` 直下の `.jar` として解決できないファイル名 |
+| `404 Not Found` | プラグイン・メタデータ・リポジトリ定義・mpm.json・ジョブ・jarファイルが見つからない |
+| `409 Conflict` | 更新（または同種のジョブ）が既に実行中、ロック状態の不一致、`sync:` プラグインのバージョン切り替え、逆依存が存在する削除、api-version非互換 |
+| `500 Internal Server Error` | ダウンロード失敗・整合性検証失敗・メタデータ保存失敗など、サーバー側の処理失敗 |
+| `503 Service Unavailable` | 上流リポジトリ（Modrinth / Hangar / SpigotMC / GitHub）が一時的に応答しない |
+
+ステータスはエラーメッセージの文字列ではなく、mpm内部のエラー型から決定されます。
+
+### 400 と 503 の使い分け
+
+`400 Bad Request` は、リクエストで指定された値そのものが解決できない場合に返されます。
+バージョン指定の場合は、**リポジトリに存在しないバージョン名を指定した場合**がこれにあたります。
+
+一方 `503 Service Unavailable` は、リクエストは正当であるものの、上流リポジトリがタイムアウトやレート制限などで
+一時的に応答しなかった場合に返されます。**時間を置いて同じリクエストを再送すれば成功する可能性があります。**
+クライアントは `503` を受け取ったら、少し待ってからリトライする実装にしてください。
+
+### 409 の意味
+
+`409 Conflict` は「同じリクエストをもう一度送っても解決しない」ことを表します。
+たとえば更新ボタンの二重クリックでは `409` が返るため、クライアントは
+「更新が既に実行中です」といった案内を表示できます。
+
+### クラスローダーをまたぐ呼び出しについて
+
+これはmpmに手を入れる方向けの注意点です。
+
+mpmはKotlin標準ライブラリを自身のJARに同梱（shade）していますが、MineAuthはPaperの`libraries:`機能を使って
+実行時に読み込んでいます。そのため、mpmから見える`kotlin.*`のクラスとMineAuthから見える`kotlin.*`のクラスは、
+名前が同じでも別のクラスローダーが定義した別物になります。
+
+ここで、MineAuthのコンストラクタをデフォルト引数を省略して呼ぶと、Kotlinは引数の末尾に
+`kotlin.jvm.internal.DefaultConstructorMarker`を含む合成コンストラクタを呼ぶコードを生成します。
+この型が両方のクラスローダーで一致しないため、JVMは呼び出しの解決時に
+`LinkageError: loader constraint violation`を報告します。
+実際にこの問題が起きると、mpmが返すはずだった`404`や`409`はすべてMineAuth側の
+`{"error":"Internal server error","code":"internal_error"}`に潰れてしまいます。
+
+したがって、`HttpError`は必ず`httpError()`ヘルパー経由で生成してください。
+このヘルパーは全引数を明示してプライマリコンストラクタを呼ぶため、呼び出しのシグネチャに`kotlin.*`の型が現れません。
+なお、`Response.of()`のような**関数**のデフォルト引数は`java.lang.Object`をマーカーに使うため、この問題は起きません。
+危険なシグネチャが生成されていないことは`MineAuthCallDescriptorTest`がコンパイル済みバイトコードを走査して検証しており、
+うっかり`HttpError(...)`を直接呼ぶとビルド時のテストが失敗します。

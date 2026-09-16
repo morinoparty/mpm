@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -12,25 +12,35 @@ package party.morino.mpm
 import kotlinx.coroutines.runBlocking
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
+import org.koin.dsl.binds
 import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.health.DoctorService
+import party.morino.mpm.api.application.job.JobService
 import party.morino.mpm.api.application.lock.LockService
+import party.morino.mpm.api.application.plugin.DeferredJarDeletion
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginJarFileService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.application.scheduler.OutdatedNotificationLedger
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
+import party.morino.mpm.api.domain.cache.CacheManager
+import party.morino.mpm.api.domain.cache.HttpMetadataCache
 import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
+import party.morino.mpm.api.domain.migration.SchemaMigrator
+import party.morino.mpm.api.domain.migration.SchemaVersions
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
+import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.project.lock.LockRepository
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
@@ -40,30 +50,41 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.application.dependency.DependencyServiceImpl
 import party.morino.mpm.application.health.DoctorServiceImpl
+import party.morino.mpm.application.job.JobServiceImpl
 import party.morino.mpm.application.lock.LockServiceImpl
 import party.morino.mpm.application.plugin.IntegrityVerifierImpl
 import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginInstallValidator
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
+import party.morino.mpm.application.plugin.file.PluginJarFileServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
+import party.morino.mpm.infrastructure.cache.CacheManagerImpl
+import party.morino.mpm.infrastructure.cache.HttpMetadataCacheImpl
 import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
+import party.morino.mpm.infrastructure.config.ConfigLoadDiagnostics
 import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
 import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
+import party.morino.mpm.infrastructure.migration.SchemaMigratorImpl
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
+import party.morino.mpm.infrastructure.mineauth.MpmApiPermission
 import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
 import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
+import party.morino.mpm.infrastructure.plugin.retire.DeferredJarDeletionImpl
+import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
 import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
+import party.morino.mpm.infrastructure.scheduler.OutdatedNotificationLedgerImpl
 import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.control.BackupCommand
+import party.morino.mpm.ui.command.manage.control.CacheCommand
 import party.morino.mpm.ui.command.manage.control.InitCommand
 import party.morino.mpm.ui.command.manage.control.LockCommand
 import party.morino.mpm.ui.command.manage.control.PinCommand
@@ -79,6 +100,7 @@ import party.morino.mpm.ui.command.manage.lifecycle.AddCommand
 import party.morino.mpm.ui.command.manage.lifecycle.AdoptCommand
 import party.morino.mpm.ui.command.manage.lifecycle.InstallCommand
 import party.morino.mpm.ui.command.manage.lifecycle.RemoveCommand
+import party.morino.mpm.ui.command.manage.lifecycle.RollbackCommand
 import party.morino.mpm.ui.command.manage.lifecycle.UninstallCommand
 import party.morino.mpm.ui.command.manage.lifecycle.UpdateCommand
 import party.morino.mpm.ui.command.repo.RepositoryCommands
@@ -116,8 +138,13 @@ open class Mpm :
         // DIコンテナの初期化
         setupKoin()
         runBlocking {
+            // 設定ファイルのスキーマ移行を最優先で行う（ConfigManagerがconfig.jsonを読むより前）
+            runSchemaMigration()
             _configManager.reload()
         }
+
+        // 前回の自己更新で削除しきれなかった旧JARを片付ける（自分自身のJARは削除しない）
+        GlobalContext.get().get<DeferredJarDeletion>().cleanupOnStartup(file)
 
         // パーミッション階層の登録（mpm.commandが全子パーミッションを含む）
         registerPermissions()
@@ -144,6 +171,9 @@ open class Mpm :
         // スケジューラーの停止（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<UpdateScheduler>()?.stop()
 
+        // 実行中の非同期ジョブの停止（Koin停止後のBean参照を避けるため、stopKoinより前に行う）
+        GlobalContext.getOrNull()?.getOrNull<JobService>()?.shutdown()
+
         // Webhookリソースの解放（Koin未初期化時はスキップ）
         GlobalContext.getOrNull()?.get<WebhookNotifier>()?.shutdown()
 
@@ -152,6 +182,9 @@ open class Mpm :
         GlobalContext.getOrNull()?.getOrNull<RepositoryManager>()?.shutdown()
         GlobalContext.getOrNull()?.getOrNull<DownloaderRepository>()?.shutdown()
 
+        // 自己更新などで削除を予約していた旧JARを、実行中のJARが不要になるこのタイミングで削除する
+        GlobalContext.getOrNull()?.getOrNull<DeferredJarDeletion>()?.deleteScheduled()
+
         // Koin DIコンテナを停止（リソースリーク防止）
         GlobalContext.stopKoin()
 
@@ -159,8 +192,35 @@ open class Mpm :
     }
 
     /**
+     * 設定ファイル（mpm.json / config.json / metadata 配下の yaml）のスキーマ移行を実行し、結果をログに出力する
+     *
+     * 移行の失敗はプラグインの起動を止めない。該当ファイルはそのままの内容で扱われる
+     */
+    private suspend fun runSchemaMigration() {
+        val report = GlobalContext.get().get<SchemaMigrator>().migrateAll()
+
+        if (report.migratedCount > 0) {
+            logger.info("Migrated ${report.migratedCount} file(s) to schema v${SchemaVersions.CURRENT}.")
+        }
+        // 新しいmpmで書かれたファイルはダウングレードできないため、警告だけ出してそのまま扱う
+        report.futures.forEach {
+            logger.warning(
+                "${it.fileName} は新しいスキーマ (v${it.foundVersion}) で書かれています。" +
+                    "ダウングレードは行わず、そのまま扱います。"
+            )
+        }
+        report.failures.forEach {
+            logger.warning("${it.fileName} のスキーマ移行に失敗しました: ${it.reason}")
+        }
+    }
+
+    /**
      * パーミッション階層の登録
      * mpm.commandが全子パーミッションを含むように設定する（後方互換性）
+     *
+     * HTTP API のパーミッションは `mpm.api.read` / `mpm.api.write` に分割されており、
+     * 従来の `mpm.api` は両方を子に持つ親として登録する。これにより既存の
+     * `mpm.api` 付与はそのまま全エンドポイントへのアクセスを維持する。
      */
     private fun registerPermissions() {
         val childPermissions =
@@ -170,13 +230,15 @@ open class Mpm :
                 "mpm.command.install",
                 "mpm.command.uninstall",
                 "mpm.command.update",
+                "mpm.command.rollback",
                 "mpm.command.list",
                 "mpm.command.backup",
+                "mpm.command.cache",
                 "mpm.command.lock",
                 "mpm.command.init",
                 "mpm.command.reload",
                 // MineAuth HTTP API 権限（mpm.command の子として OP に自動付与）
-                "mpm.api"
+                MpmApiPermission.ROOT
             )
         // 子パーミッションを登録（OP は親経由で全子権限を持つ）
         val children = childPermissions.associateWith { true }
@@ -188,6 +250,21 @@ open class Mpm :
                 children
             )
         server.pluginManager.addPermission(parentPermission)
+
+        // HTTP API の read/write を mpm.api の子として登録する。
+        // mpm.api 自体のデフォルトは付与しない（OP は mpm.command 経由で継承する）ため、
+        // 「mpm.api を持つ = read と write の両方を持つ」という従来の意味が保たれる。
+        val apiPermission =
+            org.bukkit.permissions.Permission(
+                MpmApiPermission.ROOT,
+                "All mpm HTTP API endpoints",
+                org.bukkit.permissions.PermissionDefault.FALSE,
+                mapOf(
+                    MpmApiPermission.READ to true,
+                    MpmApiPermission.WRITE to true
+                )
+            )
+        server.pluginManager.addPermission(apiPermission)
     }
 
     /**
@@ -204,7 +281,11 @@ open class Mpm :
 
                 // 設定の登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginDirectory> { PluginDirectoryImpl() }
-                single<ConfigManager> { ConfigManagerImpl() }
+                // 読み込み失敗の診断情報（ConfigLoadDiagnostics）も同じインスタンスから引けるようにする
+                single { ConfigManagerImpl() } binds arrayOf(ConfigManager::class, ConfigLoadDiagnostics::class)
+
+                // スキーマ移行の登録（他サービスが設定ファイルを読むより前に一度だけ実行される）
+                single<SchemaMigrator> { SchemaMigratorImpl() }
 
                 // リポジトリマネージャーの登録（ファクトリーを使用）
                 single<RepositoryManager> {
@@ -218,6 +299,16 @@ open class Mpm :
 
                 // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
                 single<PluginMetadataManager> { PluginMetadataManagerImpl() }
+
+                // plugins ディレクトリのライブスキャン（unmanaged 判定・init で共用）
+                single<InstalledJarScanner> { InstalledJarScannerImpl() }
+
+                // 即時削除できない旧JAR（mpm 自身の更新など）の削除予約
+                single<DeferredJarDeletion> { DeferredJarDeletionImpl() }
+
+                // HTTPメタデータキャッシュとキャッシュ管理（mpm cache コマンドから利用）
+                single<HttpMetadataCache> { HttpMetadataCacheImpl() }
+                single<CacheManager> { CacheManagerImpl() }
 
                 // バックアップ管理の登録
                 single<ServerBackupManager> { ServerBackupManagerImpl() }
@@ -247,10 +338,17 @@ open class Mpm :
                 single<IntegrityVerifier> { IntegrityVerifierImpl() }
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
+                // plugins/ 直下のJARを管理情報に触れず直接削除する（自己更新で残った旧JARの片付けなど）
+                single<PluginJarFileService> { PluginJarFileServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
 
                 // スケジューラーの登録
                 single<UpdateScheduler> { UpdateSchedulerImpl() }
+                // outdated 通知の通知済み台帳（定期チェックだけが書く）
+                single<OutdatedNotificationLedger> { OutdatedNotificationLedgerImpl() }
+
+                // 非同期ジョブ（HTTP APIの長時間処理）の登録
+                single<JobService> { JobServiceImpl() }
             }
 
         // 既存のKoinコンテキストが残っている場合は停止してから再起動
@@ -280,6 +378,7 @@ open class Mpm :
         lamp.register(AddCommand())
         lamp.register(AdoptCommand())
         lamp.register(BackupCommand())
+        lamp.register(CacheCommand())
         lamp.register(DependencyCommand())
         lamp.register(InitCommand())
         lamp.register(InstallCommand())
@@ -287,6 +386,7 @@ open class Mpm :
         lamp.register(LockCommand())
         lamp.register(OutdatedCommand())
         lamp.register(RemoveCommand())
+        lamp.register(RollbackCommand())
         lamp.register(UninstallCommand())
         lamp.register(PinCommand())
         lamp.register(UpdateCommand())

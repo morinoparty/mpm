@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -19,5 +19,8 @@ enum class WebhookEventType {
     UNINSTALL,
     LOCK,
     UNLOCK,
-    OUTDATED
+    OUTDATED,
+
+    // plugins/ 直下のJARを直接削除したとき（mpm.json には触れない）
+    FILE_DELETE
 }

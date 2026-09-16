@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -13,13 +13,12 @@ import org.bukkit.command.CommandSender
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.model.plugin.InstalledPlugin
-import party.morino.mpm.utils.regenerateQuietly
+import party.morino.mpm.application.plugin.describeTransition
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -37,7 +36,6 @@ class UpdateCommand : KoinComponent {
     private val updateService: PluginUpdateService by inject()
     private val infoService: PluginInfoService by inject()
     private val pluginMetadataManager: PluginMetadataManager by inject()
-    private val lockService: LockService by inject()
     private val mpmPlugin: JavaPlugin by inject()
 
     /**
@@ -74,9 +72,10 @@ class UpdateCommand : KoinComponent {
                 if (updateResults.isEmpty()) {
                     sender.sendRichMessage("<yellow>更新対象のプラグインはありませんでした。</yellow>")
                 } else {
-                    // 成功と失敗を分ける
+                    // 成功・意図的なスキップ・失敗を分ける
                     val successResults = updateResults.filter { it.success }
-                    val failedResults = updateResults.filter { !it.success }
+                    val skippedResults = updateResults.filter { !it.success && it.skipped }
+                    val failedResults = updateResults.filter { !it.success && !it.skipped }
 
                     // 成功した更新を表示
                     if (successResults.isNotEmpty()) {
@@ -84,6 +83,16 @@ class UpdateCommand : KoinComponent {
                         successResults.forEach { result ->
                             sender.sendRichMessage(
                                 "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}"
+                            )
+                        }
+                    }
+
+                    // ロック中などで意図的にスキップしたものを表示（失敗ではない）
+                    if (skippedResults.isNotEmpty()) {
+                        sender.sendRichMessage("<yellow>以下のプラグインは更新しませんでした:</yellow>")
+                        skippedResults.forEach { result ->
+                            sender.sendRichMessage(
+                                "  - ${result.pluginName}: ${result.errorMessage ?: "スキップしました"}"
                             )
                         }
                     }
@@ -115,9 +124,6 @@ class UpdateCommand : KoinComponent {
                 }
             }
         )
-
-        // 更新後の実際の状態をロックファイルに反映する
-        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /**
@@ -141,9 +147,10 @@ class UpdateCommand : KoinComponent {
                 sender.sendRichMessage("<red>${error.message}</red>")
             },
             { results ->
-                // 更新結果は先頭が親、以降が連動更新した sync: プラグイン（子）
+                // 更新結果は先頭が親、以降が連動更新した sync: プラグイン（子孫）
                 val successResults = results.filter { it.success }
-                val failedResults = results.filter { !it.success }
+                val skippedResults = results.filter { !it.success && it.skipped }
+                val failedResults = results.filter { !it.success && !it.skipped }
 
                 // 成功した更新（親＋連動更新した子）を表示
                 if (successResults.isNotEmpty()) {
@@ -152,6 +159,14 @@ class UpdateCommand : KoinComponent {
                         sender.sendRichMessage(
                             "  ✓ ${result.pluginName}: ${result.oldVersion} → ${result.newVersion}"
                         )
+                    }
+                }
+
+                // ロック中などで意図的にスキップしたものを表示（失敗ではない）
+                if (skippedResults.isNotEmpty()) {
+                    sender.sendRichMessage("<yellow>以下のプラグインは更新しませんでした:</yellow>")
+                    skippedResults.forEach { result ->
+                        sender.sendRichMessage("  - ${result.pluginName}: ${result.errorMessage ?: "スキップしました"}")
                     }
                 }
 
@@ -178,9 +193,6 @@ class UpdateCommand : KoinComponent {
                 }
             }
         )
-
-        // 更新後の実際の状態をロックファイルに反映する
-        lockService.regenerateQuietly(mpmPlugin.logger)
     }
 
     /**
@@ -228,10 +240,13 @@ class UpdateCommand : KoinComponent {
                 val updatableInfos = needsUpdate.filter { it.pluginName in updatable }
                 val lockedInfos = needsUpdate.filter { it.pluginName in locked }
                 val unknownInfos = needsUpdate.filter { it.pluginName in unknown }
+                // 固定バージョンに揃っているが上流にそれより新しい版があるもの（更新では変わらない情報）
+                val pinnedBehindInfos = result.outdatedPlugins.filter { !it.needsUpdate && it.hasNewerUpstream }
 
                 if (updatableInfos.isEmpty() &&
                     lockedInfos.isEmpty() &&
                     unknownInfos.isEmpty() &&
+                    pinnedBehindInfos.isEmpty() &&
                     result.errors.isEmpty()
                 ) {
                     sender.sendRichMessage("<green>[Dry-run] すべてのプラグインは最新です。</green>")
@@ -242,7 +257,7 @@ class UpdateCommand : KoinComponent {
                         )
                         updatableInfos.forEach { info ->
                             sender.sendRichMessage(
-                                "  ↑ ${info.pluginName}: ${info.currentVersion} → ${info.latestVersion}"
+                                "  ↑ ${info.pluginName}: ${info.describeTransition()}"
                             )
                         }
                     }
@@ -252,7 +267,7 @@ class UpdateCommand : KoinComponent {
                         )
                         lockedInfos.forEach { info ->
                             sender.sendRichMessage(
-                                "  🔒 ${info.pluginName}: ${info.currentVersion} → ${info.latestVersion}"
+                                "  🔒 ${info.pluginName}: ${info.describeTransition()}"
                             )
                         }
                     }
@@ -262,6 +277,16 @@ class UpdateCommand : KoinComponent {
                         )
                         unknownInfos.forEach { info ->
                             sender.sendRichMessage("  ⚠ ${info.pluginName}")
+                        }
+                    }
+                    if (pinnedBehindInfos.isNotEmpty()) {
+                        sender.sendRichMessage(
+                            "<yellow>[Dry-run] ${pinnedBehindInfos.size}個のプラグインは固定バージョンより新しい版があります (更新対象外):</yellow>"
+                        )
+                        pinnedBehindInfos.forEach { info ->
+                            sender.sendRichMessage(
+                                "  📌 ${info.pluginName}: ${info.currentVersion} (最新: ${info.latestVersion})"
+                            )
                         }
                     }
                     sender.sendRichMessage("<gray>[Dry-run] 実際の更新は行われていません。</gray>")

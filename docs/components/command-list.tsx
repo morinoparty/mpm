@@ -20,9 +20,10 @@ import repoData from "@/data/repo.json";
 import backupData from "@/data/backup.json";
 import dependencyData from "@/data/dependency.json";
 import pluginData from "@/data/plugin.json";
+import cacheData from "@/data/cache.json";
 
 interface CommandListProps {
-    category: "manage" | "repo" | "backup" | "dependency" | "plugin";
+    category: "manage" | "repo" | "backup" | "dependency" | "plugin" | "cache";
     section?: string; // セクション名でフィルタリング（オプショナル）
 }
 
@@ -34,6 +35,7 @@ const getCommandsData = (category: string): Commands => {
         backup: backupData,
         dependency: dependencyData,
         plugin: pluginData,
+        cache: cacheData,
     };
     return dataMap[category] as Commands;
 };

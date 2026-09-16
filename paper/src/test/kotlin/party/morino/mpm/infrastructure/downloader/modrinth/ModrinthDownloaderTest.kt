@@ -1,5 +1,5 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
@@ -162,8 +162,9 @@ class ModrinthDownloaderTest {
 
                     request.url.toString().startsWith("https://cdn.modrinth.com/") -> {
                         // ファイルダウンロードのモックレスポンス
+                        // version-detail.json の size と一致させ、ダウンロードサイズ検証を通す
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(8645636)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )
@@ -220,8 +221,9 @@ class ModrinthDownloaderTest {
 
                     request.url.toString().startsWith("https://cdn.modrinth.com/") -> {
                         // ファイルダウンロードのモックレスポンス
+                        // version-detail.json の size と一致させ、ダウンロードサイズ検証を通す
                         respond(
-                            content = ByteReadChannel(ByteArray(100)),
+                            content = ByteReadChannel(ByteArray(8645636)),
                             status = HttpStatusCode.OK,
                             headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
                         )
@@ -302,11 +304,5 @@ class ModrinthDownloaderTest {
                 testDownloader.downloadByVersion(urlData, versionData, ".*\\.zip")
             }
         }
-    }
-
-    @Test
-    fun downloadLatest() {
-        // downloadLatest は getLatestVersion と downloadByVersion を組み合わせたものなので
-        // 個別のテストで十分カバーされている
     }
 }

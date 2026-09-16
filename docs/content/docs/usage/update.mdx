@@ -5,60 +5,98 @@ description: mpmでプラグインの更新を行う方法を学びます
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-## 手順
+## 🔄 更新の手順
 
-### 例) 最新は、v2.0.0で、現在はv1.0.0
-
-```yaml
-mpm:
-    repositories:
-        modrinth:
-            id: mpm
-    version:
-        edit_regex:
-            version: v(.*)
-            id: (.*)
-        current:
-            raw_version: v1.0.0
-            edited_version: 1.0.0
-            raw_download_id: 1.0.0
-            edited_download_id: 1.0.0
-        latest:
-            raw_version: v2.0.0
-            edited_version: 2.0.0
-            raw_download_id: 2.0.0
-            edited_download_id: 2.0.0
-    download:
-        lock: false
-        autoUpdate: true
-        downloadUrl: https://example.com/<version.editedLatestVersion>/plasmo-voice.jar
-```
-
-1. プラグインの更新を確認する。
+### 1. 更新可能なプラグインを確認する
 
 ```bash
 /mpm outdated
 ```
 
-上記コマンドを実行すると、以下のような出力が得られます。
+インストール済みプラグインについてリポジトリの最新バージョンを問い合わせ、
+現在のバージョンと異なるものを一覧表示します。
+`sync:` 指定のプラグインは、自身のリポジトリではなく同期先（親）のバージョンを基準に表示されます。
+`sync:` が多段になっている場合は、直近の親ではなく **チェーンをたどった先にある、
+自分でバージョンを決めるプラグイン** のバージョンが基準になります。
+実際の更新でも最終的にそのバージョンへ揃うため、表示と実際の挙動が一致します。
 
-`version.latest.raw_version`および、`version.latest.raw_download_id`が更新され、`version.edit_regex`で編集された
-`version.latest.edited_version`および、`version.latest.edited_download_id`が更新されます。
-
-
-2. プラグインを更新する。
+### 2. プラグインを更新する
 
 ```bash
+# すべてのプラグインを更新する
 /mpm update
+
+# 指定したプラグインだけを更新する
+/mpm update <プラグイン名>
 ```
 
-`version.current.edited_download_id`と`version.latest.edited_download_id`を比較し、
-変化がある場合は、`download.download_url`のダウンロードURLを使用して、プラグインを更新します。
-その際に、`version.current.*`が更新されます。
+更新では、まずリポジトリから新しいバージョンのjarをダウンロードし、
+検証に成功した場合のみ既存のjarを置き換えます。
+その後、`plugins/mpm/metadata/<プラグイン名>.yaml` の
+`mpmInfo.version.current` と `mpmInfo.download` が新しいバージョンの内容へ更新され、
+`mpmInfo.history` に更新履歴が追記されます。
 
-<Callout type="warn">
-なお、この際に`download.download_url`を利用し、ダウンロードが行えなかった場合revert処理として、
-`version.latest.*`が`version.current.*`に戻り、`outdated`実行前の状態に戻ります。
+メタデータファイルの各フィールドについては
+[metadata/*.yaml](/docs/format/managed) をご覧ください。
+
+<Callout type="info" title="更新前のバックアップは手動で作成します">
+更新の前にバックアップは自動作成されません。更新後に問題が起きたときに戻せるようにしたい場合は、
+事前に `/mpm backup create` で `plugins/` ディレクトリ全体のバックアップを作成してください。
+復元は `/mpm backup restore <id>` で行えます。
+</Callout>
+
+<Callout type="warn" title="ロック中のプラグインは更新されません">
+`/mpm lock` でロックしたプラグインは更新されません。
+更新可能な場合でも「ロック中のためスキップした」旨が表示されます。
+</Callout>
+
+## 📌 固定したバージョンは更新されません
+
+`mpm pin` や [`mpm rollback`](/docs/commands/plugin-management/lifecycle) を実行すると、
+`mpm.json` のバージョン指定がそのバージョンで固定されます。
+
+固定されたプラグインは、更新チェックの比較対象が「リポジトリ上の最新バージョン」ではなく
+「`mpm.json` に固定されたバージョン」になります。そのため、`mpm update` やスケジュール自動更新を実行しても、
+固定したバージョンが勝手に巻き戻ったり、最新版へ引き上げられたりすることはありません。
+
+一方で、リポジトリ上の最新バージョンの追跡は固定中も続きます。
+更新チェックはメタデータの `latest` に上流の最新を記録し、`mpm outdated` / `mpm update --dry-run` / `mpm doctor` は
+固定値に揃っているものの上流にそれより新しい版があるプラグインを「📌 固定バージョンより新しい版があります」として
+更新対象とは別に一覧します。インストール済みが固定値からずれている場合の更新先表示にも、
+`1.0.0 → 1.0.1 (最新: 1.2.0)` のように上流の最新を添えます。
+これらは情報であり、固定を解除して最新へ追従させたい場合は `mpm add <plugin> latest` で指定を戻してください。
+
+<Callout type="info" title="ロックとの違い">
+`mpm lock` はプラグインを自動更新の対象から完全に外します。
+一方でバージョンの固定は「どのバージョンであるべきか」を指定するもので、
+`mpm update` は固定されたバージョンとの差分があればそのバージョンへ揃えます。
+最新版への追従を再開したい場合は、`mpm.json` のバージョン指定を `latest` や `tag:` に戻してください。
+</Callout>
+
+## 🔁 ダウンロードの自動リトライ
+
+上流リポジトリ（Modrinth / Hangar / SpigotMC / GitHub）は、一時的なサーバーエラーやレート制限を返すことがあります。
+mpmはこうした一時的な失敗を自動的にリトライします。
+
+| 対象 | 挙動 |
+|------|------|
+| HTTP 5xx（サーバーエラー） | 最大3回まで指数バックオフでリトライします |
+| HTTP 429（レート制限） | 最大3回までリトライし、`Retry-After` ヘッダーが返された場合はその待機時間を優先します |
+| ネットワーク切断・タイムアウト | 最大3回までリトライします |
+
+リトライを尽くしても成功しなかった場合は、HTTPステータスを添えたエラーとして報告されます。
+
+### 壊れたダウンロードは保存されません
+
+ダウンロードしたファイルは、JARとして保存する前に検証されます。
+
+- レスポンスがHTML（メンテナンス画面やログイン要求などのエラーページ）だった場合は、JARとして保存せずエラーにします
+- 期待するファイルサイズが分かっている場合、実際に受信したバイト数と比較し、一致しない場合はエラーにします
+  （途中で切れたレスポンスがHTTP 200で返るケースを検出します）
+
+<Callout type="info" title="ハッシュによる検証もあわせて行われます">
+サイズやContent-Typeの検証を通過した後も、メタデータに記録されたsha256との照合が行われます。
+詳しくは[🔒 整合性の検証](/docs/usage/integrity)をご覧ください。
 </Callout>
 
 ## 🔍 Dry-runモード
@@ -71,6 +109,24 @@ mpm:
 
 更新可能なプラグインの一覧と、現在のバージョンから最新バージョンへの差分が表示されます。
 実際のダウンロードやファイルの置き換えは行われません。
+
+## 🪞 mpm自身の更新
+
+mpm は自分自身も他のプラグインと同じように更新できます。ただし、実行中のjarをディスクから消してしまうと、
+その後のリソース読み込み（kotlin-reflect の組み込みクラス定義など）がファイルを開き直せずに失敗し、
+次の `mpm install` や `mpm update` が `Built-in class kotlin.Any is not found` で止まる問題がありました。
+
+そのため、更新対象が mpm 自身の場合は旧jarをその場で削除せず、**サーバー停止時に削除**します。
+
+1. 新しいjar（例: `mpm_0.0.26.jar`）を `plugins/` に配置します。
+2. 旧jar（例: `mpm_0.0.25.jar`）は残したまま、`plugins/mpm/pending-delete.json` に削除を予約します。
+3. サーバー停止時（`onDisable`）に予約された旧jarを削除します。
+4. 次回起動時は新しいjarだけが読み込まれます。
+
+サーバーがクラッシュして旧jarが残ってしまった場合は、次回起動時に mpm が予約を確認して片付けます。
+もし Paper が旧jarの方を読み込んでしまった場合は削除せず、コンソールに「旧jarを手動で削除して再起動してください」と警告します。
+
+Windows のように実行中のjarを削除できない環境では、他のプラグインの旧jarも同じ仕組みで停止時に削除されます。
 
 ## ⏰ スケジュール自動更新
 
@@ -86,8 +142,7 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
         "schedule": {
             "enabled": true,
             "cron": "0 4 * * *",
-            "checkOnStartup": true,
-            "dryRun": false
+            "checkOnStartup": true
         }
     }
 }
@@ -98,18 +153,156 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
 | `enabled` | スケジュール自動更新の有効/無効 | `false` |
 | `cron` | cron式（UNIX形式: 分 時 日 月 曜日） | `"0 4 * * *"` |
 | `checkOnStartup` | サーバー起動時に更新チェックのみ行うか | `true` |
-| `dryRun` | 更新チェックと通知のみ行い、実際の更新を行わないか | `false` |
+
+<Callout type="info" title="dryRun 設定は廃止されました">
+以前存在した `settings.schedule.dryRun` は廃止されました。
+自動更新の対象は後述のとおりバージョン指定によって決まるため、
+「チェックのみ」で運用したい場合はバージョンを固定するか、プラグインをロックしてください。
+
+古い `config.json` は起動時に自動移行され、この項目は取り除かれます。
+詳しくは [スキーマ版数と自動移行](/docs/format/schema-migration) をご覧ください。
+なお、`/mpm update --dry-run` などのコマンドオプションは今までどおり利用できます。
+</Callout>
 
 ### 動作の流れ
 
 1. **サーバー起動時**（`checkOnStartup: true` の場合）
-   - 更新が必要なプラグインをチェックし、コンソールに結果を出力します
-   - Discord Webhook が設定されている場合、通知も送信されます
+   - 更新が必要なプラグインをチェックし、`[Startup]` の接頭辞付きでコンソールに結果を出力します
+   - Discord Webhook が設定されている場合、`outdated` の通知も送信されます
    - 起動時は **更新チェックのみ** で、実際の更新は行いません
+   - 分類と表示はcron実行時とまったく同じです
 
 2. **スケジュール実行時**（cron式のタイミング）
-   - `dryRun: false`: ロックされていないプラグインを自動更新します
-   - `dryRun: true`: 更新チェックと通知のみ行い、更新は行いません
+   - 更新チェックを行い、対象を後述の基準で分類して `[Scheduled]` の接頭辞付きで報告します
+   - `mpm.json` のバージョン指定が `latest` または `tag:xxx` のプラグインだけを自動更新します
+   - それ以外は更新せず、「更新可能だが更新しなかった」旨をコンソールに報告します
+   - 実際に更新が行われた場合のみ、`mpm-lock.yaml` が再生成されます
+   - 更新を試みたあとに、人が手を動かさないと解消しないものだけ `outdated` の通知を送信します
+
+<Callout type="info" title="Discord への outdated 通知はこの定期チェックだけです">
+`outdated` の Discord 通知は、ここで説明している定期チェック（起動時チェックとcron実行）からのみ送信されます。
+`mpm outdated` や `mpm doctor` の実行、HTTP API の呼び出しでは送信されません。
+
+また、上流で新しいバージョンが公開されたことを検知した回だけ送信されるため、
+更新できない状態が続いているプラグインが毎回通知されることはありません。
+この判定は定期チェック専用の通知済み台帳（`plugins/mpm/outdated-notified.json`）で行うため、
+`mpm outdated` を手動で実行したあとでも定期チェックの通知は抜けません。
+詳しくは [config.json の webhook 設定](/docs/format/config)をご覧ください。
+</Callout>
+
+### 自動更新の対象
+
+cron実行時に実際にダウンロードして更新されるのは、**浮動バージョン指定のプラグインだけ**です。
+それ以外は更新可能であることを報告するだけで、ファイルは変更されません。
+
+| `mpm.json` のバージョン指定 | cron実行時の動作 |
+|---------------------------|-----------------|
+| `latest` | 自動更新します |
+| `tag:stable` などの `tag:` 指定 | 自動更新します |
+| `sync:ParentPlugin` | 同期先（親）が自動更新された場合のみ、親の新しいバージョンへ追従して更新します |
+| `1.2.3` などの固定バージョン | チェックのみ行い、更新しません |
+| `pattern:` 指定（未実装） | チェックのみ行い、更新しません |
+| `unmanaged` | チェックの対象外です |
+
+<Callout type="info" title="手動の `/mpm update` との違い">
+前述の「📌 固定したバージョンは更新されません」は、手動で `/mpm update` を実行したときの話です。
+手動更新では、インストール済みのバージョンが `mpm.json` の固定バージョンとずれている場合、
+固定したバージョンへ揃えます。
+
+一方、cronによる自動更新は固定バージョンのプラグインに一切手を触れません。
+ずれがあることを報告するだけで、jarもメタデータも変更しません。
+固定バージョンのプラグインを実際に揃えるかどうかは、必ず管理者の明示的な操作に委ねられます。
+</Callout>
+
+<Callout type="warn" title="pattern: は未実装です">
+`pattern:` 指定は現時点では実装されていません。
+インストールや更新で使用するとバージョン解決エラーになるため、
+`latest` または具体的なバージョンをご利用ください。
+</Callout>
+
+<Callout type="info" title="sync: の追従について">
+`sync:` 指定のプラグインは単独では自動更新の対象になりません。
+親が更新されたときだけ、同じcron実行のなかで親の新しいバージョンへ追従します。
+親が固定バージョンだったり、ロックされていたり、既に最新だったりして更新されなかった場合は、子も更新されません。
+
+なお、子自身がロックされている場合は、親が更新されても子は更新されず、その旨が報告されます。
+また、子のメタデータファイルが壊れているなどでロック状態を確認できない場合も、
+安全のため更新は行わずスキップします。
+
+追従して更新される子についても、親と同じように `PluginUpdateEvent` が発火します。
+そのため、Discord Webhook の `update` 通知は親だけでなく追従した子の分も送信され、
+他のプラグインがイベントをキャンセルした場合、その子は更新されず（据え置きとして報告され）、
+その先の子孫も追従しません。
+
+`A` に追従する `B`、さらに `B` に追従する `C` のように `sync:` が多段になっている場合も、
+親に近い順に追従が伝播します。
+ただし途中の `B` がロック・更新失敗・メタデータ破損などで据え置かれた場合、
+その先の `C` も追従しません。`B` のバージョンが動いていない以上、
+`C` だけを進めると孫が親より新しくなってしまうためです。
+この場合、`C` は「同期先が更新されなかったため追従しませんでした」と報告されます。
+
+なお、同期先が `mpm.json` に存在しない・`unmanaged` である・循環しているといった場合は
+追従できないため、警告がコンソールに出力されます。
+</Callout>
+
+### 報告の見方
+
+分類の結果は、更新したもの・しなかったものが理由付きで分かるようにコンソールへ出力されます。
+
+```log
+[mpm] [Scheduled] Checking for plugin updates...
+[mpm] [Scheduled] 1 plugin(s) will be auto-updated (latest / tag:):
+[mpm]   - LuckPerms: 5.4.100 → 5.4.102 (latest)
+[mpm] [Scheduled] 1 plugin(s) sync to a parent and follow only when the parent updates:
+[mpm]   - LuckPermsExtension: 5.4.100 → 5.4.102 (sync:LuckPerms)
+[mpm] [Scheduled] 2 plugin(s) have updates available but are pinned to a fixed version (not updated):
+[mpm]   - Vault: 1.7.2 → 1.7.3 (1.7.3)
+[mpm]   - AdvancedPortals: 2.6.1 → 2.6.1 (最新: 2.8.0) (2.6.1)
+[mpm] [Scheduled] 1 plugin(s) have updates available but are locked (not updated):
+[mpm]   - EssentialsX: 2.20.0 → 2.21.0 (latest, locked)
+[mpm] [Scheduled] ✓ LuckPerms を 5.4.100 → 5.4.102 に更新
+[mpm] [Scheduled] ✓ LuckPermsExtension を 5.4.100 → 5.4.102 に更新（LuckPerms に追従）
+```
+
+更新が必要なプラグインが1つも無い場合は `All plugins are up to date.` と表示されます。
+また、cron実行で実際に更新されたプラグインが1つも無かった場合は
+`No plugins were updated.` と表示されます（起動時チェックでは表示されません）。
+
+固定バージョンのプラグインは、更新先が「リポジトリ上の最新バージョン」ではなく
+「`mpm.json` に固定したバージョン」です。
+そのため上の例の `Vault` は「1.7.2 がインストールされているが `mpm.json` は 1.7.3 に固定されている」
+という状態を表しています。
+一方 `AdvancedPortals` のように固定値どおりにインストールされていても、上流にそれより新しい版がある場合は
+「(最新: x)」を添えて報告されます。これは `mpm update` では解消されず、
+`mpm pin` / `mpm switch` による固定の見直しが必要なことを示します。
+
+メタデータの読み込みに失敗してロック状態を判定できなかったプラグインは、
+安全のため更新対象から外され、警告として報告されます。
+
+```log
+[mpm] [Scheduled] WARNING 1 plugin(s) could not be checked (metadata error):
+[mpm]   - BrokenPlugin (metadata load failed)
+```
+
+<Callout type="warn" title="METADATA_UNAVAILABLE のプラグインは自動更新されません">
+`/mpm list` やHTTP APIでは、メタデータを読み込めないプラグインは `METADATA_UNAVAILABLE` として表示され、
+ロック状態は「ロックされていない」として扱われます。
+しかしスケジューラはロック状態を確認できないことを「更新してよい」とは解釈せず、安全のため更新対象から外します。
+そのため、一覧の表示上はロックされていなくても自動更新されない、という状態が起こりえます。
+メタデータを復旧すると、通常どおり分類されるようになります。
+</Callout>
+
+ロック中などの理由で追従更新を見送った場合は、失敗ではなく情報として報告されます。
+
+```log
+[mpm] [Scheduled] - LuckPermsExtension は親の更新に追従しませんでした（プラグインがロックされています）
+[mpm] [Scheduled] - LuckPermsExtensionAddon は親の更新に追従しませんでした（同期先 'LuckPermsExtension' が更新されなかったため）
+```
+
+<Callout type="warn" title="スケジュール更新ではバックアップは作成されません">
+スケジュール自動更新の前にバックアップは自動作成されません。
+自動更新で問題が起きたときに戻せるようにしたい場合は、`/mpm backup create` で定期的にバックアップを取っておいてください。
+</Callout>
 
 ### cron式の例
 
@@ -121,7 +314,11 @@ cron式を使用して、プラグインの自動更新をスケジュール実�
 | `30 2 1 * *` | 毎月1日の午前2時30分 |
 
 <Callout type="info" title="ロックされたプラグイン">
-`/mpm lock` でロックされたプラグインは、スケジュール自動更新の対象外です。
+`/mpm lock` でロックされたプラグインは、**更新チェックは行われますが、ダウンロードや置き換えは行われません**。
+更新が存在する場合は「更新があるがロック中のためスキップした」ことがコンソールに報告されます。
+
+ロックはバージョン指定の種類を問わない拒否権です。
+`latest` を指定していても、`sync:` で親に追従する設定であっても、ロック中のプラグインが更新されることはありません。
 重要なプラグインは事前にロックしておくことをおすすめします。
 </Callout>
 

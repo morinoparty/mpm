@@ -1,9 +1,7 @@
 /*
- * Written in 2023-2025 by Nikomaru <nikomaru@nikomaru.dev>
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
  *
- * To the extent possible under law, the author(s) have dedicated all copyright
- * and related and neighboring rights to this software to the public domain worldwide.
- * This software is distributed without any warranty.
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
  *
  * You should have received a copy of the CC0 Public Domain Dedication along with this software.
  * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
@@ -18,6 +16,7 @@ import arrow.core.right
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.model.PluginFilter
 import party.morino.mpm.api.application.model.add.AddWithDependenciesResult
 import party.morino.mpm.api.application.model.add.AdoptResult
@@ -25,6 +24,7 @@ import party.morino.mpm.api.application.model.add.PluginAddResult
 import party.morino.mpm.api.application.model.install.InstallResult
 import party.morino.mpm.api.application.model.install.PluginInstallInfo
 import party.morino.mpm.api.application.model.install.PluginRemovalInfo
+import party.morino.mpm.api.application.plugin.DeferredJarDeletion
 import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
@@ -33,6 +33,7 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.downloader.model.UrlData
 import party.morino.mpm.api.domain.downloader.model.VersionData
+import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
@@ -49,13 +50,19 @@ import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.application.plugin.metadata.restoreQuarantinedMetadataOrWarn
 import party.morino.mpm.event.lifecycle.PluginAddEvent
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.lifecycle.PluginRemoveEvent
 import party.morino.mpm.event.lifecycle.PluginUninstallEvent
+import party.morino.mpm.infrastructure.downloader.PluginDownloadException
 import party.morino.mpm.utils.BukkitDispatcher
-import party.morino.mpm.utils.DataClassReplacer.replaceTemplate
+import party.morino.mpm.utils.FileNameTemplate
 import party.morino.mpm.utils.PluginDataUtils
+import party.morino.mpm.utils.SafeFileName
+import party.morino.mpm.utils.regenerateQuietly
+import party.morino.mpm.utils.replaceJarAtomically
+import party.morino.mpm.utils.retireOldJar
 import java.io.File
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier as LegacyVersionSpecifier
 
@@ -74,6 +81,9 @@ class PluginLifecycleServiceImpl :
     private val downloaderRepository: DownloaderRepository by inject()
     private val metadataManager: PluginMetadataManager by inject()
     private val plugin: JavaPlugin by inject()
+
+    // 旧JARを即時削除できない場合（mpm 自身の更新など）の削除予約
+    private val deferredJarDeletion: DeferredJarDeletion by inject()
     private val infoService: PluginInfoService by inject()
 
     // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
@@ -83,12 +93,20 @@ class PluginLifecycleServiceImpl :
     // ダウンロードしたJARのハッシュ整合性検証を行う
     private val integrityVerifier: IntegrityVerifier by inject()
 
+    // ロックファイル再生成用。状態変更の成功後に mpm-lock.yaml を実状態へ追従させる
+    private val lockService: LockService by inject()
+
     /**
      * プラグインを管理対象に追加する
      *
      * AddPluginUseCaseImpl から移行したロジック
      */
     override suspend fun add(
+        name: PluginName,
+        version: VersionSpecifier
+    ): Either<MpmError, ManagedPlugin> = addInternal(name, version).onRight { regenerateLock() }
+
+    private suspend fun addInternal(
         name: PluginName,
         version: VersionSpecifier
     ): Either<MpmError, ManagedPlugin> {
@@ -133,6 +151,30 @@ class PluginLifecycleServiceImpl :
             return MpmError.PluginError.AlreadyExists(pluginName).left()
         }
 
+        // 既存メタデータを1度だけ読み、ロック状態の判定と「退避が必要か」の判定に使い回す
+        val existingMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
+
+        // lock は唯一の拒否権なので、読めるメタデータがロック中なら追加せずに中止する。
+        // mpm.json 上の spec が unmanaged（`mpm init --overwrite` 後など）でも、
+        // あるいは spec が消えていても metadata の lock は生きており、
+        // `/mpm update` は同じ状態でも Locked で拒否する。ここを素通りさせると、
+        // add / adopt だけが lock=true を無音で捨てて最新版へ差し替え、旧JARまで削除してしまう。
+        // 追加したい場合は先に unlock してもらう（update の --force のような迂回は用意しない）。
+        if (existingMetadata?.mpmInfo?.settings?.lock == true) {
+            return MpmError.PluginError.Locked(pluginName).left()
+        }
+
+        // 書き込み先（metadata と mpm.json）が保存可能かを、何かを書き換える前にまとめて検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれたファイルは読み込みには成功してしまうため、
+        // ここで見ておかないと「metadataは保存したが mpm.json の保存で失敗しロールバック」という
+        // 無駄な往復が起きる。破壊的操作の前に中止するのが安全側。
+        metadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+            return MpmError.PluginError.AddFailed(pluginName, it).left()
+        }
+        projectRepository.ensureSavable().onLeft { reason ->
+            return MpmError.PluginError.AddFailed(pluginName, reason).left()
+        }
+
         // VersionSpecifierに応じてバージョンデータを決定
         // firstRepositoryを渡すことで、リポファイル側のchannel.versionMatcherを尊重する
         val versionData: VersionData =
@@ -151,6 +193,21 @@ class PluginLifecycleServiceImpl :
                 is LegacyVersionSpecifier.Tag -> legacyVersion.tag
                 else -> "latest"
             }
+
+        // 読み込めないメタデータが残っている場合は、作り直して lock などの設定を無音で失う前に退避する
+        // （ファイルが無い通常の追加では何も起きない）。
+        // ただしこの時点では退避せず、退避が必要かどうかの記録だけに留める。
+        // ここで原本を消すと、この後のキャンセル可能なイベントや mpm.json の更新で中断した際に
+        // 「原本は退避済み・作り直しは未保存」というメタデータ不在の状態が残ってしまうため、
+        // 実際の退避は saveMetadata の直前まで遅延させる。
+        val needsQuarantine = existingMetadata == null
+        if (needsQuarantine) {
+            // 未来のスキーマ版数で書かれたファイルは「破損」ではなく「このmpmでは解釈できないだけ」なので、
+            // 退避も作り直しもせずここで中止する（退避経由でのダウングレードを防ぐ）
+            metadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+                return MpmError.PluginError.AddFailed(pluginName, it).left()
+            }
+        }
 
         // メタデータを作成（チャンネル固有のversionModifierを尊重する）
         val metadata =
@@ -198,40 +255,99 @@ class PluginLifecycleServiceImpl :
             }
         val sortedProject = updatedProject.withSortedPlugins()
 
-        // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
-        val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
+        // ここから先はメタデータの読み書きが連続するため、プラグイン単位のロックで直列化する。
+        // ダウンロードもイベント発火もこの区間には無く、ファイル操作だけなのでロックは短時間で済む。
+        // ロックの中から更新サービスや recordCheckResult を呼ばないこと（再入不可・ロック順序のため）。
+        return metadataManager.withMetadataLock(pluginName) {
+            // ロールバック用に既存メタデータを退避（unmanagedからの変換時に既存データがある場合）
+            val previousMetadata = metadataManager.loadMetadata(pluginName).getOrNull()
 
-        // メタデータを先に保存（mpm.jsonより先に保存することで、メタデータ保存失敗時の不整合を防ぐ）
-        metadataManager
-            .saveMetadata(pluginName, metadata)
-            .getOrElse { return MpmError.PluginError.AddFailed(pluginName, it).left() }
+            // 読み込めなかった原本の退避は、ここまでの処理がすべて成功した保存の直前で初めて行う。
+            // 退避に失敗した場合は原本を上書きせずに中止する。
+            // 退避先は、この後の保存に失敗したときに戻すため保持しておく。
+            var quarantinedFile: File? = null
+            // 退避の要否はロックの中で読み直した結果で最終判定する。
+            // 先の読み込みが失敗していても、その後に別経路が正しいファイルを書いていれば
+            // ここで読めるようになっており、その場合に退避すると正常なファイルを `.corrupt` へ追い出してしまう
+            if (needsQuarantine && previousMetadata == null) {
+                metadataManager.quarantineMetadata(pluginName).fold(
+                    { quarantineError ->
+                        return@withMetadataLock MpmError.PluginError
+                            .AddFailed(pluginName, "破損したメタデータを退避できませんでした: $quarantineError")
+                            .left()
+                    },
+                    { quarantined ->
+                        quarantinedFile = quarantined
+                        quarantined?.let {
+                            plugin.logger.warning(
+                                "メタデータを読み込めないため退避して作り直します: $pluginName -> ${it.absolutePath}"
+                            )
+                        }
+                    }
+                )
+            }
 
-        // メタデータ保存成功後にProjectRepositoryを通じて保存
-        try {
-            projectRepository.save(sortedProject)
-        } catch (e: Exception) {
-            // 保存失敗時はメタデータをロールバック（以前の状態に復元）
-            val rollbackError =
-                if (previousMetadata != null) {
-                    metadataManager.saveMetadata(pluginName, previousMetadata).fold(
-                        { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
-                        { "" }
+            // メタデータを先に保存（mpm.jsonより先に保存することで、メタデータ保存失敗時の不整合を防ぐ）
+            metadataManager.saveMetadata(pluginName, metadata).onLeft { saveError ->
+                // 退避したまま保存に失敗すると `metadata/<名前>.yaml` が不在になるため、原本を戻す
+                val restoreNote =
+                    restoreQuarantinedMetadataOrWarn(
+                        metadataManager = metadataManager,
+                        logger = plugin.logger,
+                        pluginName = pluginName,
+                        quarantinedFile = quarantinedFile
                     )
-                } else {
-                    metadataManager.deleteMetadata(pluginName).fold(
-                        { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
-                        { "" }
-                    )
-                }
-            return MpmError.PluginError
-                .AddFailed(
-                    pluginName,
-                    "Failed to save mpm.json: ${e.message}$rollbackError"
-                ).left()
+                return@withMetadataLock MpmError.PluginError.AddFailed(pluginName, "$saveError$restoreNote").left()
+            }
+
+            // メタデータ保存成功後にProjectRepositoryを通じて保存
+            try {
+                projectRepository.save(sortedProject)
+            } catch (e: Exception) {
+                // 保存失敗時はメタデータをロールバック（以前の状態に復元）
+                val rollbackError =
+                    if (previousMetadata != null) {
+                        metadataManager.saveMetadata(pluginName, previousMetadata).fold(
+                            { rollbackMsg -> " (rollback also failed: $rollbackMsg)" },
+                            { "" }
+                        )
+                    } else {
+                        metadataManager.deleteMetadata(pluginName).fold(
+                            { rollbackMsg ->
+                                // 作り直したメタデータを消せなかった場合、退避した原本は `.corrupt` に
+                                // 置き去りのまま戻せない。原本の所在が起動ログにしか残らないと
+                                // 利用者が復旧できないため、退避先の絶対パスをエラー文にも載せる
+                                val restoreNote =
+                                    restoreQuarantinedMetadataOrWarn(
+                                        metadataManager = metadataManager,
+                                        logger = plugin.logger,
+                                        pluginName = pluginName,
+                                        quarantinedFile = quarantinedFile
+                                    )
+                                " (rollback also failed: $rollbackMsg)$restoreNote"
+                            },
+                            {
+                                // 作り直したメタデータを消しただけでは、退避した原本があると
+                                // `metadata/<名前>.yaml` が不在のまま残ってしまうため元に戻す
+                                restoreQuarantinedMetadataOrWarn(
+                                    metadataManager = metadataManager,
+                                    logger = plugin.logger,
+                                    pluginName = pluginName,
+                                    quarantinedFile = quarantinedFile
+                                )
+                            }
+                        )
+                    }
+                return@withMetadataLock MpmError.PluginError
+                    .AddFailed(
+                        pluginName,
+                        "Failed to save mpm.json: ${e.message}$rollbackError"
+                    ).left()
+            }
+
+            // ManagedPluginを返す（メタデータから構築）
+            ManagedPlugin.fromDto(metadata).right()
         }
-
-        // ManagedPluginを返す（メタデータから構築）
-        return ManagedPlugin.fromDto(metadata).right()
     }
 
     /**
@@ -240,6 +356,11 @@ class PluginLifecycleServiceImpl :
      * RemovePluginUseCaseImpl から移行したロジック
      */
     override suspend fun remove(
+        name: PluginName,
+        force: Boolean
+    ): Either<MpmError, Unit> = removeInternal(name, force).onRight { regenerateLock() }
+
+    private suspend fun removeInternal(
         name: PluginName,
         force: Boolean
     ): Either<MpmError, Unit> {
@@ -257,6 +378,14 @@ class PluginLifecycleServiceImpl :
         // プラグインが管理対象に含まれているか確認
         if (project.getPluginSpec(name) == null) {
             return MpmError.PluginError.NotFound(pluginName).left()
+        }
+
+        // mpm.json を保存できるかを、イベントを発火する前に検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれた mpm.json は保存が必ず拒否されるため、先にイベントを発火すると
+        // 「mpm.json は何も変わっていないのに、通知を受けた外部システムだけが削除済みだと認識する」
+        // という食い違いが残る。add / uninstall / lock / unlock と同じ順序に揃える。
+        projectRepository.ensureSavable().onLeft { reason ->
+            return MpmError.PluginError.RemoveFailed(pluginName, reason).left()
         }
 
         // 逆依存関係チェック（このプラグインにsyncしているプラグインがあるか）
@@ -312,6 +441,12 @@ class PluginLifecycleServiceImpl :
         name: PluginName,
         force: Boolean,
         skipIntegrity: Boolean
+    ): Either<MpmError, InstallResult> = installInternal(name, force, skipIntegrity).onRight { regenerateLock() }
+
+    private suspend fun installInternal(
+        name: PluginName,
+        force: Boolean,
+        skipIntegrity: Boolean
     ): Either<MpmError, InstallResult> {
         val pluginName = name.value
 
@@ -320,6 +455,14 @@ class PluginLifecycleServiceImpl :
             metadataManager.loadMetadata(pluginName).getOrElse {
                 return MpmError.PluginError.MetadataNotFound(pluginName).left()
             }
+
+        // メタデータを保存できるかを、ダウンロードやJARの差し替えより前に検査する（副作用なし）。
+        // schemaVersion は単なるIntフィールドなので、未来版数のファイルでも読み込みは成功してしまう。
+        // 保存地点のガードだけに頼ると「JARは更新されたのにメタデータは旧版のまま」になるため、
+        // 何も壊していない段階で中止する。
+        metadataManager.ensureMetadataReplaceable(pluginName).onLeft {
+            return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
+        }
 
         val mpmInfo = metadata.mpmInfo
         val pluginInfo = metadata.pluginInfo
@@ -402,8 +545,9 @@ class PluginLifecycleServiceImpl :
                     )
                 }
             } catch (e: Exception) {
+                // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
                 return MpmError.PluginError
-                    .VersionResolutionFailed(
+                    .UpstreamUnavailable(
                         pluginName,
                         "Failed to get latest version: ${e.message}"
                     ).left()
@@ -446,6 +590,10 @@ class PluginLifecycleServiceImpl :
                     versionData,
                     mpmInfo.fileNamePattern
                 )
+            } catch (e: PluginDownloadException) {
+                // 型付きのダウンロード失敗はInstallFailed（HTTP 500）へ潰さず、原因を保ったまま返す。
+                // 上流の429/5xxはUpstreamUnavailableとなり、HTTPでは再試行可能な503になる
+                return e.toMpmError(pluginName).left()
             } catch (e: Exception) {
                 return MpmError.PluginError
                     .InstallFailed(
@@ -501,29 +649,32 @@ class PluginLifecycleServiceImpl :
             }
         }
 
-        // ファイル名を生成
-        val template = mpmInfo.fileNameTemplate ?: "<pluginInfo.name>-<mpmInfo.version.current.normalized>.jar"
-        val newFileName = generateFileName(template, pluginInfo.name, mpmInfo.version.current.normalized)
+        // ファイル名を生成する（リポジトリ由来のテンプレートなので展開結果を検証する）
+        val template = mpmInfo.fileNameTemplate ?: FileNameTemplate.DEFAULT
+        val newFileName =
+            generateFileName(template, pluginInfo.name, mpmInfo.version.current.normalized)
+                .getOrElse { reason ->
+                    return MpmError.PluginError.InstallFailed(pluginName, reason).left()
+                }
 
-        // staged copy: 一時ファイル経由で安全にファイルを置換する
+        // staged copy: 配置先と同じディレクトリの一時ファイル経由でアトミックに置換する
+        // （失敗時も既存JARが壊れず、中間ファイルも残らない）
         val pluginsDir = pluginDirectory.getPluginsDirectory()
-        val targetFile = File(pluginsDir, newFileName)
-        val stagedFile = File(pluginsDir, "$newFileName.tmp")
-        try {
-            downloadedFile.copyTo(stagedFile, overwrite = true)
-            downloadedFile.delete()
-            if (!stagedFile.renameTo(targetFile)) {
-                stagedFile.copyTo(targetFile, overwrite = true)
-                stagedFile.delete()
+        // 配置直前にも plugins/ の配下に収まることを確認する（多重防御）
+        val targetFile =
+            SafeFileName.resolveInside(pluginsDir, newFileName).getOrElse { reason ->
+                return MpmError.PluginError.InstallFailed(pluginName, reason).left()
             }
-        } catch (e: Exception) {
-            stagedFile.delete()
+        replaceJarAtomically(downloadedFile, targetFile).getOrElse { reason ->
             return MpmError.PluginError
                 .InstallFailed(
                     pluginName,
-                    "Failed to move file: ${e.message}"
+                    "Failed to move file: $reason"
                 ).left()
         }
+
+        // 同名の旧JARが削除予約されていた場合（ロールバックなど）、置き直した新JARが停止時に消えないよう予約を取り消す
+        deferredJarDeletion.cancel(targetFile)
 
         // 新しいファイルの配置が成功してから古いファイルを削除する
         val oldFileName = mpmInfo.download.fileName
@@ -531,7 +682,8 @@ class PluginLifecycleServiceImpl :
         if (oldFileName != null && oldFileName != newFileName) {
             val oldFile = File(pluginsDir, oldFileName)
             if (oldFile.exists()) {
-                oldFile.delete()
+                // mpm 自身の更新や削除できない環境では即時削除せず、サーバー停止時の削除に回す
+                retireOldJar(oldFile, pluginName, plugin, deferredJarDeletion)
                 removedInfo =
                     PluginRemovalInfo(
                         name = pluginName,
@@ -553,9 +705,15 @@ class PluginLifecycleServiceImpl :
                             )
                     )
             )
-        metadataManager.saveMetadata(pluginName, updatedMetadata).getOrElse {
-            return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
-        }
+        // 読み込みから保存までの間にダウンロードを挟んでいるため、保存はロックの中で読み直してから行う。
+        // ダウンロード自体はロックの外に置いている（数十秒握り続けると同じプラグインへの
+        // `mpm lock` や定期チェックが待たされてしまうため）。
+        metadataManager
+            .withMetadataLock(pluginName) {
+                metadataManager.saveMetadata(pluginName, mergeLatestSettings(pluginName, updatedMetadata))
+            }.getOrElse {
+                return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
+            }
 
         // インストール結果を返す
         return InstallResult(
@@ -567,6 +725,53 @@ class PluginLifecycleServiceImpl :
                 ),
             removed = removedInfo
         ).right()
+    }
+
+    /**
+     * ロックファイル（mpm-lock.yaml）を実インストール状態へ追従させる
+     *
+     * サービス層で行うことで、コマンド経路・HTTP経路・スケジューラのいずれから呼ばれても
+     * ロックファイルが更新される。以前はコマンド層でのみ再生成しており、HTTP API 経由の
+     * 操作ではロックファイルが古いまま取り残されていた（#448）。
+     *
+     * 各publicメソッドは実処理を `*Internal` に委譲し、`onRight` で成功時だけここを呼ぶ。
+     * バッチ処理（addWithDependencies / adoptAll）は内部で `*Internal` を直接呼ぶため、
+     * 1件ごとではなくバッチ全体で1回だけ再生成される。
+     *
+     * 再生成はメタデータから作り直す冪等な処理で、失敗しても警告ログのみで握り潰す
+     * （[regenerateQuietly]）。本処理は既に完了しているため、ここでの失敗を理由に
+     * 全体を失敗扱いにはしない。
+     */
+    private suspend fun regenerateLock() {
+        lockService.regenerateQuietly(plugin.logger)
+    }
+
+    /**
+     * 保存直前に最新のメタデータを読み直し、設定（lock等）だけを引き継ぐ
+     *
+     * メタデータはファイル全体を上書き保存するため、ダウンロード開始前に読み込んだスナップショットを
+     * そのまま保存すると、数十秒かかるダウンロードの最中に実行された `mpm lock` / `mpm unlock` の
+     * 結果を消してしまう。バージョンやダウンロード情報は本処理が確定させた値が正しいため、
+     * マージ対象は設定のみとする。
+     *
+     * 読み直しと保存が交差しないよう、必ず [PluginMetadataManager.withMetadataLock] の中から呼ぶこと。
+     *
+     * @param pluginName プラグイン名
+     * @param metadata 保存しようとしているメタデータ
+     * @return 最新の設定を反映したメタデータ（読み直しに失敗した場合は元のメタデータ）
+     */
+    private fun mergeLatestSettings(
+        pluginName: String,
+        metadata: ManagedPluginDto
+    ): ManagedPluginDto {
+        val latestSettings =
+            metadataManager
+                .loadMetadata(pluginName)
+                .getOrNull()
+                ?.mpmInfo
+                ?.settings
+                ?: return metadata
+        return metadata.copy(mpmInfo = metadata.mpmInfo.copy(settings = latestSettings))
     }
 
     /**
@@ -618,7 +823,10 @@ class PluginLifecycleServiceImpl :
      * UninstallPluginUseCaseImplから移行したロジック
      * mpm.jsonから削除し、pluginsディレクトリからJARファイルも削除する
      */
-    override suspend fun uninstall(name: PluginName): Either<MpmError, Unit> {
+    override suspend fun uninstall(name: PluginName): Either<MpmError, Unit> =
+        uninstallInternal(name).onRight { regenerateLock() }
+
+    private suspend fun uninstallInternal(name: PluginName): Either<MpmError, Unit> {
         val pluginName = name.value
 
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
@@ -633,6 +841,14 @@ class PluginLifecycleServiceImpl :
         // プラグインが管理対象に含まれているか確認
         if (project.getPluginSpec(name) == null) {
             return MpmError.PluginError.NotFound(pluginName).left()
+        }
+
+        // mpm.json を保存できるかを、JARを削除する前に検査する（副作用なし）。
+        // 未来のスキーマ版数で書かれた mpm.json は保存が必ず拒否されるため、
+        // 先にJARを消してしまうと「コマンドは失敗したのにJARだけ消え、mpm.jsonには残る」
+        // という復旧しづらい状態になる。破壊的操作もイベント通知も始める前に中止する。
+        projectRepository.ensureSavable().onLeft { reason ->
+            return MpmError.PluginError.UninstallFailed(pluginName, reason).left()
         }
 
         // pluginsディレクトリから対象のJARファイルを特定
@@ -683,7 +899,10 @@ class PluginLifecycleServiceImpl :
      * RemoveUnmanagedUseCaseImplから移行したロジック
      * mpm.jsonに含まれていないプラグインのJARファイルを削除する
      */
-    override suspend fun removeUnmanaged(): Either<MpmError, Int> {
+    override suspend fun removeUnmanaged(): Either<MpmError, Int> =
+        removeUnmanagedInternal().onRight { regenerateLock() }
+
+    private suspend fun removeUnmanagedInternal(): Either<MpmError, Int> {
         // ProjectRepositoryを通じてプロジェクトを取得（パースエラーも区別する）
         val project =
             projectRepository.findOrError().getOrElse { error ->
@@ -1002,16 +1221,21 @@ class PluginLifecycleServiceImpl :
                         .resolveLatest(downloaderRepository, urlData, repoConfig)
                         .right()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Fixed -> {
-                try {
-                    // 指定されたバージョンのdownloadIdを正しく取得する
-                    downloaderRepository.getVersionByName(urlData, version.version).right()
-                } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
-                }
+                // 指定されたバージョンのdownloadIdを正しく取得する。
+                // mpm.jsonに正規化表記（例: "0.3.9"）が書かれていても実タグ（例: "v0.3.9"）へ
+                // 解決できるよう、VersionNameResolverに解決順を任せる
+                VersionNameResolver.resolve(
+                    downloaderRepository,
+                    urlData,
+                    pluginName,
+                    version.version,
+                    repoConfig?.effectiveVersionPattern(null)
+                )
             }
             is LegacyVersionSpecifier.Tag -> {
                 try {
@@ -1029,7 +1253,8 @@ class PluginLifecycleServiceImpl :
                                 "tag '${version.tag}' に該当するバージョンが見つかりません"
                             ).left()
                 } catch (e: Exception) {
-                    MpmError.PluginError.VersionResolutionFailed(pluginName, e.message ?: "Unknown error").left()
+                    // 上流リポジトリの一時障害はクライアントの指定ミスと区別する（HTTPでは503を返す）
+                    MpmError.PluginError.UpstreamUnavailable(pluginName, e.message ?: "Unknown error").left()
                 }
             }
             is LegacyVersionSpecifier.Pattern -> {
@@ -1040,18 +1265,22 @@ class PluginLifecycleServiceImpl :
                     ).left()
             }
             is LegacyVersionSpecifier.Sync -> {
-                resolveSyncVersion(version, urlData, project, pluginName)
+                resolveSyncVersion(version, urlData, project, pluginName, repoConfig)
             }
         }
 
     /**
      * Sync バージョンを解決する
+     *
+     * @param repoConfig 自分自身（アドオン側）のリポジトリ設定。解決したバージョン文字列を
+     *   実バージョン名へ突き合わせる際の versionPattern 取得に使う
      */
     private suspend fun resolveSyncVersion(
         version: LegacyVersionSpecifier.Sync,
         urlData: UrlData,
         project: MpmProject,
-        pluginName: String
+        pluginName: String,
+        repoConfig: RepositoryConfig? = null
     ): Either<MpmError, VersionData> {
         // ターゲットプラグインがプロジェクトに存在するか確認
         val targetSpec =
@@ -1072,16 +1301,12 @@ class PluginLifecycleServiceImpl :
         }
 
         // ターゲットのバージョン指定を取得
+        // 多段sync（A ← sync:A の B ← sync:B の C）は正式に許可しているため、
+        // ターゲットがsync指定であることを理由に拒否しない。
+        // ここで拒否すると、更新・インストール・cronが多段syncに対応しているのに
+        // 多段syncを作る唯一の正規コマンドである add だけが失敗する、という食い違いが残る。
+        // 循環は validateSyncDependencies / detectCircularDependencies が別途捕捉する
         val targetManaged = targetSpec as PluginSpec.Managed
-
-        // ターゲットもSync指定の場合はエラー
-        if (targetManaged.versionRequirement is VersionSpecifier.Sync) {
-            return MpmError.PluginError
-                .VersionResolutionFailed(
-                    pluginName,
-                    "Sync target '${version.targetPlugin}' is also sync"
-                ).left()
-        }
 
         // ターゲットのバージョンを解決
         val resolvedVersion =
@@ -1148,6 +1373,21 @@ class PluginLifecycleServiceImpl :
                     // Fixed: 指定されたバージョン文字列をそのまま使用
                     (targetManaged.versionRequirement as VersionSpecifier.Fixed).version
                 }
+                is VersionSpecifier.Sync -> {
+                    // 多段sync: 同期先が今ディスクに入っているバージョンへ追従する。
+                    // 連鎖の根まで遡って解決し直すのではなく、連動更新（updateSyncPlugins）と同じく
+                    // 「親の実際のインストール済みバージョン」を見ることで、両経路の結果が一致する。
+                    metadataManager.loadMetadata(version.targetPlugin).fold(
+                        {
+                            return MpmError.PluginError
+                                .VersionResolutionFailed(
+                                    pluginName,
+                                    "Sync target '${version.targetPlugin}' is not installed yet"
+                                ).left()
+                        },
+                        { it.mpmInfo.version.current.raw }
+                    )
+                }
                 else -> {
                     // Pattern等: DTO経由で取得
                     val dto = project.toDto()
@@ -1157,16 +1397,27 @@ class PluginLifecycleServiceImpl :
                 }
             }
 
-        // アドオン側で解決されたバージョンに対応するダウンロード情報を取得
-        return try {
-            downloaderRepository.getVersionByName(urlData, resolvedVersion).right()
-        } catch (e: Exception) {
-            MpmError.PluginError
-                .VersionResolutionFailed(
-                    pluginName,
-                    "Version '$resolvedVersion' not found: ${e.message}"
-                ).left()
-        }
+        // アドオン側で解決されたバージョンに対応するダウンロード情報を取得。
+        // 親が固定バージョン指定の場合、その文字列は正規化表記のこともあるため、
+        // VersionNameResolverで実タグへの突き合わせまで行う
+        return VersionNameResolver
+            .resolve(
+                downloaderRepository,
+                urlData,
+                pluginName,
+                resolvedVersion,
+                repoConfig?.effectiveVersionPattern(null)
+            ).mapLeft { error ->
+                // 上流障害（UpstreamUnavailable）はそのまま伝え、解決失敗のみ従来の文言で包む
+                if (error is MpmError.PluginError.VersionResolutionFailed) {
+                    MpmError.PluginError.VersionResolutionFailed(
+                        pluginName,
+                        "Version '$resolvedVersion' not found: ${error.reason}"
+                    )
+                } else {
+                    error
+                }
+            }
     }
 
     /**
@@ -1213,37 +1464,7 @@ class PluginLifecycleServiceImpl :
         template: String,
         pluginName: String,
         versionString: String
-    ): String {
-        // テンプレート置換用のデータクラス
-        data class PluginInfo(
-            val name: String
-        )
-
-        data class CurrentVersion(
-            val normalized: String
-        )
-
-        data class MpmInfoVersion(
-            val current: CurrentVersion
-        )
-
-        data class MpmInfo(
-            val version: MpmInfoVersion
-        )
-
-        data class FileNameData(
-            val pluginInfo: PluginInfo,
-            val mpmInfo: MpmInfo
-        )
-
-        val data =
-            FileNameData(
-                pluginInfo = PluginInfo(name = pluginName),
-                mpmInfo = MpmInfo(version = MpmInfoVersion(current = CurrentVersion(normalized = versionString)))
-            )
-
-        return template.replaceTemplate(data)
-    }
+    ): Either<String, String> = FileNameTemplate.render(template, pluginName, versionString)
 
     /**
      * プラグインを依存関係と共に追加・インストールする
@@ -1262,6 +1483,16 @@ class PluginLifecycleServiceImpl :
         includeSoftDependencies: Boolean,
         force: Boolean,
         skipIntegrity: Boolean
+    ): Either<MpmError, AddWithDependenciesResult> =
+        addWithDependenciesInternal(name, version, includeSoftDependencies, force, skipIntegrity)
+            .onRight { regenerateLock() }
+
+    private suspend fun addWithDependenciesInternal(
+        name: PluginName,
+        version: VersionSpecifier,
+        includeSoftDependencies: Boolean = false,
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
     ): Either<MpmError, AddWithDependenciesResult> {
         val addedPlugins = mutableListOf<PluginAddResult>()
         val skippedPlugins = mutableListOf<String>()
@@ -1378,14 +1609,14 @@ class PluginLifecycleServiceImpl :
             }
 
         // プラグインを追加
-        val addResult = add(PluginName(pluginName), resolvedVersion)
+        val addResult = addInternal(PluginName(pluginName), resolvedVersion)
         addResult.fold(
             { error ->
                 failedPlugins[pluginName] = error.message
             },
             {
                 // 追加成功後、インストール（force・skipIntegrityフラグを伝播）
-                val installResult = install(PluginName(pluginName), force, skipIntegrity)
+                val installResult = installInternal(PluginName(pluginName), force, skipIntegrity)
                 installResult.fold(
                     { error ->
                         failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"
@@ -1415,6 +1646,14 @@ class PluginLifecycleServiceImpl :
      * @return adopt結果（adoptされたプラグイン、スキップされたプラグイン、失敗したプラグイン）
      */
     override suspend fun adoptAll(
+        includeSoftDependencies: Boolean,
+        pinToCurrentVersion: Boolean,
+        progressCallback: ((String) -> Unit)?
+    ): Either<MpmError, AdoptResult> =
+        adoptAllInternal(includeSoftDependencies, pinToCurrentVersion, progressCallback)
+            .onRight { regenerateLock() }
+
+    private suspend fun adoptAllInternal(
         includeSoftDependencies: Boolean,
         pinToCurrentVersion: Boolean,
         progressCallback: ((String) -> Unit)?
@@ -1492,7 +1731,7 @@ class PluginLifecycleServiceImpl :
             progressCallback?.invoke("<gray>[$repoName] ダウンロード中...")
 
             // addWithDependenciesを呼び出してプラグインを追加
-            addWithDependencies(
+            addWithDependenciesInternal(
                 PluginName(repoName),
                 versionSpecifier,
                 includeSoftDependencies
