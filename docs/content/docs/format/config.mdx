@@ -409,6 +409,7 @@ cron式の時刻はサーバーのJVMデフォルトタイムゾーンに基づ�
 
 なお、自動更新に成功したプラグインには `update` の通知が送信されるため、
 `outdated` の通知は行われません。自動更新に失敗した場合は `outdated` が送信されます。
+`sync:` で親に追従して更新された子にも、親とは別に `update` の通知が送信されます。
 </Callout>
 
 <Callout type="warn" title="Webhook URLの扱い">

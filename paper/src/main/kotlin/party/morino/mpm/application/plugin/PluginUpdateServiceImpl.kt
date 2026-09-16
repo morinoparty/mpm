@@ -1240,6 +1240,11 @@ class PluginUpdateServiceImpl :
      * 一致していなければ [installPluginWithVersion] で親のバージョンを子のリポジトリから取得して置換する。
      * 1件の失敗は該当プラグインの失敗結果として記録し、残りの処理は継続する。
      *
+     * 追従する各子についても親と同じく [PluginUpdateEvent] を発火する。
+     * Webhook 通知（update）や外部プラグインのイベント購読は、親の update(name) が発火する
+     * イベントしか見ていないため、ここで発火しないと連動更新が外部に伝わらない。
+     * キャンセルされた子は据え置き（skipped）として記録し、その先の子孫も打ち切る。
+     *
      * 多段 sync では、途中のノードがロック・破損・失敗で据え置かれた場合、
      * その先の子孫も追従させない（[SyncFollowBlocklist]）。
      * 中間ノードのバージョンが動いていない以上、孫だけを進めると
@@ -1387,6 +1392,36 @@ class PluginUpdateServiceImpl :
                 )
                 // lockは唯一の拒否権であり、この子は旧バージョンのまま据え置かれる。
                 // その先の孫まで更新すると孫だけが先行してしまうため、打ち切る。
+                blocklist.block(childName)
+                continue
+            }
+
+            // 親と同じく PluginUpdateEvent を発火し、キャンセル可能にする。
+            // 連動更新は親の update(name) の中で起きるため、ここで発火しないと
+            // Webhook（Discord の update 通知）やイベント購読者には親の更新しか見えず、
+            // 子が差し替わったことが外部に一切伝わらない
+            val childUpdateEvent =
+                BukkitDispatcher.callEventSync(
+                    plugin,
+                    PluginUpdateEvent(
+                        installedPlugin = InstalledPlugin(childName),
+                        beforeVersion = VersionSpecifier.Fixed(currentVersion),
+                        targetVersion = VersionSpecifier.Fixed(targetVersion)
+                    )
+                )
+            if (childUpdateEvent.isCancelled) {
+                progressCallback?.invoke("<gray>[$childName] <yellow>連動更新がキャンセルされました")
+                updateResults.add(
+                    UpdateResult(
+                        pluginName = childName,
+                        oldVersion = currentVersion,
+                        newVersion = currentVersion,
+                        success = false,
+                        errorMessage = "連動更新がキャンセルされました",
+                        skipped = true
+                    )
+                )
+                // キャンセルされた子は旧バージョンのまま据え置かれるため、その先の子孫も打ち切る
                 blocklist.block(childName)
                 continue
             }
