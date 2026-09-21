@@ -34,7 +34,7 @@ class RemoteRepositorySourceTest {
     // 子リポジトリのインデックスURL
     private val childUrl = "https://child.example.org/mpm/index.json"
 
-    // 子リポジトリのインデックス（MineAuth と MineAuth-addon-* を定義する）
+    // 子リポジトリのインデックス（MineAuth 系に加え、許可されていない配布元の定義も含む）
     private val childIndex =
         """
         {
@@ -67,7 +67,6 @@ class RemoteRepositorySourceTest {
             "children": [
                 {
                     "index": "$childUrl",
-                    "scope": ["MineAuth", "MineAuth-*"],
                     "allowedSources": ["github:morinoparty/MineAuth"]
                 }
             ]
@@ -164,7 +163,7 @@ class RemoteRepositorySourceTest {
         runBlocking {
             val plugins = source.getAvailablePlugins()
 
-            // scope 内の MineAuth / MineAuth-addon-x は採用され、scope 外の LuckPerms は捨てられる
+            // 許可された配布元の MineAuth / MineAuth-addon-x は採用され、別の配布元を名乗る LuckPerms は捨てられる
             assertEquals(listOf("MineAuth", "MineAuth-addon-x", "Vault"), plugins)
 
             // 子由来の定義からは fileNameTemplate が落とされている

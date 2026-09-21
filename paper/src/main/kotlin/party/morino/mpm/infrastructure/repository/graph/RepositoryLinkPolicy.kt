@@ -53,39 +53,32 @@ object RepositoryLinkPolicy {
         }
 
     /**
-     * プラグイン名がリンクの scope に収まるかを返す（大文字小文字を区別する）
-     * @param name プラグイン名
-     * @param link 判定に使うリンク
-     * @return scope のいずれかのパターンに一致すればtrue。scope が空なら常にfalse
-     */
-    fun matchesScope(
-        name: String,
-        link: RepositoryLink
-    ): Boolean = link.scope.any { matchesPattern(name, it) }
-
-    /**
      * リポジトリ設定1件がリンクの allowedSources に収まるかを返す
      *
+     * allowedSources が空のリンクは配布元を制限しない。
      * GitHub の `owner/repo` は大小文字を区別しないため、比較は小文字化して行う。
      * @param repo 判定対象のリポジトリ設定
      * @param link 判定に使うリンク
-     * @return type が既知で、`type:id` が allowedSources のいずれかに一致すればtrue
+     * @return 制限が無い、または `type:id` が allowedSources のいずれかに一致すればtrue
      */
     fun matchesAllowedSource(
         repo: RepositoryConfig,
         link: RepositoryLink
     ): Boolean {
-        if (repo.type !in ALLOWED_TYPES) return false
+        if (link.allowedSources.isEmpty()) return true
         val actual = "${repo.type}:${repo.repositoryId}".lowercase()
         return link.allowedSources.any { matchesPattern(actual, it.lowercase()) }
     }
 
     /**
-     * 子リポジトリ由来のプラグイン定義が、経路上のすべてのリンクの制約を満たすかを返す
+     * 子リポジトリ由来のプラグイン定義を採用してよいかを返す
+     *
+     * 名前に制限は無い（同名は祖先側が勝つ）。配布元は Downloader が実装している種別に限り、
+     * 経路上のリンクに allowedSources があればそのすべてを満たす必要がある。
      *
      * @param name インデックス上のキー
      * @param file プラグイン定義
-     * @param constraints ルートからこの定義に到達するまでに通ったリンク（すべて満たす必要がある）
+     * @param constraints ルートからこの定義に到達するまでに通ったリンク
      * @return 採用してよければtrue
      */
     fun isPermitted(
@@ -98,9 +91,10 @@ object RepositoryLinkPolicy {
         if (!isValidPluginName(name)) return false
         // 配布元が1件も無い定義は意味を持たない
         if (file.repositories.isEmpty()) return false
+        // 未知のリポジトリタイプは Downloader が扱えないので弾く
+        if (file.repositories.any { it.type !in ALLOWED_TYPES }) return false
         return constraints.all { link ->
-            matchesScope(name, link) &&
-                file.repositories.all { repo -> matchesAllowedSource(repo, link) }
+            file.repositories.all { repo -> matchesAllowedSource(repo, link) }
         }
     }
 

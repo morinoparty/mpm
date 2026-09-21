@@ -1,7 +1,5 @@
 [
   {
-    "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json",
-    "scope": ["MineAuth", "MineAuth-*"],
-    "allowedSources": ["github:morinoparty/MineAuth", "modrinth:9LoU3yUC"]
+    "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json"
   }
 ]
