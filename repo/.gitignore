@@ -1,0 +1,3 @@
+# scripts/build.ts が生成する配信物（デプロイ時に再生成される）
+public/paper/index.json
+public/schema/
