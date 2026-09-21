@@ -98,13 +98,8 @@ object MockDataLoader {
      */
     object Repository {
         /**
-         * /index.json のレスポンスを取得（プラグイン一覧）
+         * /index.json のレスポンスを取得（リポジトリインデックス）
          */
         fun getIndex(): String = loadMockData("mock/http/repository/index.json")
-
-        /**
-         * /luckperms.json のレスポンスを取得（リポジトリファイル）
-         */
-        fun getLuckPermsRepository(): String = loadMockData("mock/http/repository/luckperms.json")
     }
 }

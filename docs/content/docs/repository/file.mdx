@@ -1,5 +1,5 @@
 ---
-title: リポジトリファイル
+title: 📄 リポジトリファイル
 description: プラグインのダウンロード元を管理するリポジトリファイルの仕様
 ---
 
@@ -58,7 +58,9 @@ VS CodeやIntelliJなどのJSONスキーマ対応エディタで補完・検証�
 ```
 
 - `mpm` はこのフィールドを無視するため、記述しても動作に影響はありません
-- スキーマはZodの型定義（`repo/src/type/plugin-info.ts`）から自動生成されています
+- スキーマはZodの型定義（`repo/src/type/plugin-info.ts`）から `repo/scripts/build.ts` で静的ファイルとして生成されています
+- 推奨URLはバージョン付きの `https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json` です。
+  `/schema/plugin-info.json` は最新版へのエイリアスとして配信されます
 
 ## リポジトリタイプ
 
@@ -230,9 +232,10 @@ Hangar（PaperMC公式プラグインリポジトリ）からプラグインを�
 :::warning
 **⚠️ downloadUrl は現在どの実装からも読まれません。** 値を設定してもダウンロードの挙動は変わりません。
 将来実装する場合、リポジトリ定義に由来する任意のURLへ無検証でリクエストすることになるため、
-ホストのallowlistなどの検証を必ず伴わせてください。委譲リポジトリでは第三者が値を供給しうるためです。
-なお、委譲インデックスのスキーマ側では `downloadUrl` と `fileNameTemplate` を除外しているので、
-第三者のリポジトリデータからこのフィールドが渡ってくることはありません。
+ホストのallowlistなどの検証を必ず伴わせてください。子リポジトリでは第三者が値を供給しうるためです。
+なお、mpmは子リポジトリ（[リポジトリインデックス](/docs/repository/graph)の `children` 経由で
+たどったリポジトリ）から受け取った定義の `downloadUrl` と `fileNameTemplate` を読み込み時に落とすので、
+第三者のリポジトリデータからこれらのフィールドが有効になることはありません。
 :::
 
 - **fileNameTemplate**: ダウンロード後のファイル名テンプレート
@@ -490,6 +493,7 @@ plugins/mpm/repository/QuickShop.json
 
 ## 関連ドキュメント
 
+- [リポジトリインデックス](/docs/repository/graph) - リモートリポジトリの配信形式と子リポジトリへのリンク
 - [プラグインを管理する](/docs/usage/install) - 基本的な使い方
 - [はじめに](/docs/usage/getting-started) - クイックスタートガイド
 - [ライフサイクル管理コマンド](/docs/commands/plugin-management/lifecycle) - コマンドリファレンス

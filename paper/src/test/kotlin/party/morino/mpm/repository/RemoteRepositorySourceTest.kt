@@ -28,154 +28,110 @@ import party.morino.mpm.utils.MockDataLoader
 
 @ExtendWith(MpmTest::class)
 class RemoteRepositorySourceTest {
-    // テスト用のベースURL
+    // テスト用のベースURL（設定値はディレクトリ形式で、index.json が補われる）
     private val baseUrl = "https://example.com/repository"
 
-    @Test
-    @DisplayName("isAvailable should return true when server responds successfully")
-    fun testIsAvailableSuccess() {
-        // モックエンジンを作成
-        val mockEngine =
-            MockEngine { request ->
-                // HEADリクエストに対して200 OKを返す
-                respond(
-                    content = ByteReadChannel(""),
-                    status = HttpStatusCode.OK,
-                    headers = headersOf(HttpHeaders.ContentType, "text/html")
-                )
-            }
+    // 子リポジトリのインデックスURL
+    private val childUrl = "https://child.example.org/mpm/index.json"
 
-        // モックエンジンを使用するRemoteRepositorySourceを作成
-        val source = createTestSource(mockEngine)
-
-        // テストを実行
-        runBlocking {
-            val isAvailable = source.isAvailable()
-            assertTrue(isAvailable)
-        }
-    }
-
-    @Test
-    @DisplayName("isAvailable should return false when server is not reachable")
-    fun testIsAvailableFailure() {
-        // モックエンジンを作成（エラーをスロー）
-        val mockEngine =
-            MockEngine { request ->
-                // サーバーエラーを返す
-                respond(
-                    content = ByteReadChannel(""),
-                    status = HttpStatusCode.InternalServerError
-                )
-            }
-
-        // モックエンジンを使用するRemoteRepositorySourceを作成
-        val source = createTestSource(mockEngine)
-
-        // テストを実行
-        runBlocking {
-            val isAvailable = source.isAvailable()
-            assertFalse(isAvailable)
-        }
-    }
-
-    @Test
-    @DisplayName("getAvailablePlugins should return plugin list when index.json exists")
-    fun testGetAvailablePluginsSuccess() {
-        // モックエンジンを作成
-        val mockEngine =
-            MockEngine { request ->
-                // _list.jsonへのリクエストに対してモックデータを返す
-                when (request.url.toString()) {
-                    "$baseUrl/list" -> {
-                        respond(
-                            content = ByteReadChannel(MockDataLoader.Repository.getIndex()),
-                            status = HttpStatusCode.OK,
-                            headers = headersOf(HttpHeaders.ContentType, "application/json")
-                        )
-                    }
-
-                    else -> {
-                        respond(
-                            content = ByteReadChannel(""),
-                            status = HttpStatusCode.NotFound
-                        )
-                    }
+    // 子リポジトリのインデックス（MineAuth 系に加え、許可されていない配布元の定義も含む）
+    private val childIndex =
+        """
+        {
+            "schemaVersion": 1,
+            "plugins": {
+                "MineAuth": {
+                    "id": "MineAuth",
+                    "repositories": [{ "type": "github", "id": "morinoparty/MineAuth" }]
+                },
+                "MineAuth-addon-x": {
+                    "id": "MineAuth-addon-x",
+                    "repositories": [{ "type": "github", "id": "morinoparty/MineAuth", "fileNameTemplate": "../evil.jar" }]
+                },
+                "LuckPerms": {
+                    "id": "LuckPerms",
+                    "repositories": [{ "type": "github", "id": "attacker/LuckPerms" }]
                 }
             }
+        }
+        """.trimIndent()
 
-        // モックエンジンを使用するRemoteRepositorySourceを作成
+    // 子リポジトリへのリンクを持つルートのインデックス
+    private val rootIndexWithChild =
+        """
+        {
+            "schemaVersion": 1,
+            "plugins": {
+                "Vault": { "id": "Vault", "repositories": [{ "type": "github", "id": "MilkBowl/Vault" }] }
+            },
+            "children": [
+                {
+                    "index": "$childUrl",
+                    "allowedSources": ["github:morinoparty/MineAuth"]
+                }
+            ]
+        }
+        """.trimIndent()
+
+    @Test
+    @DisplayName("isAvailable should return true when index.json is served")
+    fun testIsAvailableSuccess() {
+        val source = createTestSource(routes(mapOf("$baseUrl/index.json" to MockDataLoader.Repository.getIndex())))
+
+        runBlocking {
+            assertTrue(source.isAvailable())
+        }
+    }
+
+    @Test
+    @DisplayName("isAvailable should return false when server responds with error")
+    fun testIsAvailableFailure() {
+        val mockEngine =
+            MockEngine {
+                respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
+            }
         val source = createTestSource(mockEngine)
 
-        // テストを実行
+        runBlocking {
+            assertFalse(source.isAvailable())
+        }
+    }
+
+    @Test
+    @DisplayName("getAvailablePlugins should return plugin list from index.json")
+    fun testGetAvailablePluginsSuccess() {
+        val source = createTestSource(routes(mapOf("$baseUrl/index.json" to MockDataLoader.Repository.getIndex())))
+
         runBlocking {
             val plugins = source.getAvailablePlugins()
 
-            // プラグイン一覧が正しく取得できることを確認
-            assertEquals(3, plugins.size)
-            assertEquals("luckperms", plugins[0])
-            assertEquals("essentialsx", plugins[1])
-            assertEquals("worldedit", plugins[2])
+            // インデックスに定義された3件がソート済みで返ることを確認
+            assertEquals(listOf("essentialsx", "luckperms", "worldedit"), plugins)
         }
     }
 
     @Test
     @DisplayName("getAvailablePlugins should return empty list when index.json does not exist")
     fun testGetAvailablePluginsNotFound() {
-        // モックエンジンを作成
         val mockEngine =
-            MockEngine { request ->
-                // 404 Not Foundを返す
-                respond(
-                    content = ByteReadChannel(""),
-                    status = HttpStatusCode.NotFound
-                )
+            MockEngine {
+                respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
             }
-
-        // モックエンジンを使用するRemoteRepositorySourceを作成
         val source = createTestSource(mockEngine)
 
-        // テストを実行
         runBlocking {
-            val plugins = source.getAvailablePlugins()
-
-            // 空のリストが返されることを確認
-            assertTrue(plugins.isEmpty())
+            assertTrue(source.getAvailablePlugins().isEmpty())
         }
     }
 
     @Test
-    @DisplayName("getRepositoryFile should return repository file when it exists")
+    @DisplayName("getRepositoryFile should return repository file defined in index.json")
     fun testGetRepositoryFileSuccess() {
-        // モックエンジンを作成
-        val mockEngine =
-            MockEngine { request ->
-                // luckperms.jsonへのリクエストに対してモックデータを返す
-                when (request.url.toString()) {
-                    "$baseUrl/plugins/luckperms.json" -> {
-                        respond(
-                            content = ByteReadChannel(MockDataLoader.Repository.getLuckPermsRepository()),
-                            status = HttpStatusCode.OK,
-                            headers = headersOf(HttpHeaders.ContentType, "application/json")
-                        )
-                    }
+        val source = createTestSource(routes(mapOf("$baseUrl/index.json" to MockDataLoader.Repository.getIndex())))
 
-                    else -> {
-                        respond(
-                            content = ByteReadChannel(""),
-                            status = HttpStatusCode.NotFound
-                        )
-                    }
-                }
-            }
-
-        // モックエンジンを使用するRemoteRepositorySourceを作成
-        val source = createTestSource(mockEngine)
-
-        // テストを実行
         runBlocking {
             val repositoryFile = source.getRepositoryFile("luckperms")
 
-            // リポジトリファイルが正しく取得できることを確認
             assertNotNull(repositoryFile)
             assertEquals("luckperms", repositoryFile!!.id)
             assertEquals("https://luckperms.net", repositoryFile.website)
@@ -187,27 +143,57 @@ class RemoteRepositorySourceTest {
     }
 
     @Test
-    @DisplayName("getRepositoryFile should return null when file does not exist")
+    @DisplayName("getRepositoryFile should return null when plugin is not defined")
     fun testGetRepositoryFileNotFound() {
-        // モックエンジンを作成
+        val source = createTestSource(routes(mapOf("$baseUrl/index.json" to MockDataLoader.Repository.getIndex())))
+
+        runBlocking {
+            assertNull(source.getRepositoryFile("nonexistent"))
+        }
+    }
+
+    @Test
+    @DisplayName("child repositories should be merged within link constraints")
+    fun testChildRepositoryMerged() {
+        val source =
+            createTestSource(
+                routes(mapOf("$baseUrl/index.json" to rootIndexWithChild, childUrl to childIndex))
+            )
+
+        runBlocking {
+            val plugins = source.getAvailablePlugins()
+
+            // 許可された配布元の MineAuth / MineAuth-addon-x は採用され、別の配布元を名乗る LuckPerms は捨てられる
+            assertEquals(listOf("MineAuth", "MineAuth-addon-x", "Vault"), plugins)
+
+            // 子由来の定義からは fileNameTemplate が落とされている
+            val addon = source.getRepositoryFile("MineAuth-addon-x")
+            assertNotNull(addon)
+            assertNull(addon!!.repositories[0].fileNameTemplate)
+        }
+    }
+
+    @Test
+    @DisplayName("custom headers should be sent only to the root index")
+    fun testHeadersNotForwardedToChildren() {
+        val seenAuth = mutableMapOf<String, String?>()
         val mockEngine =
             MockEngine { request ->
-                // 404 Not Foundを返す
-                respond(
-                    content = ByteReadChannel(""),
-                    status = HttpStatusCode.NotFound
-                )
+                val url = request.url.toString()
+                seenAuth[url] = request.headers["Authorization"]
+                when (url) {
+                    "$baseUrl/index.json" -> respondJson(rootIndexWithChild)
+                    childUrl -> respondJson(childIndex)
+                    else -> respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
+                }
             }
+        val source = createTestSource(mockEngine, headers = mapOf("Authorization" to "Bearer secret"))
 
-        // モックエンジンを使用するRemoteRepositorySourceを作成
-        val source = createTestSource(mockEngine)
-
-        // テストを実行
         runBlocking {
-            val repositoryFile = source.getRepositoryFile("nonexistent")
+            source.getAvailablePlugins()
 
-            // nullが返されることを確認
-            assertNull(repositoryFile)
+            assertEquals("Bearer secret", seenAuth["$baseUrl/index.json"])
+            assertNull(seenAuth[childUrl])
         }
     }
 
@@ -219,18 +205,44 @@ class RemoteRepositorySourceTest {
     }
 
     @Test
-    @DisplayName("getIdentifier should return base URL")
+    @DisplayName("getIdentifier should return configured URL")
     fun testGetIdentifier() {
         val source = RemoteRepositorySource(baseUrl)
         assertEquals(baseUrl, source.getIdentifier())
     }
 
     /**
+     * URL -> レスポンス本文 の対応表から MockEngine を作る（未登録のURLは404）
+     */
+    private fun routes(responses: Map<String, String>): MockEngine =
+        MockEngine { request ->
+            val body = responses[request.url.toString()]
+            if (body != null) {
+                respondJson(body)
+            } else {
+                respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
+            }
+        }
+
+    /**
+     * JSON本文を200で返す
+     */
+    private fun MockRequestHandleScope.respondJson(body: String) =
+        respond(
+            content = ByteReadChannel(body),
+            status = HttpStatusCode.OK,
+            headers = headersOf(HttpHeaders.ContentType, "application/json")
+        )
+
+    /**
      * テスト用のRemoteRepositorySourceを作成
      * リフレクションを使用してhttpClientを差し替える
      */
-    private fun createTestSource(mockEngine: MockEngine): RemoteRepositorySource {
-        val source = RemoteRepositorySource(baseUrl)
+    private fun createTestSource(
+        mockEngine: MockEngine,
+        headers: Map<String, String> = emptyMap()
+    ): RemoteRepositorySource {
+        val source = RemoteRepositorySource(baseUrl, headers)
 
         // リフレクションを使用してhttpClientフィールドにアクセス
         val httpClientField = RemoteRepositorySource::class.java.getDeclaredField("httpClient")

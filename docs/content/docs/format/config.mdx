@@ -54,7 +54,7 @@ your-server/
         },
         {
             "type": "remote",
-            "url": "https://example.com/repository/",
+            "url": "https://example.com/repository/index.json",
             "headers": {
                 "Authorization": "Bearer token"
             }
@@ -145,12 +145,14 @@ your-server/
 
 #### リモートソース
 
-リモートURLからリポジトリファイルを取得します。
+リモートのリポジトリインデックス（`index.json`）からプラグイン定義を取得します。
+インデックスが子リポジトリへのリンク（`children`）を持つ場合、mpmはそれを再帰的にたどって
+1つのカタログに合成します（詳細は[リポジトリインデックス](/docs/repository/graph)を参照）。
 
 ```json
 {
     "type": "remote",
-    "url": "https://example.com/repository/",
+    "url": "https://repo.mpm.nikomaru.dev/paper/index.json",
     "headers": {
         "Authorization": "Bearer your-token",
         "Custom-Header": "value"
@@ -159,8 +161,15 @@ your-server/
 ```
 
 - **type**: `"remote"` を指定
-- **url**: リポジトリのベースURL
-- **headers**: HTTPリクエストに追加するヘッダー（オプション）
+- **url**: インデックス（`index.json`）のURL。`.json` で終わらないURLを指定した場合は末尾に `/index.json` が補われます
+- **headers**: HTTPリクエストに追加するヘッダー（オプション）。
+  ここで指定したヘッダーは **`url` で指定したルートのインデックスにだけ** 送られ、
+  第三者がホストする子リポジトリには転送されません
+
+<Callout type="info" title="キャッシュ">
+取得したカタログは3分間キャッシュされます。ルートのインデックスに到達できなかった場合は
+1分間そのソースを利用不可として扱い、再試行を抑えます。
+</Callout>
 
 #### 複数ソースの動作
 
@@ -175,11 +184,11 @@ your-server/
         },
         {
             "type": "remote",
-            "url": "https://official-repo.example.com/"
+            "url": "https://official-repo.example.com/index.json"
         },
         {
             "type": "remote",
-            "url": "https://community-repo.example.com/"
+            "url": "https://community-repo.example.com/index.json"
         }
     ]
 }
@@ -505,7 +514,7 @@ mpmは設定を保存するとき、デフォルト値のままの項目も省�
         },
         {
             "type": "remote",
-            "url": "https://plugins.example.com/repository/"
+            "url": "https://plugins.example.com/repository/index.json"
         }
     ],
     "settings": {
@@ -528,7 +537,7 @@ mpmは設定を保存するとき、デフォルト値のままの項目も省�
         },
         {
             "type": "remote",
-            "url": "https://team-repo.internal/plugins/",
+            "url": "https://team-repo.internal/plugins/index.json",
             "headers": {
                 "Authorization": "Bearer ${REPO_TOKEN}"
             }
@@ -594,7 +603,7 @@ mpmは設定を保存するとき、デフォルト値のままの項目も省�
 ## 関連ファイル
 
 - [mpm.json](/docs/format/mpm-config) - プロジェクト設定ファイル（プラグイン依存関係）
-- [repository](/docs/format/repository) - リポジトリファイルの形式
+- [repository](/docs/repository/file) - リポジトリファイルの形式
 - [metadata/*.yaml](/docs/format/managed) - 個別プラグインの詳細情報
 - [キャッシュコマンド](/docs/commands/cache) - `settings.cache` で設定したキャッシュの確認・削除
 - [スキーマ版数と自動移行](/docs/format/schema-migration) - schemaVersionと起動時の自動移行

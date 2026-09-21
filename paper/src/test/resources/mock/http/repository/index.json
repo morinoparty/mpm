@@ -1,5 +1,40 @@
-[
-    "luckperms",
-    "essentialsx",
-    "worldedit"
-]
+{
+    "schemaVersion": 1,
+    "name": "test-repository",
+    "plugins": {
+        "luckperms": {
+            "id": "luckperms",
+            "website": "https://luckperms.net",
+            "source": "https://github.com/LuckPerms/LuckPerms",
+            "license": "MIT",
+            "repositories": [
+                {
+                    "type": "modrinth",
+                    "id": "luckperms",
+                    "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+                    "fileNameRegex": ".*\\.jar$"
+                }
+            ]
+        },
+        "essentialsx": {
+            "id": "essentialsx",
+            "repositories": [
+                {
+                    "type": "github",
+                    "id": "EssentialsX/Essentials",
+                    "fileNameRegex": "EssentialsX-.*\\.jar"
+                }
+            ]
+        },
+        "worldedit": {
+            "id": "worldedit",
+            "repositories": [
+                {
+                    "type": "modrinth",
+                    "id": "1u6JkXh5"
+                }
+            ]
+        }
+    },
+    "children": []
+}
