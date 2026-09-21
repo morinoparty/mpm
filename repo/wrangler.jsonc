@@ -1,16 +1,9 @@
 {
     "$schema": "node_modules/wrangler/config-schema.json",
     "name": "mpm-repo",
-    "main": "src/index.ts",
+    // Workerスクリプトは持たず、public/ を静的アセットとしてそのまま配信する。
+    // index.json（scripts/build.ts が生成）と plugins/*.json、schema/*.json が配信対象。
     "compatibility_date": "2025-10-17",
-    "observability": {
-        "logs": {
-            "enabled": false,
-            "head_sampling_rate": 1,
-            "invocation_logs": true,
-            "persist": true
-        }
-    },
     "routes": [
         {
             "pattern": "repo.mpm.nikomaru.dev",
@@ -18,7 +11,6 @@
         }
     ],
     "assets": {
-        "directory": "./public",
-        "binding": "ASSETS"
+        "directory": "./public"
     }
 }

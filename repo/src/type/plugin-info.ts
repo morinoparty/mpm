@@ -68,30 +68,6 @@ export const RepositorySchema = z
     });
 
 /**
- * 委譲宣言。`<id>-*` に一致する名前を、外部ホストの index から解決することを示す。
- *
- * 委譲のスコープは `id` から導出される（`id + "-"` で始まる名前のみ）。
- * ルート名そのもの（例: "MineAuth"）は決して委譲されないため、
- * 本体の配布元は常に中央のレビュー済み定義が権威となる。
- */
-const DelegateSchema = z
-    .object({
-        // 委譲先バンドルの絶対URL。https限定・.json拡張子必須
-        // （静的ホスティングで確実に配信できる形に限定する）
-        index: z.string().regex(/^https:\/\/.+\.json$/),
-        // 委譲先が repositories[] に書ける配布元のallowlist。
-        // "type:id" 形式。末尾の "*" のみワイルドカードとして許可する。
-        allowedSources: z.array(z.string().regex(/^[a-z]+:[^\s]+$/)).min(1),
-        // 廃止した委譲プラグイン名。スナップショットの単調性チェックを解除するために使う
-        retired: z.array(z.string().regex(/^[A-Za-z0-9_-]+$/)).optional(),
-    })
-    .meta({
-        id: "Delegate",
-        description:
-            "多段解決の委譲先宣言。`<id>-*` の名前を外部ホストのindexから解決する",
-    });
-
-/**
  * プラグインのリポジトリファイル（repo/public/paper/plugins/*.json）のスキーマ。
  *
  * `repositories` 以外はすべて任意。カタログの実態に合わせて website / source / license /
@@ -118,8 +94,6 @@ export const PluginInfoSchema = z
         // デフォルトのバージョン指定。mpm addで明示指定がない場合に使用される
         // 例: "tag:beta"（betaチャンネルの最新）, "sync:OtherPlugin"
         defaultVersion: z.string().optional(),
-        // 委譲宣言（任意）。これを持つプラグインは `<id>-*` の名前空間を外部ホストへ委譲する
-        delegate: DelegateSchema.optional(),
     })
     .meta({
         id: "PluginInfo",

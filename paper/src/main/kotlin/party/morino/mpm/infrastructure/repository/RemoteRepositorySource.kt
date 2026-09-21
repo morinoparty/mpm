@@ -10,25 +10,40 @@
 package party.morino.mpm.infrastructure.repository
 
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.domain.repository.PluginRepositorySource
 import party.morino.mpm.api.domain.repository.RepositoryFile
+import party.morino.mpm.infrastructure.repository.graph.RepositoryGraphResolver
+import party.morino.mpm.infrastructure.repository.graph.RepositoryIndexFetcher
+import party.morino.mpm.infrastructure.repository.graph.ResolvedRepositoryGraph
 import java.io.Closeable
 
 /**
- * リモートURLからリポジトリファイルを取得するソース
- * @property url リポジトリのベースURL
- * @property headers HTTPリクエストに追加するヘッダー
+ * リモートのインデックス（index.json）からリポジトリグラフをたどってカタログを取得するソース
+ *
+ * ルートのindexを取得し、その children を [RepositoryGraphResolver] で再帰的に読み取って
+ * 1つのカタログ（プラグイン名 -> 定義）に合成する。リポジトリ側にサーバーロジックは不要で、
+ * 静的ファイルとしてホスティングされたindexだけで動作する。
+ *
+ * 探索結果は一定時間キャッシュする。[RepositoryManagerImpl] は `mpm add` 1回で
+ * [isAvailable] と [getRepositoryFile] を複数回呼ぶため、毎回グラフをたどらないようにする。
+ *
+ * @property url インデックスのURL。`.json` で終わらない場合は末尾に `/index.json` を補う
+ * @property headers ルートのリクエストにだけ付与するHTTPヘッダー（認証トークン等）。
+ *   第三者がホストする子リポジトリには転送しない。
+ *   なおHTTPリダイレクトは追わないため、`url` には最終的なURLを指定する
  */
 class RemoteRepositorySource(
     private val url: String,
@@ -39,9 +54,13 @@ class RemoteRepositorySource(
     // ログ出力用（KoinによるDI）
     private val plugin: JavaPlugin by inject()
 
-    // HTTPクライアント（テストのためにopenかつ変更可能）
+    // HTTPクライアント（テストのためにリフレクションで差し替え可能）
     private var httpClient: HttpClient =
         HttpClient(CIO) {
+            // リダイレクトを追わない。子リポジトリのURLは isSafeChildUrl で検証しているが、
+            // 追従を許すと安全なホストから内部アドレスへ 3xx で飛ばされて検証を迂回できてしまう。
+            // ルートは管理者が設定するURLなので、最終的なURLを直接指定してもらう
+            followRedirects = false
             install(HttpTimeout) {
                 // タイムアウトを30秒に設定
                 requestTimeoutMillis = 30000
@@ -50,134 +69,154 @@ class RemoteRepositorySource(
             }
         }
 
-    // JSONパーサー
-    private val json = Json { ignoreUnknownKeys = true }
+    // ルートのインデックスURL（設定値がディレクトリ形式なら index.json を補う）
+    private val indexUrl: String =
+        if (url.endsWith(".json")) url else "${url.trimEnd('/')}/index.json"
+
+    // 探索結果のキャッシュ。null は「ルートに到達できなかった」ことを表す（ネガティブキャッシュ）
+    @Volatile
+    private var cachedGraph: ResolvedRepositoryGraph? = null
+
+    @Volatile
+    private var cacheExpiresAt: Long = 0
+
+    // 同時に複数のcoroutineがキャッシュ切れを検知しても探索を1回に絞る
+    private val resolveMutex = Mutex()
 
     companion object {
         // プラグイン名として許可する文字パターン（英数字・ハイフン・アンダースコア）
         private val PLUGIN_NAME_PATTERN = Regex("^[A-Za-z0-9_-]+$")
+
+        // 探索結果のキャッシュ寿命（RepositoryManagerImpl の一覧キャッシュと揃える）
+        private const val CACHE_TTL_MILLIS = 180_000L
+
+        // ルートに到達できなかったときに再試行を抑える時間
+        private const val FAILURE_TTL_MILLIS = 60_000L
+
+        // 1つのインデックスとして受け付ける最大サイズ（Content-Lengthは信用せず実読で計数する）
+        private const val MAX_INDEX_BYTES = 1024 * 1024
+
+        // 子リポジトリ1件あたりの取得タイムアウト。
+        // 探索全体は resolveMutex の下で直列に走るため、応答しない子1件で
+        // すべてのコマンドが長時間止まらないようルートより短くする
+        private const val CHILD_REQUEST_TIMEOUT_MILLIS = 10_000L
     }
 
     /**
      * リモートソースが利用可能かを確認
-     * ベースURLにHEADリクエストを送信してレスポンスを確認
+     * ルートのインデックスが取得・解析できれば利用可能とみなす
      * @return 利用可能な場合はtrue
      */
-    override suspend fun isAvailable(): Boolean =
-        withContext(Dispatchers.IO) {
-            try {
-                // ベースURLにHEADリクエストを送信
-                val response =
-                    httpClient.head("${url.trimEnd('/')}/list") {
-                        headers {
-                            append(HttpHeaders.UserAgent, "mpm")
-                            // カスタムヘッダーを追加
-                            this@RemoteRepositorySource.headers.forEach { (key, value) ->
-                                append(key, value)
-                            }
-                        }
-                    }
-
-                // レスポンスステータスが成功の場合はtrue
-                response.status.isSuccess()
-            } catch (e: Exception) {
-                // タイムアウトやエラーの場合はfalseを返しつつ、原因を診断できるようログに記録する
-                plugin.logger.warning("リモートリポジトリソースへの接続確認に失敗しました: ${e.message} ($url)")
-                false
-            }
-        }
+    override suspend fun isAvailable(): Boolean = resolveGraph() != null
 
     /**
      * 利用可能なプラグインの一覧を取得
-     * {url}/list にアクセスしてプラグイン一覧を取得
+     * グラフ全体（子リポジトリ含む）から集めたプラグイン名を返す
      * @return プラグイン名のリスト
      */
-    override suspend fun getAvailablePlugins(): List<String> =
-        withContext(Dispatchers.IO) {
-            try {
-                // {url}/list にGETリクエストを送信
-                val indexUrl = "${url.trimEnd('/')}/list"
-                val response =
-                    httpClient.get(indexUrl) {
-                        headers {
-                            append(HttpHeaders.Accept, "application/json")
-                            append(HttpHeaders.UserAgent, "mpm")
-                            // カスタムヘッダーを追加
-                            this@RemoteRepositorySource.headers.forEach { (key, value) ->
-                                append(key, value)
-                            }
-                        }
-                    }
-
-                // レスポンスが成功でない場合は空のリストを返す
-                if (!response.status.isSuccess()) {
-                    return@withContext emptyList()
-                }
-
-                // レスポンスをJSON配列としてデシリアライズ
-                val responseText: String = response.body()
-                json.decodeFromString<List<String>>(responseText)
-            } catch (e: Exception) {
-                // エラーの場合は空のリストを返しつつ、原因を診断できるようログに記録する
-                plugin.logger.warning("リモートリポジトリソースからのプラグイン一覧取得に失敗しました: ${e.message} ($url)")
-                emptyList()
-            }
-        }
+    override suspend fun getAvailablePlugins(): List<String> = resolveGraph()?.plugins?.keys?.sorted() ?: emptyList()
 
     /**
      * 指定したプラグインのリポジトリファイルを取得
-     * {url}/plugins/{pluginName}.json にGETリクエストを送信
      * @param pluginName プラグイン名
      * @return リポジトリファイルの内容、見つからない場合はnull
      */
-    override suspend fun getRepositoryFile(pluginName: String): RepositoryFile? =
-        withContext(Dispatchers.IO) {
-            // パストラバーサル対策: 英数字・ハイフン・アンダースコア以外の文字を含む
-            // プラグイン名はURLパスの意図しないセグメントへ抜け出す恐れがあるため拒否する
-            if (!isValidPluginName(pluginName)) {
-                plugin.logger.warning("不正なプラグイン名が指定されたため、リポジトリファイルの取得をスキップしました: $pluginName")
-                return@withContext null
+    override suspend fun getRepositoryFile(pluginName: String): RepositoryFile? {
+        // グラフ上のキーは安全な文字のみで構成されるため、それ以外の名前は探すまでもなく不在
+        if (!PLUGIN_NAME_PATTERN.matches(pluginName)) {
+            plugin.logger.warning("不正なプラグイン名が指定されたため、リポジトリファイルの取得をスキップしました: $pluginName")
+            return null
+        }
+        return resolveGraph()?.plugins?.get(pluginName)
+    }
+
+    /**
+     * キャッシュが有効ならそれを返し、切れていればグラフを探索し直す
+     * @return 探索結果。ルートに到達できない場合はnull
+     */
+    private suspend fun resolveGraph(): ResolvedRepositoryGraph? {
+        val now = System.currentTimeMillis()
+        if (now < cacheExpiresAt) return cachedGraph
+
+        return resolveMutex.withLock {
+            // ロック待ちの間に別のcoroutineが更新していれば再利用する
+            val latest = System.currentTimeMillis()
+            if (latest < cacheExpiresAt) return@withLock cachedGraph
+
+            val resolver = RepositoryGraphResolver(RepositoryIndexFetcher { fetchIndex(it) })
+            val graph = resolver.resolve(indexUrl)
+
+            if (graph == null) {
+                plugin.logger.warning("リモートリポジトリのインデックスを取得できませんでした: $indexUrl")
+            } else {
+                graph.warnings.forEach { plugin.logger.warning("リモートリポジトリ ($indexUrl): $it") }
             }
 
+            cachedGraph = graph
+            cacheExpiresAt = latest + if (graph == null) FAILURE_TTL_MILLIS else CACHE_TTL_MILLIS
+            graph
+        }
+    }
+
+    /**
+     * インデックスをHTTPで取得する
+     *
+     * カスタムヘッダーはルートのURLに対してのみ付与する。子リポジトリは第三者がホストするため、
+     * 認証トークン等を転送しない。
+     * @param target 取得するインデックスのURL
+     * @return レスポンス本文。到達不能・非2xx・サイズ超過の場合はnull
+     */
+    private suspend fun fetchIndex(target: String): String? =
+        withContext(Dispatchers.IO) {
             try {
-                // {url}/plugins/{pluginName}.json にGETリクエストを送信
-                val fileUrl = "${url.trimEnd('/')}/plugins/$pluginName.json"
+                val isRoot = target == indexUrl
                 val response =
-                    httpClient.get(fileUrl) {
+                    httpClient.get(target) {
                         headers {
                             append(HttpHeaders.Accept, "application/json")
                             append(HttpHeaders.UserAgent, "mpm")
-                            // カスタムヘッダーを追加
-                            this@RemoteRepositorySource.headers.forEach { (key, value) ->
-                                append(key, value)
+                            if (isRoot) {
+                                this@RemoteRepositorySource.headers.forEach { (key, value) -> append(key, value) }
                             }
+                        }
+                        if (!isRoot) {
+                            timeout { requestTimeoutMillis = CHILD_REQUEST_TIMEOUT_MILLIS }
                         }
                     }
 
-                // レスポンスが成功でない場合はnullを返す
                 if (!response.status.isSuccess()) {
                     return@withContext null
                 }
 
-                // レスポンスをRepositoryFileにデシリアライズ
-                val responseText: String = response.body()
-                json.decodeFromString<RepositoryFile>(responseText)
+                readBodyWithLimit(response)
             } catch (e: Exception) {
-                // エラーの場合はnullを返しつつ、原因を診断できるようログに記録する
-                plugin.logger.warning("リモートリポジトリソースからのリポジトリファイル取得に失敗しました: ${e.message} (プラグイン: $pluginName, URL: $url)")
+                // 原因を診断できるようログに記録してnullを返す
+                plugin.logger.warning("リモートリポジトリのインデックス取得に失敗しました: ${e.message} ($target)")
                 null
             }
         }
 
     /**
-     * プラグイン名がURLパスセグメントとして安全かどうかを検証する
-     * "/" や ".." を含む名前を許可すると、意図した /plugins/ プレフィックスから
-     * 外れたパスへリクエストが送られてしまう（パストラバーサル）ため、
-     * 英数字・ハイフン・アンダースコアのみで構成される名前だけを許可する
-     * @param pluginName 検証対象のプラグイン名
-     * @return 安全な名前であればtrue
+     * レスポンス本文を上限付きで読み取る
+     * @return 本文。上限を超えた場合はnull
      */
-    private fun isValidPluginName(pluginName: String): Boolean = PLUGIN_NAME_PATTERN.matches(pluginName)
+    private suspend fun readBodyWithLimit(response: HttpResponse): String? {
+        val declared = response.contentLength()
+        if (declared != null && declared > MAX_INDEX_BYTES) return null
+
+        val buffer = java.io.ByteArrayOutputStream()
+        response.bodyAsChannel().toInputStream().use { input ->
+            val chunk = ByteArray(8 * 1024)
+            while (true) {
+                val read = input.read(chunk)
+                if (read < 0) break
+                // 上限を1バイトでも超えたら読み続けずに打ち切る
+                if (buffer.size() + read > MAX_INDEX_BYTES) return null
+                buffer.write(chunk, 0, read)
+            }
+        }
+        return buffer.toString(Charsets.UTF_8.name())
+    }
 
     /**
      * リポジトリソースの種類を取得
@@ -187,7 +226,7 @@ class RemoteRepositorySource(
 
     /**
      * リポジトリソースの識別子を取得
-     * @return ベースURL
+     * @return 設定されたURL
      */
     override fun getIdentifier(): String = url
 
