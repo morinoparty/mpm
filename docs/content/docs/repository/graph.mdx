@@ -108,7 +108,9 @@ graph TD
 `pnpm run build`（`repo/scripts/build.ts`）で生成されます。
 
 - `public/paper/plugins/<id>.json`: プラグイン定義（1プラグイン1ファイル、レビュー用の正本）
-- `public/paper/children.json`: 子リポジトリへのリンク一覧
+- `public/paper/children.json`: 子リポジトリへのリンク一覧。
+  例えば MineAuth は本体もアドオンも [MineAuth 側のインデックス](https://mineauth.plugin.morino.party/mpm/paper/index.json)で定義されており、
+  中央にはリンクだけがあります
 
 ```json title="repo/public/paper/children.json"
 [
