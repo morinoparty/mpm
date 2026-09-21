@@ -23,7 +23,8 @@ import party.morino.mpm.api.domain.repository.model.RepositoryLink
  * - 同じURL（正規化後）は一度しか取得しない（循環参照・重複リンク対策）
  * - 取得するノード数の上限を [maxNodes] で抑える（深さ5×大きな分岐でのフェッチ爆発を防ぐ）
  * - 同名のプラグインは先に見つかった側（祖先側・浅い側）が勝つ
- * - 深さ1以上の定義には、経路上のすべての [RepositoryLink] の scope / allowedSources を適用し、
+ * - 子が定義できる名前に制限は無い（チェーンのようにリポジトリをつなげる）。
+ *   経路上の [RepositoryLink] に allowedSources があれば深さ1以上の定義に適用し、
  *   さらに [RepositoryLinkPolicy.stripUntrustedFields] で危険なフィールドを落とす
  * - 子の取得失敗は警告に留めて続行する。ルートの取得失敗は探索全体の失敗（null）とする
  *
@@ -117,7 +118,7 @@ class RepositoryGraphResolver(
      * ノードのプラグイン定義をカタログへ取り込む
      *
      * 祖先側で既に定義されている名前はスキップする（親が勝つ）。
-     * 深さ1以上の定義は経路上のリンク制約を満たすものだけ採用し、危険なフィールドを落とす。
+     * 深さ1以上の定義は配布元の制約（allowedSources）を満たすものだけ採用し、危険なフィールドを落とす。
      */
     private fun mergePlugins(
         node: Node,
@@ -139,7 +140,7 @@ class RepositoryGraphResolver(
                     }
                 } else {
                     if (!RepositoryLinkPolicy.isPermitted(name, file, node.constraints)) {
-                        warnings += "リンクの制約（scope / allowedSources）に反するためスキップしました: $name (${node.url})"
+                        warnings += "配布元の制約（allowedSources）に反するためスキップしました: $name (${node.url})"
                         continue
                     }
                     RepositoryLinkPolicy.stripUntrustedFields(file)
@@ -168,11 +169,6 @@ class RepositoryGraphResolver(
         }
 
         for (link in index.children) {
-            // scope / allowedSources の無いリンクは「何も許可していない」ので張る意味が無い
-            if (link.scope.isEmpty() || link.allowedSources.isEmpty()) {
-                warnings += "scope または allowedSources が空のリンクを無視しました: ${link.index} (${node.url})"
-                continue
-            }
             if (!RepositoryLinkPolicy.isSafeChildUrl(link.index)) {
                 warnings += "安全でないリンク先を無視しました: ${link.index} (${node.url})"
                 continue

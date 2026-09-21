@@ -2,8 +2,6 @@
     "title": "ファイル形式",
     "description": "mpmで使用するファイルの形式について",
     "pages": [
-        "repository",
-        "repository-index",
         "mpm-config",
         "config",
         "mpm-lock",

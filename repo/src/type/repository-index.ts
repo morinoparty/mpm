@@ -13,30 +13,25 @@ import { PluginInfoSchema } from "./plugin-info";
 // プラグイン名として許可する文字（Kotlin側 RepositoryLinkPolicy と同じ規則）
 const PLUGIN_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
-// scope のパターン。プラグイン名の文字に加えて、末尾の `*` のみワイルドカードとして許可する
-const SCOPE_PATTERN = /^[A-Za-z0-9_-]+\*?$|^\*$/;
-
 /**
  * 子リポジトリへのリンク（グラフの辺）。
  *
- * 親は、子が「どの名前を」「どの配布元から」定義してよいかをここで宣言する。
- * クライアント（mpm）はこの宣言に収まらない子の定義を捨てる。
- * 孫以降には経路上のすべてのリンクの制約が重ねて適用されるため、子は権限を広げられない。
+ * 基本はURLだけで成り立ち、子はどんな名前のプラグインでも定義できる
+ * （同名は祖先側が勝つため、親の定義は上書きされない）。リポジトリをチェーンのようにつなぐ用途を想定する。
+ * 必要な場合だけ allowedSources で子が名乗れる配布元を絞れる。指定した場合は孫以降にも重ねて適用される。
  */
 export const RepositoryLinkSchema = z
     .object({
         // 子リポジトリの index.json の絶対URL。https限定・.json拡張子必須
         // （静的ホスティングで確実に配信できる形に限定する）
         index: z.string().regex(/^https:\/\/.+\.json$/),
-        // 子が定義してよいプラグイン名のパターン。完全一致、または末尾 `*` のプレフィックス一致
-        scope: z.array(z.string().regex(SCOPE_PATTERN)).min(1),
-        // 子が repositories[] に書いてよい配布元。"type:id" 形式、末尾 "*" のみワイルドカード
-        allowedSources: z.array(z.string().regex(/^[a-z]+:[^\s]+$/)).min(1),
+        // 子が repositories[] に書いてよい配布元（任意）。"type:id" 形式、末尾 "*" のみワイルドカード。省略時は無制限
+        allowedSources: z.array(z.string().regex(/^[a-z]+:[^\s]+$/)).optional(),
     })
     .meta({
         id: "RepositoryLink",
         description:
-            "子リポジトリへのリンク。子が定義してよいプラグイン名（scope）と配布元（allowedSources）を親が宣言する",
+            "子リポジトリへのリンク。index のURLだけで成り立ち、必要なら allowedSources で配布元を絞れる",
     });
 
 /**

@@ -1,5 +1,5 @@
 ---
-title: リポジトリファイル
+title: 📄 リポジトリファイル
 description: プラグインのダウンロード元を管理するリポジトリファイルの仕様
 ---
 
@@ -233,7 +233,7 @@ Hangar（PaperMC公式プラグインリポジトリ）からプラグインを�
 **⚠️ downloadUrl は現在どの実装からも読まれません。** 値を設定してもダウンロードの挙動は変わりません。
 将来実装する場合、リポジトリ定義に由来する任意のURLへ無検証でリクエストすることになるため、
 ホストのallowlistなどの検証を必ず伴わせてください。子リポジトリでは第三者が値を供給しうるためです。
-なお、mpmは子リポジトリ（[リポジトリインデックス](/docs/format/repository-index)の `children` 経由で
+なお、mpmは子リポジトリ（[リポジトリインデックス](/docs/repository/graph)の `children` 経由で
 たどったリポジトリ）から受け取った定義の `downloadUrl` と `fileNameTemplate` を読み込み時に落とすので、
 第三者のリポジトリデータからこれらのフィールドが有効になることはありません。
 :::
@@ -493,7 +493,7 @@ plugins/mpm/repository/QuickShop.json
 
 ## 関連ドキュメント
 
-- [リポジトリインデックス](/docs/format/repository-index) - リモートリポジトリの配信形式と子リポジトリへのリンク
+- [リポジトリインデックス](/docs/repository/graph) - リモートリポジトリの配信形式と子リポジトリへのリンク
 - [プラグインを管理する](/docs/usage/install) - 基本的な使い方
 - [はじめに](/docs/usage/getting-started) - クイックスタートガイド
 - [ライフサイクル管理コマンド](/docs/commands/plugin-management/lifecycle) - コマンドリファレンス
