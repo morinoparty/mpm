@@ -70,10 +70,10 @@ interface PluginLifecycleService {
      * プラグインをインストールする
      *
      * メタデータに基づいてプラグインファイルをダウンロード・配置する
-     * api-versionの互換性チェックを行い、非互換の場合はエラーを返す
+     * 必須依存プラグインが不足している場合はエラーを返す
      *
      * @param name プラグイン名
-     * @param force trueの場合、api-version非互換でも強制インストールする
+     * @param force trueの場合、必須依存が不足していても強制インストールする
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
      * @return インストール結果
      */

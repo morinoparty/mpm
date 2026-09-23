@@ -186,17 +186,6 @@ sealed class MpmError {
                     "The download may be corrupted or tampered. Use --skip-integrity to override."
         }
 
-        // APIバージョン非互換エラー
-        data class ApiVersionIncompatible(
-            val pluginName: String,
-            val pluginApiVersion: String,
-            val serverApiVersion: String
-        ) : PluginError() {
-            override val message: String =
-                "Plugin '$pluginName' requires api-version $pluginApiVersion, " +
-                    "but the server supports $serverApiVersion"
-        }
-
         // バージョン切り替えが許可されない状態（sync:指定など、Fixedへの書き換えが破壊的になる場合）
         data class VersionSwitchNotAllowed(
             val pluginName: String,

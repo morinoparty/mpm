@@ -17,20 +17,9 @@ package party.morino.mpm.application.plugin
  */
 sealed class PluginInstallValidationResult {
     /**
-     * 検証に成功した場合（互換性・依存関係ともに問題ない、またはforce指定により許容された場合）
+     * 検証に成功した場合（依存関係に問題がない、またはforce指定により許容された場合）
      */
     data object Valid : PluginInstallValidationResult()
-
-    /**
-     * APIバージョンが非互換であり、forceが指定されていないため失敗した場合
-     *
-     * @param pluginApiVersion プラグインが要求するAPIバージョン
-     * @param serverApiVersion サーバーが提供するAPIバージョン
-     */
-    data class ApiVersionIncompatible(
-        val pluginApiVersion: String,
-        val serverApiVersion: String
-    ) : PluginInstallValidationResult()
 
     /**
      * 必須依存プラグインが不足しており、forceが指定されていないため失敗した場合

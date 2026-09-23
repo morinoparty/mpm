@@ -86,7 +86,7 @@ class PluginLifecycleServiceImpl :
     private val deferredJarDeletion: DeferredJarDeletion by inject()
     private val infoService: PluginInfoService by inject()
 
-    // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
+    // ダウンロード済みプラグインの依存関係の検証を行う共通ロジック
     // PluginUpdateServiceImpl と共有し、検証ロジックの重複・乖離を防ぐ
     private val pluginInstallValidator: PluginInstallValidator by inject()
 
@@ -627,18 +627,9 @@ class PluginLifecycleServiceImpl :
                 pluginName = pluginName
             ).getOrElse { return it.left() }
 
-        // tempファイルに対してAPIバージョンと依存関係の事前チェックを行う
+        // tempファイルに対して依存関係の事前チェックを行う
         // 検証ロジックはPluginUpdateServiceImplと共通のPluginInstallValidatorに集約されている
         when (val validationResult = pluginInstallValidator.validate(downloadedFile, pluginName, force)) {
-            is PluginInstallValidationResult.ApiVersionIncompatible -> {
-                downloadedFile.delete()
-                return MpmError.PluginError
-                    .ApiVersionIncompatible(
-                        pluginName,
-                        validationResult.pluginApiVersion,
-                        validationResult.serverApiVersion
-                    ).left()
-            }
             is PluginInstallValidationResult.MissingDependencies -> {
                 downloadedFile.delete()
                 val message = "必須依存プラグインが不足しています: ${validationResult.missingDependencies.joinToString(", ")}"

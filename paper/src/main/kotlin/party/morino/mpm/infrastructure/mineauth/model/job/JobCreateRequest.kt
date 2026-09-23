@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
  * ジョブ受付（POST /jobs）のリクエストボディ
  *
  * @property type ジョブ種別（`update_all`。大文字小文字は区別しない）
- * @property force trueの場合、api-version非互換でも強制的に更新する
+ * @property force trueの場合、必須依存が不足していても強制的に更新する
  * @property skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
  */
 @Serializable

@@ -12,8 +12,6 @@ package party.morino.mpm.application.plugin
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
-import party.morino.mpm.api.domain.compatibility.CompatibilityResult
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.model.plugin.PluginData
@@ -24,25 +22,25 @@ import kotlin.coroutines.cancellation.CancellationException
 /**
  * ダウンロード済みプラグインJARに対する、インストール前の共通検証ロジック
  *
- * APIバージョンの互換性チェックと必須依存関係のチェックを行う。
+ * 必須依存関係のチェックを行う。
+ * api-versionはPaperでは異なっていても動作することが多いため、ここでは検証しない。
  * PluginLifecycleServiceImpl.install() と PluginUpdateServiceImpl の更新処理の両方から呼び出され、
  * 検証ロジックが2箇所で乖離しないよう一元化している
  */
 class PluginInstallValidator : KoinComponent {
     // Koinによる依存性注入
-    private val apiVersionChecker: ApiVersionChecker by inject()
     private val pluginDirectory: PluginDirectory by inject()
     private val projectRepository: ProjectRepository by inject()
     private val plugin: JavaPlugin by inject()
 
     /**
-     * ダウンロード済みのtempファイルに対してAPIバージョンと依存関係の事前検証を行う
+     * ダウンロード済みのtempファイルに対して依存関係の事前検証を行う
      *
-     * force指定時は非互換・依存不足があっても警告ログのみを出力して続行扱いとする
+     * force指定時は依存不足があっても警告ログのみを出力して続行扱いとする
      *
      * @param downloadedFile ダウンロード済みのtempファイル
      * @param pluginName プラグイン名（ログ出力用）
-     * @param force trueの場合、非互換・依存不足でも警告のみで続行する
+     * @param force trueの場合、依存不足でも警告のみで続行する
      * @return 検証結果
      */
     suspend fun validate(
@@ -60,32 +58,6 @@ class PluginInstallValidator : KoinComponent {
                 plugin.logger.warning("Failed to read plugin data from downloaded file ($pluginName): ${e.message}")
                 null
             }
-
-        // APIバージョンの互換性チェック
-        val compatibilityResult = apiVersionChecker.checkCompatibility(downloadedFile)
-        when (compatibilityResult) {
-            is CompatibilityResult.Incompatible -> {
-                if (!force) {
-                    return PluginInstallValidationResult.ApiVersionIncompatible(
-                        pluginApiVersion = compatibilityResult.pluginApiVersion,
-                        serverApiVersion = compatibilityResult.serverApiVersion
-                    )
-                }
-                plugin.logger.warning(
-                    "api-version incompatible ($pluginName): " +
-                        "plugin=${compatibilityResult.pluginApiVersion}, " +
-                        "server=${compatibilityResult.serverApiVersion}. Forced install."
-                )
-            }
-            is CompatibilityResult.Unknown -> {
-                plugin.logger.warning(
-                    "Cannot verify api-version compatibility ($pluginName): ${compatibilityResult.reason}"
-                )
-            }
-            is CompatibilityResult.Compatible -> {
-                // 互換性あり
-            }
-        }
 
         // 必須依存関係のチェック
         if (pluginData != null) {

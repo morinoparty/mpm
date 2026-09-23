@@ -53,7 +53,6 @@ internal fun MpmError.toHttpStatus(): HttpStatus =
         is MpmError.PluginError.UpdateInProgress,
         is MpmError.PluginError.VersionSwitchNotAllowed,
         is MpmError.PluginError.HasDependents,
-        is MpmError.PluginError.ApiVersionIncompatible,
         is MpmError.ProjectError.AlreadyInitialized -> HttpStatus.CONFLICT
 
         // --- 400 Bad Request: リクエストで指定された値が解決できない ---

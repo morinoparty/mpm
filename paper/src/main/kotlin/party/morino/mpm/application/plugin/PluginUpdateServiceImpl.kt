@@ -106,7 +106,7 @@ class PluginUpdateServiceImpl :
     // 旧JARを即時削除できない場合（mpm 自身の更新など）の削除予約
     private val deferredJarDeletion: DeferredJarDeletion by inject()
 
-    // ダウンロード済みプラグインのAPIバージョン互換性・依存関係の検証を行う共通ロジック
+    // ダウンロード済みプラグインの依存関係の検証を行う共通ロジック
     // PluginLifecycleServiceImpl.install() と共有し、検証ロジックの重複・乖離を防ぐ
     private val pluginInstallValidator: PluginInstallValidator by inject()
 
@@ -585,7 +585,7 @@ class PluginUpdateServiceImpl :
      *
      * @param name プラグイン名
      * @param requestedVersion 要求されたバージョン（raw / normalized のどちらでもよい）
-     * @param force ロック済み・api-version非互換でも強制するか
+     * @param force ロック済み・依存不足でも強制するか
      * @param skipIntegrity 整合性検証の不一致を無視するか
      * @param action 履歴に記録するアクション名（"switch" / "rollback"）
      */
@@ -2220,7 +2220,7 @@ class PluginUpdateServiceImpl :
     }
 
     /**
-     * ダウンロード済みのtempファイルに対してAPIバージョンと依存関係の事前検証を行う
+     * ダウンロード済みのtempファイルに対して依存関係の事前検証を行う
      *
      * 実際の検証ロジックは [PluginInstallValidator] に集約されており、
      * PluginLifecycleServiceImpl.install() と共通のロジックを利用する。
@@ -2228,7 +2228,7 @@ class PluginUpdateServiceImpl :
      *
      * @param downloadedFile ダウンロード済みのtempファイル
      * @param pluginName プラグイン名（ログ出力用）
-     * @param force trueの場合、非互換でも警告のみで続行する
+     * @param force trueの場合、依存不足でも警告のみで続行する
      * @return 検証成功時はUnit、失敗時はエラーメッセージ
      */
     private suspend fun validateDownloadedPlugin(
@@ -2238,12 +2238,6 @@ class PluginUpdateServiceImpl :
     ): Either<String, Unit> =
         when (val result = pluginInstallValidator.validate(downloadedFile, pluginName, force)) {
             is PluginInstallValidationResult.Valid -> Unit.right()
-            is PluginInstallValidationResult.ApiVersionIncompatible ->
-                (
-                    "[API_VERSION_INCOMPATIBLE] api-version非互換: " +
-                        "プラグインは${result.pluginApiVersion}を要求していますが、" +
-                        "サーバーは${result.serverApiVersion}です"
-                ).left()
             is PluginInstallValidationResult.MissingDependencies ->
                 "必須依存プラグインが不足しています: ${result.missingDependencies.joinToString(", ")}".left()
         }

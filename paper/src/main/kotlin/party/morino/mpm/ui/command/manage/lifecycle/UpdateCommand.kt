@@ -41,7 +41,7 @@ class UpdateCommand : KoinComponent {
     /**
      * 新しいバージョンがあるプラグインを更新するコマンド
      * @param sender コマンド送信者
-     * @param force api-version非互換でも強制更新する
+     * @param force 必須依存が不足していても強制更新する
      * @param dryRun 更新チェックのみ行い、実際の更新は行わない
      */
     @Subcommand("update")
@@ -99,24 +99,9 @@ class UpdateCommand : KoinComponent {
 
                     // 失敗した更新を表示
                     if (failedResults.isNotEmpty()) {
-                        // api-version非互換エラーが含まれているか確認
-                        val hasApiVersionError =
-                            failedResults.any {
-                                it.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
-                            }
-
                         sender.sendRichMessage("<red>以下のプラグインの更新に失敗しました:</red>")
                         failedResults.forEach { result ->
-                            // マーカーを除去して表示
-                            val displayMessage =
-                                result.errorMessage
-                                    ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
-                            sender.sendRichMessage("  ✗ ${result.pluginName}: $displayMessage")
-                        }
-
-                        // api-version非互換がある場合は--force案内を表示
-                        if (hasApiVersionError) {
-                            sender.sendRichMessage("<yellow>--force フラグで強制更新できます。</yellow>")
+                            sender.sendRichMessage("  ✗ ${result.pluginName}: ${result.errorMessage ?: "不明なエラー"}")
                         }
                     }
 
@@ -130,7 +115,7 @@ class UpdateCommand : KoinComponent {
      * 指定したプラグインのみを更新するコマンド
      * @param sender コマンド送信者
      * @param plugin 更新対象のプラグイン
-     * @param force api-version非互換でも強制更新する
+     * @param force 必須依存が不足していても強制更新する
      */
     @Subcommand("update")
     suspend fun updateOne(
@@ -172,19 +157,9 @@ class UpdateCommand : KoinComponent {
 
                 // 失敗した更新を表示
                 if (failedResults.isNotEmpty()) {
-                    val hasApiVersionError =
-                        failedResults.any {
-                            it.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true
-                        }
                     sender.sendRichMessage("<red>以下のプラグインの更新に失敗しました:</red>")
                     failedResults.forEach { result ->
-                        val displayMessage =
-                            result.errorMessage
-                                ?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: "不明なエラー"
-                        sender.sendRichMessage("  ✗ ${result.pluginName}: $displayMessage")
-                    }
-                    if (hasApiVersionError) {
-                        sender.sendRichMessage("<yellow>--force フラグで強制更新できます。</yellow>")
+                        sender.sendRichMessage("  ✗ ${result.pluginName}: ${result.errorMessage ?: "不明なエラー"}")
                     }
                 }
 

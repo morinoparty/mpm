@@ -17,7 +17,6 @@ import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
-import party.morino.mpm.api.shared.error.MpmError
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Subcommand
 import revxrsal.commands.annotation.Switch
@@ -106,10 +105,6 @@ class AddCommand : KoinComponent {
                 lifecycleService.install(PluginName(pluginId), force, skipIntegrity).fold(
                     { error ->
                         sender.sendRichMessage("<red>${error.message}")
-                        // api-version非互換の場合は--forceフラグの案内を表示
-                        if (error is MpmError.PluginError.ApiVersionIncompatible) {
-                            sender.sendRichMessage("<yellow>--force フラグで強制インストールできます。")
-                        }
                     },
                     { installResult ->
                         displayInstallResult(sender, installResult)

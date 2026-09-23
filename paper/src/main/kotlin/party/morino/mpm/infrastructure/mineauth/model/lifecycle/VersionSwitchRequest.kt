@@ -18,7 +18,7 @@ import kotlinx.serialization.Serializable
  * 1つの操作として扱う。
  *
  * @property version 切り替え先バージョン（raw / normalized のどちらでも解決を試みる）
- * @property force trueの場合、ロック済み・api-version非互換でも強制的に切り替える
+ * @property force trueの場合、ロック済み・必須依存不足でも強制的に切り替える
  * @property skipIntegrity trueの場合、整合性検証の不一致を無視して続行する
  */
 @Serializable
