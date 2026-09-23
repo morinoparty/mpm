@@ -99,6 +99,7 @@ mpmは `config.json` の[リモートソース](/docs/format/config#リモート
 graph TD
     R["config.json の remote url<br/>（深さ0: ルート）"] --> A["repo.mpm.nikomaru.dev/paper/index.json<br/>plugins: LuckPerms, Vault, ..."]
     A -->|children| B["mineauth.plugin.morino.party/.../index.json<br/>plugins: MineAuth, MineAuth-addon-*"]
+    A -->|children| F["fishing.plugin.morino.party/.../index.json<br/>plugins: MoripaFishing, MoripaFishing-*"]
     B -->|children| C["（孫リポジトリ、深さ2）"]
 ```
 
@@ -114,6 +115,9 @@ graph TD
 [
     {
         "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json"
+    },
+    {
+        "index": "https://fishing.plugin.morino.party/mpm/paper/index.json"
     }
 ]
 ```

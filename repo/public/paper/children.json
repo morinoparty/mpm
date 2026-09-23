@@ -1,5 +1,8 @@
 [
   {
     "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json"
+  },
+  {
+    "index": "https://fishing.plugin.morino.party/mpm/paper/index.json"
   }
 ]
