@@ -94,23 +94,14 @@ class AddCommand : KoinComponent {
     ) {
         sender.sendRichMessage("<gray>プラグイン '$pluginId' の情報を取得しています...")
 
-        lifecycleService.add(PluginName(pluginId), version).fold(
+        // 追加とインストールを一括で行う（インストール失敗時は追加も取り消される）
+        lifecycleService.addAndInstall(PluginName(pluginId), version, force, skipIntegrity).fold(
             { error ->
                 sender.sendRichMessage("<red>${error.message}")
             },
-            {
-                sender.sendRichMessage("<green>プラグイン '$pluginId' の情報を追加しました。")
-                sender.sendRichMessage("<gray>プラグイン '$pluginId' をインストールしています...")
-
-                lifecycleService.install(PluginName(pluginId), force, skipIntegrity).fold(
-                    { error ->
-                        sender.sendRichMessage("<red>${error.message}")
-                    },
-                    { installResult ->
-                        displayInstallResult(sender, installResult)
-                        sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。")
-                    }
-                )
+            { installResult ->
+                displayInstallResult(sender, installResult)
+                sender.sendRichMessage("<gray>変更を反映するには、サーバーを再起動してください。")
             }
         )
     }

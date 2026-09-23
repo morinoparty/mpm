@@ -351,6 +351,111 @@ class PluginLifecycleServiceImpl :
     }
 
     /**
+     * プラグインを管理対象に追加し、そのままインストールする
+     *
+     * インストールに失敗した場合は追加を取り消す（[addAndInstallInternal] を参照）
+     */
+    override suspend fun addAndInstall(
+        name: PluginName,
+        version: VersionSpecifier,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, InstallResult> =
+        addAndInstallInternal(name, version, force, skipIntegrity).onRight { regenerateLock() }
+
+    /**
+     * 追加とインストールを1つの操作として行い、インストール失敗時は追加を取り消す
+     *
+     * 追加前の mpm.json 上の指定とメタデータを控えておき、インストールが失敗したらそれらを書き戻す。
+     * 失敗したまま管理対象に残すと、再度の add が AlreadyExists（依存込みの追加ではスキップ）になり、
+     * 利用者が同じコマンドでやり直せなくなるため
+     *
+     * @param name プラグイン名
+     * @param version バージョン指定
+     * @param force trueの場合、必須依存が不足していても強制インストールする
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
+     * @return インストール結果。追加・インストールいずれかの失敗時はエラー
+     */
+    private suspend fun addAndInstallInternal(
+        name: PluginName,
+        version: VersionSpecifier,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, InstallResult> {
+        // 取り消し用に、追加前の mpm.json 上の指定（未登録なら null、unmanaged ならその指定）を控える
+        val previousSpec = projectRepository.find()?.getPluginSpec(name)
+        // 追加前のメタデータも控える（unmanaged からの変換や、以前の残骸がある場合に元へ戻すため）
+        val previousMetadata = metadataManager.loadMetadata(name.value).getOrNull()
+
+        // 追加に失敗した場合は何も書き換わっていないので、そのまま返す
+        addInternal(name, version).getOrElse { return it.left() }
+
+        return installInternal(name, force, skipIntegrity).onLeft { installError ->
+            // インストールに失敗したので、追加した状態を元へ戻す
+            val rollbackNote = rollbackAdd(name, previousSpec, previousMetadata)
+            if (rollbackNote.isNotEmpty()) {
+                // 取り消しにも失敗した場合は、元のエラーに加えて取り消し失敗を伝える
+                return MpmError.PluginError
+                    .InstallFailed(name.value, "${installError.message}$rollbackNote")
+                    .left()
+            }
+        }
+    }
+
+    /**
+     * 追加直後のインストール失敗時に、mpm.json とメタデータを追加前の状態へ戻す
+     *
+     * @param name プラグイン名
+     * @param previousSpec 追加前の mpm.json 上の指定（未登録だった場合は null）
+     * @param previousMetadata 追加前のメタデータ（存在しない・読めなかった場合は null）
+     * @return 取り消しに成功した場合は空文字、失敗した場合はエラー文に付け足す説明
+     */
+    private suspend fun rollbackAdd(
+        name: PluginName,
+        previousSpec: PluginSpec?,
+        previousMetadata: ManagedPluginDto?
+    ): String {
+        val pluginName = name.value
+        val failures = mutableListOf<String>()
+
+        // mpm.json: 未登録だったなら削除し、unmanaged などで登録済みだったなら元の指定に戻す
+        val project = projectRepository.find()
+        if (project == null) {
+            failures.add("mpm.json could not be read")
+        } else {
+            val restored =
+                if (previousSpec == null) project.removePlugin(name) else project.updatePlugin(name, previousSpec)
+            restored.fold(
+                { failures.add("mpm.json: ${it.message}") },
+                { restoredProject ->
+                    try {
+                        projectRepository.save(restoredProject.withSortedPlugins())
+                    } catch (e: Exception) {
+                        failures.add("mpm.json: ${e.message}")
+                    }
+                }
+            )
+        }
+
+        // メタデータ: 追加前にあったものは書き戻し、無かったなら今回作ったものを消す
+        metadataManager.withMetadataLock(pluginName) {
+            val result =
+                if (previousMetadata != null) {
+                    metadataManager.saveMetadata(pluginName, previousMetadata)
+                } else {
+                    metadataManager.deleteMetadata(pluginName)
+                }
+            result.onLeft { failures.add("metadata: $it") }
+        }
+
+        if (failures.isEmpty()) {
+            return ""
+        }
+        plugin.logger.warning("Failed to roll back add of '$pluginName': ${failures.joinToString("; ")}")
+        return " (rollback of the add also failed: ${failures.joinToString("; ")})"
+    }
+
+    /**
      * プラグインを管理対象から削除する
      *
      * RemovePluginUseCaseImpl から移行したロジック
@@ -1599,28 +1704,19 @@ class PluginLifecycleServiceImpl :
                 version
             }
 
-        // プラグインを追加
-        val addResult = addInternal(PluginName(pluginName), resolvedVersion)
-        addResult.fold(
+        // プラグインを追加してインストールする（force・skipIntegrityフラグを伝播）
+        // インストールに失敗した場合は追加も取り消されるため、同じコマンドでやり直せる
+        addAndInstallInternal(PluginName(pluginName), resolvedVersion, force, skipIntegrity).fold(
             { error ->
                 failedPlugins[pluginName] = error.message
             },
-            {
-                // 追加成功後、インストール（force・skipIntegrityフラグを伝播）
-                val installResult = installInternal(PluginName(pluginName), force, skipIntegrity)
-                installResult.fold(
-                    { error ->
-                        failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"
-                    },
-                    { result ->
-                        addedPlugins.add(
-                            PluginAddResult(
-                                pluginName = pluginName,
-                                installResult = result,
-                                isDependency = isDependency
-                            )
-                        )
-                    }
+            { result ->
+                addedPlugins.add(
+                    PluginAddResult(
+                        pluginName = pluginName,
+                        installResult = result,
+                        isDependency = isDependency
+                    )
                 )
             }
         )
