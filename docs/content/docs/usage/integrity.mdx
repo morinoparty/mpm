@@ -32,7 +32,7 @@ mpm update --skip-integrity
 ```
 
 <Callout type="info" title="force との違い">
-`--force` は api-version の非互換を無視するためのフラグで、整合性検証には影響しません。整合性の不一致を無視するには、必ず `--skip-integrity` を使用してください。両者は独立したフラグです。
+`--force` は必須依存の不足やロックを無視するためのフラグで、整合性検証には影響しません。整合性の不一致を無視するには、必ず `--skip-integrity` を使用してください。両者は独立したフラグです。
 </Callout>
 
 <Callout type="warn" title="スキップ時のハッシュは記録されません">

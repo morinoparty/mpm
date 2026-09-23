@@ -43,7 +43,7 @@ class RollbackCommand : KoinComponent {
      * @param sender コマンド送信者
      * @param plugin 切り戻し対象のプラグイン
      * @param version 切り戻し先バージョン（省略時は履歴上の直前のバージョン）
-     * @param force ロック済み・api-version非互換でも強制的に切り戻す
+     * @param force ロック済み・必須依存不足でも強制的に切り戻す
      * @param skipIntegrity 整合性検証の不一致を無視して続行する
      */
     @Subcommand("rollback")

@@ -32,7 +32,7 @@ class InstallCommand : KoinComponent {
     /**
      * mpm.jsonに定義されたプラグインを一括インストールするコマンド
      * @param sender コマンド送信者
-     * @param force api-version非互換でも強制インストールする
+     * @param force 必須依存が不足していても強制インストールする
      * @param skipIntegrity 整合性検証の不一致を無視する
      * @param frozen mpm-lock.yamlに記録された正確なバージョンをインストールする（再現インストール）
      */
@@ -73,22 +73,9 @@ class InstallCommand : KoinComponent {
 
                 // 失敗したプラグイン一覧を表示
                 if (result.failed.isNotEmpty()) {
-                    // api-version非互換エラーが含まれているか確認
-                    val hasApiVersionError =
-                        result.failed.values.any {
-                            it.contains("[API_VERSION_INCOMPATIBLE]")
-                        }
-
                     sender.sendRichMessage("<red>以下のプラグインのインストールに失敗しました:")
                     for ((pluginName, errorMessage) in result.failed) {
-                        // マーカーを除去して表示
-                        val displayMessage = errorMessage.replace("[API_VERSION_INCOMPATIBLE] ", "")
-                        sender.sendRichMessage("<red>  - $pluginName: $displayMessage")
-                    }
-
-                    // api-version非互換がある場合は--force案内を表示
-                    if (hasApiVersionError) {
-                        sender.sendRichMessage("<yellow>--force フラグで強制インストールできます。")
+                        sender.sendRichMessage("<red>  - $pluginName: $errorMessage")
                     }
                 }
 

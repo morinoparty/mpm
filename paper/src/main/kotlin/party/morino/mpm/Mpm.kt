@@ -32,7 +32,6 @@ import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.cache.CacheManager
 import party.morino.mpm.api.domain.cache.HttpMetadataCache
-import party.morino.mpm.api.domain.compatibility.ApiVersionChecker
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
@@ -65,7 +64,6 @@ import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
 import party.morino.mpm.infrastructure.cache.CacheManagerImpl
 import party.morino.mpm.infrastructure.cache.HttpMetadataCacheImpl
-import party.morino.mpm.infrastructure.compatibility.ApiVersionCheckerImpl
 import party.morino.mpm.infrastructure.config.ConfigLoadDiagnostics
 import party.morino.mpm.infrastructure.config.ConfigManagerImpl
 import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
@@ -313,9 +311,6 @@ open class Mpm :
                 // バックアップ管理の登録
                 single<ServerBackupManager> { ServerBackupManagerImpl() }
 
-                // APIバージョン互換性チェッカーの登録
-                single<ApiVersionChecker> { ApiVersionCheckerImpl() }
-
                 // 依存関係解析の登録
                 single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
                 single<DependencyService> { DependencyServiceImpl() }
@@ -331,7 +326,7 @@ open class Mpm :
                 single<LockService> { LockServiceImpl() }
                 // サーバー健全性診断（mpm doctor）
                 single<DoctorService> { DoctorServiceImpl() }
-                // インストール前検証（APIバージョン互換性・依存関係）の共通ロジック
+                // インストール前検証（依存関係）の共通ロジック
                 // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
                 single { PluginInstallValidator() }
                 // ダウンロードしたJARのハッシュ整合性検証

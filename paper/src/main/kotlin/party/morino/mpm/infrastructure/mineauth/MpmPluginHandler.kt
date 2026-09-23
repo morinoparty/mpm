@@ -414,7 +414,7 @@ class MpmPluginHandler : KoinComponent {
      * web console からはプラグインごとの `POST /plugins/{name}/update` か、
      * 進捗と完了を追跡できる `POST /jobs`（type = `update_all`）を利用すること。
      *
-     * @param params クエリパラメータ（force=true で api-version 非互換でも強制更新）
+     * @param params クエリパラメータ（force=true で必須依存が不足していても強制更新）
      * @return 各プラグインの更新結果一覧
      */
     @Post("/plugins/update")
@@ -511,7 +511,7 @@ class MpmPluginHandler : KoinComponent {
      * POST /api/v1/plugins/mpm/plugins/{name}/install
      *
      * @param name インストール対象のプラグイン名
-     * @param params クエリパラメータ（force=true で api-version 非互換でも強制インストール）
+     * @param params クエリパラメータ（force=true で必須依存が不足していても強制インストール）
      * @return インストール結果
      */
     @Post("/plugins/{name}/install")

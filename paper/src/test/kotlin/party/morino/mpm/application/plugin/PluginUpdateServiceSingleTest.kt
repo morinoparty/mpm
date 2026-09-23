@@ -100,16 +100,10 @@ class PluginUpdateServiceSingleTest : KoinComponent {
                 oldVersion = "1.0.0",
                 newVersion = "1.0.0",
                 success = false,
-                errorMessage = "[API_VERSION_INCOMPATIBLE] API version mismatch"
+                errorMessage = "必須依存プラグインが不足しています: Vault"
             )
         assertTrue(!failResult.success)
-        assertTrue(
-            failResult.errorMessage?.contains("[API_VERSION_INCOMPATIBLE]") == true,
-            "APIバージョン非互換マーカーが含まれているべき"
-        )
-        // コマンドの表示ロジック: マーカーを除去した表示文字列を検証
-        val displayMessage = failResult.errorMessage?.replace("[API_VERSION_INCOMPATIBLE] ", "") ?: ""
-        assertEquals("API version mismatch", displayMessage)
+        assertEquals("必須依存プラグインが不足しています: Vault", failResult.errorMessage)
     }
 
     @Test

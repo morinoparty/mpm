@@ -27,7 +27,7 @@ interface PluginUpdateService {
      *
      * ロックされていないプラグインを最新バージョンに更新する
      *
-     * @param force trueの場合、api-version非互換でも強制更新する
+     * @param force trueの場合、必須依存が不足していても強制更新する
      * @param progressCallback 進捗メッセージを受け取るコールバック（MiniMessage形式）
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
      * @return 更新結果一覧
@@ -50,7 +50,7 @@ interface PluginUpdateService {
      * （中間ノードが動いていない以上、孫だけを進めない）。
      *
      * @param name プラグイン名
-     * @param force trueの場合、api-version非互換でも強制更新する
+     * @param force trueの場合、必須依存が不足していても強制更新する
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視して更新を続行する
      * @return 更新結果一覧（親＋連動更新した子孫）
      */
@@ -79,7 +79,7 @@ interface PluginUpdateService {
      *
      * @param name プラグイン名
      * @param version 切り替え先バージョン（raw / normalized のどちらでも解決を試みる）
-     * @param force trueの場合、ロック済み・api-version非互換でも強制的に切り替える
+     * @param force trueの場合、ロック済み・必須依存不足でも強制的に切り替える
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視して続行する
      * @return 切り替え結果（oldVersion/newVersion を含む）
      */
@@ -104,7 +104,7 @@ interface PluginUpdateService {
      *
      * @param name プラグイン名
      * @param version 切り戻し先バージョン。null の場合は履歴上の直前のバージョンを使用する
-     * @param force trueの場合、ロック済み・api-version非互換でも強制的に切り戻す
+     * @param force trueの場合、ロック済み・必須依存不足でも強制的に切り戻す
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視して続行する
      * @return 切り戻し結果（oldVersion/newVersion を含む）
      */
@@ -118,7 +118,7 @@ interface PluginUpdateService {
     /**
      * mpm.jsonに記載されたすべてのプラグインを一括インストールする
      *
-     * @param force trueの場合、api-version非互換でも強制インストールする
+     * @param force trueの場合、必須依存が不足していても強制インストールする
      * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
      * @param frozen trueの場合、mpm-lock.yamlに記録された正確なバージョンをインストールする
      *   （mpm.jsonのlatest/tag指定を無視した再現インストール。ロック未存在時はエラー）
