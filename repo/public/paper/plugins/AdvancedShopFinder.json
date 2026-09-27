@@ -1,11 +1,11 @@
 {
   "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "AdvancedShopFinder",
-  "source": "https://github.com/Nlkomaru/AdvancedShopFinder",
+  "source": "https://github.com/morinoparty/AdvancedShopFinder",
   "repositories": [
     {
       "type": "github",
-      "id": "Nlkomaru/AdvancedShopFinder",
+      "id": "morinoparty/AdvancedShopFinder",
       "fileNameRegex": "AdvancedShopFinder_.*\\.jar$"
     }
   ]
