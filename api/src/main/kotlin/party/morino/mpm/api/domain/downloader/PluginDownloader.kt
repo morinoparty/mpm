@@ -158,6 +158,15 @@ interface PluginDownloader {
     suspend fun getProjectDetail(urlData: UrlData): PluginProjectDetail? = null
 
     /**
+     * 設定を読み直し、設定値に依存するダウンローダーを作り直す
+     *
+     * GitHubの認証トークンのように、ダウンローダーの生成時に設定から取り込む値があるため、
+     * `/mpm reload` でトークンを追加・変更した場合はここで反映させる必要がある。
+     * デフォルト実装は何もしない（設定に依存しないダウンローダー向け）
+     */
+    fun reload() {}
+
+    /**
      * 保持しているダウンローダーのリソース（HTTPクライアント等）を解放する
      * プラグイン無効化時に呼び出すことでコネクションリークを防ぐ
      * デフォルト実装は何もしない（後方互換性のため）

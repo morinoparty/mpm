@@ -241,6 +241,47 @@ mpm全体の動作設定を定義します。
 `githubToken` は個人アクセストークンなどの機密情報です。`config.json` を公開リポジトリにコミットしないよう、`.gitignore` に追加するか環境変数経由で管理することをおすすめします。
 </Callout>
 
+##### 🔑 githubToken とレート制限
+
+GitHubのAPIは**未認証だと1時間あたり60リクエスト**しか許されません。GitHubを配布元とする
+プラグインが多いと更新確認の途中でこの上限に達し、次のようなログが出ます。
+
+```
+[WARN mpm] Failed to check update for mpm: Upstream repository is temporarily unavailable for mpm:
+最新バージョンの取得に失敗しました: Download failed from
+https://api.github.com/repos/morinoparty/mpm/releases/latest: HTTP 403
+```
+
+`settings.githubToken` にPersonal Access Tokenを設定すると上限が**5000リクエスト/時**になります。
+パブリックリポジトリのリリースを読むだけなので、追加のスコープ（権限）は不要です。
+
+- トークンは値の前後の空白・改行が自動的に取り除かれます。空文字（`""`）は未設定と同じ扱いです
+- 設定を変更したあとは `/mpm reload` で反映されます（サーバーの再起動は不要です）
+- 認証状態は起動時のログで確認できます。未設定の場合は警告が、設定済みの場合は
+  「認証トークンを使用します」という情報ログが出ます
+- 401 / 403 / 429 で拒否された場合は、GitHubが返した理由・上限・リセット時刻・認証済みかどうかを
+  ログに出力します。403は原因が複数あるため、このログで切り分けてください
+
+| ログに出る理由 | 意味 | 対処 |
+| --- | --- | --- |
+| `API rate limit exceeded`（`未認証`） | トークンが効いておらず60リクエスト/時の上限に達した | `settings` の中に `githubToken` があるか確認する |
+| `You have exceeded a secondary rate limit` | 短時間にリクエストが集中した（一時的） | 自動でリトライされます（`retry-after` に従って待機） |
+| `Resource not accessible by personal access token` | トークンに必要な権限が無い（ログの `required-permissions` に不足している権限が出ます） | 下記参照 |
+| `Bad credentials` | トークンが無効・失効している | トークンを再発行する |
+
+<Callout type="warn" title="fine-grained PAT を使う場合">
+`github_pat_` で始まる **fine-grained** のトークンは、対象リポジトリを明示的に選んで
+権限を付与しない限り、**公開リポジトリのリリースを読むだけでも403になります**。
+`/releases/latest` は `Contents: Read-only` を必要とします（レスポンスの
+`x-accepted-github-permissions` ヘッダーで確認できます）。
+
+- 複数の配布元（他者の公開リポジトリ）を扱うmpmの用途では、**スコープを何も付けないclassicトークン**
+  （`ghp_` で始まるもの）が扱いやすいです。公開リポジトリの読み取りには追加の権限が不要で、
+  レート制限も5000リクエスト/時になります
+- fine-grained を使う場合は、リポジトリごとに `Contents: Read-only` を付与する必要があります。
+  他者のリポジトリには付与できないため、mpmの用途には向きません
+</Callout>
+
 #### ⏰ schedule（スケジュール自動更新）
 
 cron式を使用して、プラグインの自動更新をスケジュール実行できます。

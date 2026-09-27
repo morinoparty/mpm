@@ -10,6 +10,8 @@
 package party.morino.mpm.infrastructure.downloader
 
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertNotSame
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -27,5 +29,31 @@ class DownloaderRepositoryImplTest {
         // 一度もダウンローダーを使っていない場合、未初期化のlazyを
         // 生成せず例外も発生しないこと
         assertDoesNotThrow { repository.shutdown() }
+    }
+
+    @Test
+    @DisplayName("reload should rebuild the github downloader so a new token takes effect")
+    fun reloadRebuildsGithubDownloader() {
+        val repository = DownloaderRepositoryImpl()
+        // privateなgetterを経由してインスタンスを取得する
+        val field = DownloaderRepositoryImpl::class.java.getDeclaredMethod("getGithubDownloader")
+        field.isAccessible = true
+
+        val first = field.invoke(repository)
+        // 同じ設定のままなら同じインスタンスを再利用する
+        assertSame(first, field.invoke(repository))
+
+        repository.reload()
+        // reload後は設定を読み直した新しいインスタンスになる
+        assertNotSame(first, field.invoke(repository))
+
+        repository.shutdown()
+    }
+
+    @Test
+    @DisplayName("reload should be safe when no downloader is initialized")
+    fun reloadSafeWhenNoneInitialized() {
+        val repository = DownloaderRepositoryImpl()
+        assertDoesNotThrow { repository.reload() }
     }
 }

@@ -23,12 +23,15 @@ import io.ktor.utils.io.jvm.javaio.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.koin.core.context.GlobalContext
 import party.morino.mpm.api.domain.cache.HttpMetadataCache
 import party.morino.mpm.api.domain.downloader.PluginDownloader
 import party.morino.mpm.api.shared.error.MpmError
 import java.io.Closeable
 import java.io.File
+import java.time.Instant
 import java.util.logging.Logger
 
 /**
@@ -47,12 +50,26 @@ abstract class AbstractPluginDownloader :
     // エラーログ出力用（サーバーのログ設定/レベルに従わせるためprintlnではなくLoggerを使用）
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    /**
+     * 上流APIへのリクエストが認証済みかどうか
+     *
+     * レート制限に当たったとき「トークンが効いていないせいなのか」を切り分けるために使う。
+     * 認証を持つダウンローダー（GitHub等）がoverrideする
+     */
+    protected open val authenticated: Boolean get() = false
+
     companion object {
         // 一時的な障害（5xx / 429 / ネットワークエラー）に対するリトライ回数
         private const val MAX_RETRIES = 3
 
         // レート制限を示すHTTPステータスコード
         private const val TOO_MANY_REQUESTS = 429
+
+        // GitHubは一次・二次レート制限の超過を403で返す（429ではない）
+        private const val FORBIDDEN = 403
+
+        // トークンが無効な場合に返るステータスコード
+        private const val UNAUTHORIZED = 401
 
         // 個々の通信（接続確立 / 無応答）に対するタイムアウト（ミリ秒）
         private const val TIMEOUT_MILLIS = 60_000L
@@ -110,8 +127,14 @@ abstract class AbstractPluginDownloader :
             // retryOnServerErrorsと同じ内部状態（shouldRetry）を設定するため、
             // 429を含めたこのretryIfのみを指定する。
             retryIf(maxRetries = MAX_RETRIES) { _, response ->
+                // GitHubは二次レート制限を403 + `retry-after` で返すため、
+                // 待ち時間の指示がある403はリトライ対象に含める。
+                // `retry-after` の無い403は権限不足などの恒久的な拒否なのでリトライしない
+                val retryableForbidden =
+                    response.status.value == FORBIDDEN && response.headers["retry-after"] != null
                 response.status.value >= HttpStatusCode.InternalServerError.value ||
-                    response.status.value == TOO_MANY_REQUESTS
+                    response.status.value == TOO_MANY_REQUESTS ||
+                    retryableForbidden
             }
             // ネットワーク断やタイムアウトなどの例外もリトライする
             retryOnException(maxRetries = MAX_RETRIES, retryOnTimeout = true)
@@ -244,6 +267,11 @@ abstract class AbstractPluginDownloader :
                 }
 
             if (!response.status.isSuccess()) {
+                // 401/403/429は原因が複数あり（未認証のレート制限 / 二次レート制限 /
+                // トークンの権限不足 / 組織のPAT制限）、HTTPコードだけでは区別できない。
+                // 上流が返す理由をログに残さないと利用者が手掛かりを得られないため、
+                // ここでメッセージとレート制限ヘッダーを記録する
+                logUpstreamRejection(url, response)
                 throw PluginDownloadException(MpmError.DownloadError.HttpStatus(url, response.status.value))
             }
 
@@ -282,6 +310,80 @@ abstract class AbstractPluginDownloader :
     ) {
         metadataCache()?.let { cache ->
             runCatching { cache.put(url, body) }
+        }
+    }
+
+    /**
+     * 認証・レート制限に関わる拒否（401/403/429）の理由をログへ残す
+     *
+     * 403は次のいずれでも返るため、ステータスコードだけでは原因を切り分けられない。
+     * 上流のメッセージとレート制限ヘッダーを出して判断できるようにする。
+     *
+     * - 未認証のままレート制限（GitHubは60リクエスト/時）を超えた
+     * - 短時間に集中したリクエストによる二次レート制限（`retry-after` が付く）
+     * - トークンの権限不足、または組織がそのトークン種別を許可していない
+     *
+     * @param url 失敗したリクエストのURL
+     * @param response 失敗レスポンス
+     */
+    private suspend fun logUpstreamRejection(
+        url: String,
+        response: HttpResponse
+    ) {
+        val status = response.status.value
+        if (status != UNAUTHORIZED && status != FORBIDDEN && status != TOO_MANY_REQUESTS) return
+
+        val authState = if (authenticated) "認証済み" else "未認証"
+        val remaining = response.headers["x-ratelimit-remaining"]
+        val limit = response.headers["x-ratelimit-limit"]
+        val retryAfter = response.headers["retry-after"]
+        // GitHubは不足している権限をこのヘッダーで教えてくれる（例: contents=read）。
+        // fine-grained PATに対象リポジトリの権限が無い場合の切り分けに使う
+        val requiredPermissions = response.headers["x-accepted-github-permissions"]
+        val resetAt =
+            response.headers["x-ratelimit-reset"]
+                ?.toLongOrNull()
+                ?.let { Instant.ofEpochSecond(it).toString() }
+
+        // 上流のエラー本文は短いJSON。原因が直接書かれているので取り出して出す
+        val upstreamMessage =
+            runCatching {
+                json
+                    .parseToJsonElement(response.bodyAsText())
+                    .jsonObject["message"]
+                    ?.jsonPrimitive
+                    ?.content
+            }.getOrNull()
+
+        val details =
+            listOfNotNull(
+                authState,
+                limit?.let { "limit=$it" },
+                remaining?.let { "remaining=$it" },
+                resetAt?.let { "reset=$it" },
+                retryAfter?.let { "retry-after=${it}s" },
+                requiredPermissions?.let { "required-permissions=$it" }
+            ).joinToString(", ")
+
+        logger.warning("上流APIがHTTP $status で拒否しました（$details）: $url${upstreamMessage?.let { " / $it" } ?: ""}")
+
+        // 未認証でレート制限を使い切った場合は、対処方法まで案内する
+        if (!authenticated && remaining == "0") {
+            logger.warning(
+                "config.json の settings.githubToken にPersonal Access Tokenを設定すると" +
+                    "GitHub APIの上限が60→5000リクエスト/時になります。設定後は `/mpm reload` で反映されます"
+            )
+            return
+        }
+
+        // 認証済みでレート制限にも余裕があるのに拒否された場合はトークンの権限不足。
+        // fine-grained PATは対象リポジトリを明示的に選ばないと公開リポジトリでも403になる
+        if (authenticated && requiredPermissions != null && remaining != "0") {
+            logger.warning(
+                "トークンに必要な権限（$requiredPermissions）がありません。" +
+                    "fine-grained PAT（github_pat_で始まるもの）の場合は対象リポジトリを選んで権限を付与するか、" +
+                    "公開リポジトリのみを扱うならスコープ無しのclassicトークンを使用してください"
+            )
         }
     }
 

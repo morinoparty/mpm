@@ -31,6 +31,23 @@ class GithubDownloaderTest {
     private val downloader = GithubDownloader()
 
     @Test
+    @DisplayName("blank or padded tokens should be normalized")
+    fun tokenNormalization() {
+        // privateプロパティを読むためのヘルパー
+        fun tokenOf(downloader: GithubDownloader): String? {
+            val field = GithubDownloader::class.java.getDeclaredField("githubToken")
+            field.isAccessible = true
+            return field.get(downloader) as String?
+        }
+
+        // 空文字・空白のみは未設定として扱う（`Bearer ` だけを送って401になるのを防ぐ）
+        assertNull(tokenOf(GithubDownloader("")))
+        assertNull(tokenOf(GithubDownloader("   ")))
+        // コピー＆ペーストで混入した前後の空白・改行は取り除く
+        assertEquals("ghp_example", tokenOf(GithubDownloader(" ghp_example\n")))
+    }
+
+    @Test
     fun getRepositoryType() {
         // GitHubのURLが正しく認識されることをテスト
         val validUrl = "https://github.com/owner/repository"

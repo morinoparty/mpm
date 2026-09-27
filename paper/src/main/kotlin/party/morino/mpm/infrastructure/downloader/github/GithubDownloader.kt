@@ -34,13 +34,18 @@ import kotlin.coroutines.cancellation.CancellationException
  * GitHubからプラグインをダウンロードするクラス
  * テストのためにopenクラスとして定義
  *
- * @param githubToken GitHub APIの認証トークン（nullの場合は未認証でリクエスト）
+ * @param githubToken GitHub APIの認証トークン（nullまたは空文字の場合は未認証でリクエスト）
  */
 open class GithubDownloader(
-    private val githubToken: String? = null
+    githubToken: String? = null
 ) : AbstractPluginDownloader() {
     // 取得件数の打ち切りを通知するためのロガー
     private val logger: Logger = Logger.getLogger(GithubDownloader::class.java.name)
+
+    // 設定から渡ってきたトークンを正規化する。
+    // コピー＆ペーストで混入した前後の空白・改行はそのまま送ると401になるため取り除き、
+    // 空文字は「未設定」と同じ扱いにする（`Bearer ` だけを送って認証失敗するのを防ぐ）
+    private val githubToken: String? = githubToken?.trim()?.takeIf { it.isNotEmpty() }
 
     companion object {
         // GitHub APIの1ページあたり取得件数（許容される最大値）
@@ -49,6 +54,11 @@ open class GithubDownloader(
         // リリースが極端に多いリポジトリで無限に取得しないためのページ数上限
         private const val MAX_RELEASE_PAGES = 10
     }
+
+    // 未認証だとGitHub APIは60リクエスト/時で403になるため、
+    // レート制限に当たったときの原因切り分けに使う
+    override val authenticated: Boolean
+        get() = githubToken != null
 
     init {
         // トークンが設定されている場合、認証ヘッダー付きのHTTPクライアントを使用
@@ -64,6 +74,14 @@ open class GithubDownloader(
                         header(HttpHeaders.Authorization, "Bearer $githubToken")
                     }
                 }
+            logger.info("GitHub APIへのリクエストに認証トークンを使用します（5000リクエスト/時）")
+        } else {
+            // 未認証は60リクエスト/時しかないため、プラグインが増えると更新確認が403で落ちる。
+            // 気付けるよう起動時に一度知らせる
+            logger.warning(
+                "GitHub APIの認証トークンが設定されていません（未認証は60リクエスト/時）。" +
+                    "config.json の settings.githubToken にPersonal Access Tokenを設定してください"
+            )
         }
     }
 
