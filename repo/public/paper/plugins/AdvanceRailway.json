@@ -1,11 +1,11 @@
 {
   "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json",
   "id": "AdvanceRailway",
-  "source": "https://github.com/Nlkomaru/AdvanceRailway",
+  "source": "https://github.com/morinoparty/AdvanceRailway",
   "repositories": [
     {
       "type": "github",
-      "id": "Nlkomaru/AdvanceRailway",
+      "id": "morinoparty/AdvanceRailway",
       "fileNameRegex": "AdvanceRailway_.*\\.jar$"
     }
   ]
