@@ -139,6 +139,78 @@ class AbstractPluginDownloaderTest {
     }
 
     @Test
+    @DisplayName("http client retries a 403 that carries Retry-After")
+    fun retriesSecondaryRateLimitedResponse() {
+        var attempts = 0
+        val mockEngine =
+            MockEngine {
+                attempts++
+                if (attempts == 1) {
+                    // GitHubの二次レート制限は403 + Retry-Afterで返る
+                    respond(
+                        content = ByteReadChannel("""{"message":"You have exceeded a secondary rate limit"}"""),
+                        status = HttpStatusCode.Forbidden,
+                        headers = headersOf(HttpHeaders.RetryAfter, "0")
+                    )
+                } else {
+                    respond(
+                        content = ByteReadChannel(ByteArray(10)),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
+                    )
+                }
+            }
+
+        val downloader =
+            object : SpigotDownloader() {
+                init {
+                    httpClient = buildHttpClient(mockEngine)
+                }
+
+                suspend fun download() = downloadFile(downloadUrl, "plugin.jar")
+            }
+
+        runBlocking {
+            val result = downloader.download()
+
+            assertTrue(result.isRight())
+            assertEquals(2, attempts)
+            result.getOrNull()?.delete()
+        }
+    }
+
+    @Test
+    @DisplayName("http client does not retry a 403 without Retry-After")
+    fun doesNotRetryPermanentForbidden() {
+        var attempts = 0
+        val mockEngine =
+            MockEngine {
+                attempts++
+                // 権限不足などの恒久的な403。待てば直るものではないのでリトライしない
+                respond(
+                    content = ByteReadChannel("""{"message":"Resource not accessible by personal access token"}"""),
+                    status = HttpStatusCode.Forbidden
+                )
+            }
+
+        val downloader =
+            object : SpigotDownloader() {
+                init {
+                    httpClient = buildHttpClient(mockEngine)
+                }
+
+                suspend fun download() = downloadFile(downloadUrl, "plugin.jar")
+            }
+
+        runBlocking {
+            val result = downloader.download()
+
+            assertTrue(result.isLeft())
+            assertEquals(1, attempts)
+        }
+    }
+
+    @Test
     @DisplayName("request timeout does not cover the retry backoff")
     fun requestTimeoutIsDisabled() {
         // エンジンへ渡されたタイムアウト設定を取り出して検証する
