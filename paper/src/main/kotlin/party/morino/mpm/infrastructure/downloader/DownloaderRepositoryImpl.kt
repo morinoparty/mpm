@@ -44,12 +44,25 @@ class DownloaderRepositoryImpl :
     // shutdown時に「初期化済みかどうか」を判定するためLazyデリゲートを保持する
     private val spigotDownloaderLazy = lazy { SpigotDownloader() }
     private val modrinthDownloaderLazy = lazy { ModrinthDownloader() }
-    private val githubDownloaderLazy = lazy { createGithubDownloader() }
     private val hangarDownloaderLazy = lazy { HangarDownloader() }
     private val spigotDownloader: SpigotDownloader by spigotDownloaderLazy
     private val modrinthDownloader: ModrinthDownloader by modrinthDownloaderLazy
-    private val githubDownloader: GithubDownloader by githubDownloaderLazy
     private val hangarDownloader: HangarDownloader by hangarDownloaderLazy
+
+    // GitHubダウンローダーは生成時に設定のトークンを取り込むため、lazyではなく
+    // 作り直せる形で保持する（lazyはリセットできず、/mpm reload でトークンを
+    // 追加しても再起動まで未認証のまま60リクエスト/時で403になってしまう）
+    @Volatile
+    private var cachedGithubDownloader: GithubDownloader? = null
+
+    // 生成の二重化を防ぐためのロック
+    private val githubDownloaderLock = Any()
+
+    private val githubDownloader: GithubDownloader
+        get() =
+            cachedGithubDownloader ?: synchronized(githubDownloaderLock) {
+                cachedGithubDownloader ?: createGithubDownloader().also { cachedGithubDownloader = it }
+            }
 
     /**
      * GitHubダウンローダーを生成する
@@ -58,6 +71,23 @@ class DownloaderRepositoryImpl :
     private fun createGithubDownloader(): GithubDownloader {
         val token = configManager.getConfig().settings.githubToken
         return GithubDownloader(token)
+    }
+
+    /**
+     * 設定に依存するダウンローダーを破棄し、次回利用時に作り直させる
+     *
+     * GitHubの認証トークンはダウンローダーの生成時にHTTPクライアントへ焼き込まれるため、
+     * `/mpm reload` でトークンを変更した場合はここで作り直さないと反映されない。
+     */
+    override fun reload() {
+        val previous =
+            synchronized(githubDownloaderLock) {
+                val old = cachedGithubDownloader
+                cachedGithubDownloader = null
+                old
+            }
+        // 古いクライアントを閉じてコネクション/セレクタスレッドのリークを防ぐ
+        previous?.let { runCatching { it.close() } }
     }
 
     /**
@@ -387,10 +417,12 @@ class DownloaderRepositoryImpl :
      * 1つのクローズ失敗が他のクローズを妨げないようにする
      */
     override fun shutdown() {
-        listOf(spigotDownloaderLazy, modrinthDownloaderLazy, githubDownloaderLazy, hangarDownloaderLazy)
+        listOf(spigotDownloaderLazy, modrinthDownloaderLazy, hangarDownloaderLazy)
             .filter { it.isInitialized() }
             .forEach { lazy ->
                 runCatching { lazy.value.close() }
             }
+        // GitHubは未使用なら生成しない（getterを踏まないようフィールドを直接見る）
+        cachedGithubDownloader?.let { runCatching { it.close() } }
     }
 }

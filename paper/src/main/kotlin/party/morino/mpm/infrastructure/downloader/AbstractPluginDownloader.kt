@@ -29,6 +29,7 @@ import party.morino.mpm.api.domain.downloader.PluginDownloader
 import party.morino.mpm.api.shared.error.MpmError
 import java.io.Closeable
 import java.io.File
+import java.time.Instant
 import java.util.logging.Logger
 
 /**
@@ -47,12 +48,23 @@ abstract class AbstractPluginDownloader :
     // エラーログ出力用（サーバーのログ設定/レベルに従わせるためprintlnではなくLoggerを使用）
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
+    /**
+     * 上流APIへのリクエストが認証済みかどうか
+     *
+     * レート制限に当たったとき「トークンが効いていないせいなのか」を切り分けるために使う。
+     * 認証を持つダウンローダー（GitHub等）がoverrideする
+     */
+    protected open val authenticated: Boolean get() = false
+
     companion object {
         // 一時的な障害（5xx / 429 / ネットワークエラー）に対するリトライ回数
         private const val MAX_RETRIES = 3
 
         // レート制限を示すHTTPステータスコード
         private const val TOO_MANY_REQUESTS = 429
+
+        // GitHubは一次レート制限の超過を403で返す（429ではない）
+        private const val FORBIDDEN = 403
 
         // 個々の通信（接続確立 / 無応答）に対するタイムアウト（ミリ秒）
         private const val TIMEOUT_MILLIS = 60_000L
@@ -244,6 +256,9 @@ abstract class AbstractPluginDownloader :
                 }
 
             if (!response.status.isSuccess()) {
+                // 403/429は「権限が無い」と「レート制限」が同じコードで返るため、
+                // ヘッダーを見て原因を特定できるログを残す（HTTP 403だけでは切り分けられない）
+                logRateLimitIfExhausted(url, response)
                 throw PluginDownloadException(MpmError.DownloadError.HttpStatus(url, response.status.value))
             }
 
@@ -283,6 +298,42 @@ abstract class AbstractPluginDownloader :
         metadataCache()?.let { cache ->
             runCatching { cache.put(url, body) }
         }
+    }
+
+    /**
+     * レート制限で失敗した場合に、残り回数と認証状態をログへ残す
+     *
+     * GitHubは未認証で60リクエスト/時、認証済みで5000リクエスト/時のため、
+     * 「トークンを設定したのに403になる」ケースでは認証が効いていないことがほとんどである。
+     * それをログから判断できるようにする。
+     *
+     * @param url 失敗したリクエストのURL
+     * @param response 失敗レスポンス
+     */
+    private fun logRateLimitIfExhausted(
+        url: String,
+        response: HttpResponse
+    ) {
+        val status = response.status.value
+        if (status != FORBIDDEN && status != TOO_MANY_REQUESTS) return
+
+        val remaining = response.headers["x-ratelimit-remaining"]
+        // レート制限のヘッダーが無い、または残りがある場合は権限や別の理由による拒否
+        if (remaining == null || remaining != "0") return
+
+        val limit = response.headers["x-ratelimit-limit"] ?: "unknown"
+        val resetEpoch = response.headers["x-ratelimit-reset"]?.toLongOrNull()
+        val resetAt = resetEpoch?.let { Instant.ofEpochSecond(it).toString() } ?: "unknown"
+        val authState = if (authenticated) "認証済み" else "未認証"
+        logger.warning(
+            "上流APIのレート制限に達しました（$authState, limit=$limit, reset=$resetAt): $url" +
+                if (authenticated) {
+                    ""
+                } else {
+                    " / config.json の settings.githubToken にPersonal Access Tokenを設定すると" +
+                        "上限が60→5000リクエスト/時になります。設定後は `/mpm reload` で反映されます"
+                }
+        )
     }
 
     /**

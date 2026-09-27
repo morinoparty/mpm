@@ -14,6 +14,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
 import party.morino.mpm.api.domain.config.ConfigManager
+import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.infrastructure.config.ConfigLoadDiagnostics
 import revxrsal.commands.annotation.Command
@@ -26,6 +27,7 @@ class ReloadCommand : KoinComponent {
     private val configManager: ConfigManager by inject()
     private val configLoadDiagnostics: ConfigLoadDiagnostics by inject()
     private val repositoryManager: RepositoryManager by inject()
+    private val downloaderRepository: DownloaderRepository by inject()
     private val updateScheduler: UpdateScheduler by inject()
 
     @Subcommand("reload")
@@ -33,6 +35,9 @@ class ReloadCommand : KoinComponent {
         configManager.reload()
         // リポジトリマネージャーを再構築して新しいリポジトリ設定を反映
         repositoryManager.reload()
+        // ダウンローダーを作り直してGitHubの認証トークンの変更を反映
+        // （トークンは生成時にHTTPクライアントへ焼き込まれるため、これが無いと再起動まで効かない）
+        downloaderRepository.reload()
         // スケジューラーを再起動して新しい設定を反映
         updateScheduler.restart()
 

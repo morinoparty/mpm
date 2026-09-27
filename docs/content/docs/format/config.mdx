@@ -241,6 +241,28 @@ mpm全体の動作設定を定義します。
 `githubToken` は個人アクセストークンなどの機密情報です。`config.json` を公開リポジトリにコミットしないよう、`.gitignore` に追加するか環境変数経由で管理することをおすすめします。
 </Callout>
 
+##### 🔑 githubToken とレート制限
+
+GitHubのAPIは**未認証だと1時間あたり60リクエスト**しか許されません。GitHubを配布元とする
+プラグインが多いと更新確認の途中でこの上限に達し、次のようなログが出ます。
+
+```
+[WARN mpm] Failed to check update for mpm: Upstream repository is temporarily unavailable for mpm:
+最新バージョンの取得に失敗しました: Download failed from
+https://api.github.com/repos/morinoparty/mpm/releases/latest: HTTP 403
+```
+
+`settings.githubToken` にPersonal Access Tokenを設定すると上限が**5000リクエスト/時**になります。
+パブリックリポジトリのリリースを読むだけなので、追加のスコープ（権限）は不要です。
+
+- トークンは値の前後の空白・改行が自動的に取り除かれます。空文字（`""`）は未設定と同じ扱いです
+- 設定を変更したあとは `/mpm reload` で反映されます（サーバーの再起動は不要です）
+- 認証状態は起動時のログで確認できます。未設定の場合は警告が、設定済みの場合は
+  「認証トークンを使用します」という情報ログが出ます
+- レート制限に達した場合は、上限・リセット時刻・認証済みかどうかをログに出力します。
+  「未認証」と出ている場合はトークンが読み込まれていないので、`settings` の中に
+  書かれているかを確認してください
+
 #### ⏰ schedule（スケジュール自動更新）
 
 cron式を使用して、プラグインの自動更新をスケジュール実行できます。
