@@ -337,6 +337,9 @@ abstract class AbstractPluginDownloader :
         val remaining = response.headers["x-ratelimit-remaining"]
         val limit = response.headers["x-ratelimit-limit"]
         val retryAfter = response.headers["retry-after"]
+        // GitHubは不足している権限をこのヘッダーで教えてくれる（例: contents=read）。
+        // fine-grained PATに対象リポジトリの権限が無い場合の切り分けに使う
+        val requiredPermissions = response.headers["x-accepted-github-permissions"]
         val resetAt =
             response.headers["x-ratelimit-reset"]
                 ?.toLongOrNull()
@@ -358,7 +361,8 @@ abstract class AbstractPluginDownloader :
                 limit?.let { "limit=$it" },
                 remaining?.let { "remaining=$it" },
                 resetAt?.let { "reset=$it" },
-                retryAfter?.let { "retry-after=${it}s" }
+                retryAfter?.let { "retry-after=${it}s" },
+                requiredPermissions?.let { "required-permissions=$it" }
             ).joinToString(", ")
 
         logger.warning("上流APIがHTTP $status で拒否しました（$details）: $url${upstreamMessage?.let { " / $it" } ?: ""}")
@@ -368,6 +372,17 @@ abstract class AbstractPluginDownloader :
             logger.warning(
                 "config.json の settings.githubToken にPersonal Access Tokenを設定すると" +
                     "GitHub APIの上限が60→5000リクエスト/時になります。設定後は `/mpm reload` で反映されます"
+            )
+            return
+        }
+
+        // 認証済みでレート制限にも余裕があるのに拒否された場合はトークンの権限不足。
+        // fine-grained PATは対象リポジトリを明示的に選ばないと公開リポジトリでも403になる
+        if (authenticated && requiredPermissions != null && remaining != "0") {
+            logger.warning(
+                "トークンに必要な権限（$requiredPermissions）がありません。" +
+                    "fine-grained PAT（github_pat_で始まるもの）の場合は対象リポジトリを選んで権限を付与するか、" +
+                    "公開リポジトリのみを扱うならスコープ無しのclassicトークンを使用してください"
             )
         }
     }

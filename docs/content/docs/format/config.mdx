@@ -266,8 +266,21 @@ https://api.github.com/repos/morinoparty/mpm/releases/latest: HTTP 403
 | --- | --- | --- |
 | `API rate limit exceeded`（`未認証`） | トークンが効いておらず60リクエスト/時の上限に達した | `settings` の中に `githubToken` があるか確認する |
 | `You have exceeded a secondary rate limit` | 短時間にリクエストが集中した（一時的） | 自動でリトライされます（`retry-after` に従って待機） |
-| `Resource not accessible by personal access token` | トークンの権限不足、または組織がそのトークン種別を許可していない | 組織の設定を確認するか、classicトークンを使う |
+| `Resource not accessible by personal access token` | トークンに必要な権限が無い（ログの `required-permissions` に不足している権限が出ます） | 下記参照 |
 | `Bad credentials` | トークンが無効・失効している | トークンを再発行する |
+
+<Callout type="warn" title="fine-grained PAT を使う場合">
+`github_pat_` で始まる **fine-grained** のトークンは、対象リポジトリを明示的に選んで
+権限を付与しない限り、**公開リポジトリのリリースを読むだけでも403になります**。
+`/releases/latest` は `Contents: Read-only` を必要とします（レスポンスの
+`x-accepted-github-permissions` ヘッダーで確認できます）。
+
+- 複数の配布元（他者の公開リポジトリ）を扱うmpmの用途では、**スコープを何も付けないclassicトークン**
+  （`ghp_` で始まるもの）が扱いやすいです。公開リポジトリの読み取りには追加の権限が不要で、
+  レート制限も5000リクエスト/時になります
+- fine-grained を使う場合は、リポジトリごとに `Contents: Read-only` を付与する必要があります。
+  他者のリポジトリには付与できないため、mpmの用途には向きません
+</Callout>
 
 #### ⏰ schedule（スケジュール自動更新）
 
