@@ -40,6 +40,26 @@ interface PluginLifecycleService {
     ): Either<MpmError, ManagedPlugin>
 
     /**
+     * プラグインを追加し、続けてインストールする
+     *
+     * インストールに失敗した場合は、追加で行った mpm.json とメタデータの変更を
+     * 追加前の状態（未登録、または unmanaged）に戻す。
+     * なお PluginAddEvent は追加時点で発火済みのため、取り消しは通知されない。
+     *
+     * @param name プラグイン名
+     * @param version バージョン指定
+     * @param force trueの場合、必須依存が不足していても強制インストールする
+     * @param skipIntegrity trueの場合、整合性検証の不一致を無視してインストールを続行する
+     * @return インストール結果
+     */
+    suspend fun addAndInstall(
+        name: PluginName,
+        version: VersionSpecifier,
+        force: Boolean = false,
+        skipIntegrity: Boolean = false
+    ): Either<MpmError, InstallResult>
+
+    /**
      * プラグインを削除する
      *
      * mpm.jsonから依存関係を削除し、メタデータを削除する

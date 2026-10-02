@@ -1599,31 +1599,108 @@ class PluginLifecycleServiceImpl :
                 version
             }
 
-        // プラグインを追加
-        val addResult = addInternal(PluginName(pluginName), resolvedVersion)
-        addResult.fold(
+        // プラグインを追加してインストール（失敗時は追加も取り消される）
+        addAndInstallInternal(PluginName(pluginName), resolvedVersion, force, skipIntegrity).fold(
             { error ->
                 failedPlugins[pluginName] = error.message
             },
-            {
-                // 追加成功後、インストール（force・skipIntegrityフラグを伝播）
-                val installResult = installInternal(PluginName(pluginName), force, skipIntegrity)
-                installResult.fold(
-                    { error ->
-                        failedPlugins[pluginName] = "追加成功、インストール失敗: ${error.message}"
-                    },
-                    { result ->
-                        addedPlugins.add(
-                            PluginAddResult(
-                                pluginName = pluginName,
-                                installResult = result,
-                                isDependency = isDependency
-                            )
-                        )
-                    }
+            { result ->
+                addedPlugins.add(
+                    PluginAddResult(
+                        pluginName = pluginName,
+                        installResult = result,
+                        isDependency = isDependency
+                    )
                 )
             }
         )
+    }
+
+    /**
+     * プラグインを追加し、続けてインストールする
+     *
+     * インストールに失敗した場合は追加前の状態に戻す。
+     * 失敗時は状態が元に戻っているため、他の操作と同様にロックファイルは成功時のみ再生成する。
+     */
+    override suspend fun addAndInstall(
+        name: PluginName,
+        version: VersionSpecifier,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, InstallResult> =
+        addAndInstallInternal(name, version, force, skipIntegrity).onRight { regenerateLock() }
+
+    private suspend fun addAndInstallInternal(
+        name: PluginName,
+        version: VersionSpecifier,
+        force: Boolean,
+        skipIntegrity: Boolean
+    ): Either<MpmError, InstallResult> {
+        // 取り消し用に、追加前の mpm.json とメタデータを退避しておく
+        // （未登録、または unmanaged として登録済みのいずれか）
+        val previousProject = projectRepository.find()
+        val previousMetadata = metadataManager.loadMetadata(name.value).getOrNull()
+
+        // 追加に失敗した場合は何も書き換わっていないので、そのまま返す
+        addInternal(name, version).getOrElse { return it.left() }
+
+        // インストールに失敗した場合、管理対象として残すとJARの無いプラグインが
+        // 「管理中」と表示され続けるため、追加を取り消す
+        return installInternal(name, force, skipIntegrity).onLeft { installError ->
+            val rollbackFailure = rollbackAdd(name, previousProject, previousMetadata)
+            if (rollbackFailure != null) {
+                return MpmError.PluginError
+                    .InstallFailed(
+                        name.value,
+                        "${installError.message} (rollback of add also failed: $rollbackFailure)"
+                    ).left()
+            }
+        }
+    }
+
+    /**
+     * addInternal で行った変更を取り消し、追加前の状態に戻す
+     *
+     * mpm.json を先に戻してからメタデータを戻す。
+     * 途中で失敗した場合でも「メタデータだけが残る」状態に留まり、
+     * 「管理中なのにメタデータが無い」状態にはならない。
+     *
+     * @param name プラグイン名
+     * @param previousProject 追加前のプロジェクト（mpm.json）
+     * @param previousMetadata 追加前のメタデータ（無かった場合はnull）
+     * @return 取り消しに失敗した場合はその理由、成功した場合はnull
+     */
+    private suspend fun rollbackAdd(
+        name: PluginName,
+        previousProject: MpmProject?,
+        previousMetadata: ManagedPluginDto?
+    ): String? {
+        val pluginName = name.value
+
+        // mpm.json を追加前の状態に戻す（追加前の spec が無ければエントリごと削除する）
+        try {
+            val currentProject = projectRepository.find() ?: return "mpm.json not found"
+            val previousSpec = previousProject?.getPluginSpec(name)
+            val restoredProject =
+                if (previousSpec != null) {
+                    currentProject.updatePlugin(name, previousSpec)
+                } else {
+                    currentProject.removePlugin(name)
+                }.getOrElse { return it.message }
+            projectRepository.save(restoredProject.withSortedPlugins())
+        } catch (e: Exception) {
+            return "Failed to restore mpm.json: ${e.message}"
+        }
+
+        // メタデータを追加前の状態に戻す（無かった場合は削除する）
+        return metadataManager
+            .withMetadataLock(pluginName) {
+                if (previousMetadata != null) {
+                    metadataManager.saveMetadata(pluginName, previousMetadata)
+                } else {
+                    metadataManager.deleteMetadata(pluginName)
+                }
+            }.fold({ it }, { null })
     }
 
     /**
