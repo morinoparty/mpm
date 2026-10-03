@@ -12,8 +12,10 @@ package party.morino.mpm.application.project
 import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
+import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
@@ -21,6 +23,7 @@ import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.project.model.MpmProject
 import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.shared.error.MpmError
+import party.morino.mpm.utils.regenerateQuietly
 
 /**
  * プロジェクト管理を行うApplication Service実装
@@ -35,35 +38,40 @@ class ProjectServiceImpl :
     // pluginsディレクトリの走査は共通のスキャナーに委譲する
     private val installedJarScanner: InstalledJarScanner by inject()
 
+    // mpm 自身を管理対象として登録する
+    private val selfRegistrar: SelfRegistrar by inject()
+    private val lockService: LockService by inject()
+    private val plugin: JavaPlugin by inject()
+
     /**
      * プロジェクトを初期化する
      *
      * InitUseCaseImplから移行したロジック
-     * rootDirectory/mpm.jsonを生成し、pluginsディレクトリ内のすべてのプラグインをunmanagedとして追加する
+     * rootDirectory/mpm.jsonを生成し、pluginsディレクトリ内のすべてのプラグインをunmanagedとして追加する。
+     * mpm 自身は latest の管理対象として追加する（登録できない場合は mpm.json に載せない）。
      *
      * @param projectName プロジェクト名
      * @param overwrite 既存のmpm.jsonを上書きするかどうか
+     * @return 保存したプロジェクト
      */
     override suspend fun init(
         projectName: String,
         overwrite: Boolean
     ): Either<MpmError, MpmProject> =
-        initializeInternal(projectName, overwrite = overwrite).fold(
-            { error -> MpmError.ProjectError.InitializationFailed(error).left() },
-            { MpmProject.create(projectName).right() }
-        )
+        initializeInternal(projectName, overwrite = overwrite)
+            .mapLeft { error -> MpmError.ProjectError.InitializationFailed(error) }
 
     /**
      * プロジェクトを初期化する（内部実装）
      *
      * @param projectName プロジェクト名
      * @param overwrite 既存のmpm.jsonを上書きするかどうか
-     * @return 成功時はUnit、失敗時はエラーメッセージ
+     * @return 成功時は保存したプロジェクト、失敗時はエラーメッセージ
      */
     internal suspend fun initializeInternal(
         projectName: String,
         overwrite: Boolean
-    ): Either<String, Unit> {
+    ): Either<String, MpmProject> {
         // ProjectRepositoryを通じて既存プロジェクトの存在を確認
         if (projectRepository.exists() && !overwrite) {
             return "既にmpm.jsonが存在します。上書きする場合は --overwrite フラグを使用してください。".left()
@@ -82,16 +90,31 @@ class ProjectServiceImpl :
                 .onRight { project = it }
         }
 
+        // mpm 自身を管理対象として追加する。
+        // リポジトリに接続できない場合なども init 自体は成功させ、mpm 自身は載せずに警告だけ出す
+        val selfRegistration = selfRegistrar.register(project)
+        selfRegistration.fold(
+            { reason ->
+                plugin.logger.warning(
+                    "mpm 自身を管理対象に登録できませんでした: $reason（後から /mpm add ${plugin.name} で登録できます）"
+                )
+            },
+            { project = it }
+        )
+
         // pluginsをa-Z順にソートして保存
         val sortedProject = project.withSortedPlugins()
 
         // ProjectRepositoryを通じて保存
-        return try {
+        try {
             projectRepository.save(sortedProject)
-            Unit.right()
         } catch (e: Exception) {
-            "mpm.jsonの作成に失敗しました: ${e.message}".left()
+            return "mpm.jsonの作成に失敗しました: ${e.message}".left()
         }
+
+        // mpm 自身のメタデータを作った場合は、ロックファイルにも反映する
+        if (selfRegistration.isRight()) lockService.regenerateQuietly(plugin.logger)
+        return sortedProject.right()
     }
 
     /**

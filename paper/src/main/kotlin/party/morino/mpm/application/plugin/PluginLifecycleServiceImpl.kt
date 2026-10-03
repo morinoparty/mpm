@@ -37,7 +37,6 @@ import party.morino.mpm.api.domain.plugin.dto.ManagedPluginDto
 import party.morino.mpm.api.domain.plugin.model.ManagedPlugin
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
-import party.morino.mpm.api.domain.plugin.model.VersionDetail
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifierParser
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
@@ -51,6 +50,7 @@ import party.morino.mpm.api.model.plugin.PluginData
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.api.shared.error.MpmError
 import party.morino.mpm.application.plugin.metadata.restoreQuarantinedMetadataOrWarn
+import party.morino.mpm.application.project.SelfRegistrar
 import party.morino.mpm.event.lifecycle.PluginAddEvent
 import party.morino.mpm.event.lifecycle.PluginInstallEvent
 import party.morino.mpm.event.lifecycle.PluginRemoveEvent
@@ -60,6 +60,7 @@ import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.FileNameTemplate
 import party.morino.mpm.utils.PluginDataUtils
 import party.morino.mpm.utils.SafeFileName
+import party.morino.mpm.utils.isRunningSelfAt
 import party.morino.mpm.utils.regenerateQuietly
 import party.morino.mpm.utils.replaceJarAtomically
 import party.morino.mpm.utils.retireOldJar
@@ -80,6 +81,9 @@ class PluginLifecycleServiceImpl :
     private val repositoryManager: RepositoryManager by inject()
     private val downloaderRepository: DownloaderRepository by inject()
     private val metadataManager: PluginMetadataManager by inject()
+
+    // mpm 自身の追加は実行中のJARから登録する
+    private val selfRegistrar: SelfRegistrar by inject()
     private val plugin: JavaPlugin by inject()
 
     // 旧JARを即時削除できない場合（mpm 自身の更新など）の削除予約
@@ -121,6 +125,11 @@ class PluginLifecycleServiceImpl :
                 }
             }
 
+        // mpm 自身は実行中のJARを指すメタデータで登録する。
+        // 通常の追加ではファイル名が記録されないため、後続の install で実行中のJARが
+        // 退避されずに残り、再起動時に mpm が2つ読み込まれてしまう
+        if (pluginName == plugin.name) return addSelf(project, name, version)
+
         // リポジトリソースからプラグインが存在するか確認
         val repositoryFile =
             repositoryManager.getRepositoryFile(pluginName)
@@ -142,7 +151,7 @@ class PluginLifecycleServiceImpl :
 
         // RepositoryConfigからUrlDataを作成
         val urlData =
-            createUrlData(firstRepository)
+            firstRepository.toUrlData()
                 ?: return MpmError.DownloadError.RepositoryNotFound(firstRepository.type, pluginName).left()
 
         // 既に追加されているか確認（unmanagedの場合は除外）
@@ -348,6 +357,68 @@ class PluginLifecycleServiceImpl :
             // ManagedPluginを返す（メタデータから構築）
             ManagedPlugin.fromDto(metadata).right()
         }
+    }
+
+    /**
+     * mpm 自身を管理対象に追加する
+     *
+     * ダウンロードは行わず、実行中のJARのバージョン・ファイル名・ハッシュを記録したメタデータを作る。
+     * 処理は `mpm init` と同じ [SelfRegistrar] に委譲する。
+     *
+     * @param project 現在のプロジェクト
+     * @param name mpm 自身のプラグイン名
+     * @param version mpm.json に書くバージョン指定
+     * @return 追加した mpm 自身の管理情報
+     */
+    private suspend fun addSelf(
+        project: MpmProject,
+        name: PluginName,
+        version: VersionSpecifier
+    ): Either<MpmError, ManagedPlugin> {
+        val pluginName = name.value
+
+        // 既に管理対象なら通常の追加と同じくエラーにする（unmanaged からの変換は許可する）
+        val existingSpec = project.getPluginSpec(name)
+        if (existingSpec != null && existingSpec !is PluginSpec.Unmanaged) {
+            return MpmError.PluginError.AlreadyExists(pluginName).left()
+        }
+
+        // lock は唯一の拒否権なので、ロック中のメタデータがあれば作り直さない
+        if (metadataManager
+                .loadMetadata(pluginName)
+                .getOrNull()
+                ?.mpmInfo
+                ?.settings
+                ?.lock == true
+        ) {
+            return MpmError.PluginError.Locked(pluginName).left()
+        }
+
+        // unmanaged のエントリが残っていれば外してから登録する
+        val baseProject =
+            if (existingSpec !=
+                null
+            ) {
+                project.removePlugin(name).getOrElse { return it.left() }
+            } else {
+                project
+            }
+        val updatedProject =
+            selfRegistrar.register(baseProject, version).getOrElse { reason ->
+                return MpmError.PluginError.AddFailed(pluginName, reason).left()
+            }
+
+        // メタデータは SelfRegistrar が保存済みなので、mpm.json を保存する
+        try {
+            projectRepository.save(updatedProject.withSortedPlugins())
+        } catch (e: Exception) {
+            return MpmError.PluginError.AddFailed(pluginName, "Failed to save mpm.json: ${e.message}").left()
+        }
+
+        return metadataManager
+            .loadMetadata(pluginName)
+            .map { ManagedPlugin.fromDto(it) }
+            .mapLeft { MpmError.PluginError.AddFailed(pluginName, it) }
     }
 
     /**
@@ -563,6 +634,22 @@ class PluginLifecycleServiceImpl :
                 .getOrElse {
                     return MpmError.PluginError.MetadataSaveFailed(pluginName, it).left()
                 }
+
+        // 実行中の mpm 自身が既にこのバージョンなら、実行中のJARを差し替えずに済ませる
+        if (isRunningSelfAt(
+                plugin,
+                pluginDirectory.getPluginsDirectory(),
+                pluginName,
+                mpmInfo.version.current.raw,
+                mpmInfo.download.fileName,
+                versionData.version
+            )
+        ) {
+            return InstallResult(
+                installed = PluginInstallInfo(pluginName, versionData.version, latestVersionData.version),
+                removed = null
+            ).right()
+        }
 
         // PluginInstallEventを発火して、他のプラグインがキャンセルできるようにする
         // PaperMCではイベントはメインスレッドで発火する必要があるため、BukkitDispatcherを使用
@@ -861,8 +948,8 @@ class PluginLifecycleServiceImpl :
             return MpmError.PluginError.OperationCancelled(pluginName, "uninstall").left()
         }
 
-        // JARファイルを削除
-        targetJarFile?.delete()
+        // JARファイルを削除（実行中の mpm 自身のJARや削除できない環境ではサーバー停止時の削除に回す）
+        targetJarFile?.let { retireOldJar(it, pluginName, plugin, deferredJarDeletion) }
 
         // MpmProjectからプラグインを削除
         val updatedProject =
@@ -1076,23 +1163,8 @@ class PluginLifecycleServiceImpl :
                 )
             }
 
-        // 表記揺れを考慮したバージョン候補を生成
-        val versionCandidates = buildVersionCandidates(currentVersion)
-
-        // ローカルでバージョン名を照合（完全一致を優先）
-        var resolvedVersionData =
-            versionCandidates.firstNotNullOfOrNull { candidate ->
-                allVersions.firstOrNull { it.version == candidate }
-            }
-
-        // 完全一致が見つからない場合、versionPattern（またはデフォルトsemverパターン）で正規化して比較
-        if (resolvedVersionData == null) {
-            val currentNormalized = VersionDetail.normalizeWithPattern(currentVersion, versionPattern)
-            resolvedVersionData =
-                allVersions.firstOrNull { versionData ->
-                    VersionDetail.normalizeWithPattern(versionData.version, versionPattern) == currentNormalized
-                }
-        }
+        // 表記揺れ・正規化を考慮してリポジトリ上のバージョンを照合する
+        val resolvedVersionData = JarVersionMatcher.findMatchingVersion(currentVersion, allVersions, versionPattern)
 
         if (resolvedVersionData == null) {
             progressCallback?.invoke("<yellow>[$pluginName] バージョン '$currentVersion' がリポジトリに見つかりません")
@@ -1112,25 +1184,6 @@ class PluginLifecycleServiceImpl :
             hashWarning = hashWarning
         )
     }
-
-    /**
-     * バージョン文字列から表記揺れ候補を生成する
-     *
-     * "v" prefixの有無を切り替えた候補を返す。
-     * "v" の除去は "v1.0.0" のように数字が続く場合のみ行う（"Version" 等の誤切断を防止）。
-     */
-    private fun buildVersionCandidates(version: String): List<String> =
-        buildList {
-            add(version)
-            val vPrefixPattern = Regex("^[vV](?=\\d)")
-            if (vPrefixPattern.containsMatchIn(version)) {
-                // "v1.0.0" → "1.0.0" も候補に追加
-                add(version.substring(1))
-            } else if (version.firstOrNull()?.isDigit() == true) {
-                // "1.0.0" → "v1.0.0" も候補に追加
-                add("v$version")
-            }
-        }
 
     /**
      * APIでハッシュが取得可能な場合、既存JARのハッシュと比較検証する
@@ -1318,7 +1371,7 @@ class PluginLifecycleServiceImpl :
                                             "Target repository not found"
                                         ).left()
                             val targetUrlData =
-                                createUrlData(targetRepo)
+                                targetRepo.toUrlData()
                                     ?: return MpmError.PluginError
                                         .VersionResolutionFailed(
                                             pluginName,
@@ -1410,31 +1463,6 @@ class PluginLifecycleServiceImpl :
                 }
             }
     }
-
-    /**
-     * RepositoryConfigからUrlDataを生成する
-     */
-    private fun createUrlData(repo: RepositoryConfig): UrlData? =
-        when (repo.type.lowercase()) {
-            "github" ->
-                repo.repositoryId
-                    .split("/")
-                    .takeIf { it.size == 2 }
-                    ?.let { (owner, repository) -> UrlData.GithubUrlData(owner, repository) }
-            "modrinth" -> UrlData.ModrinthUrlData(repo.repositoryId)
-            "spigotmc" -> UrlData.SpigotMcUrlData(repo.repositoryId)
-            "hangar" ->
-                repo.repositoryId
-                    .split("/")
-                    .let { parts ->
-                        when (parts.size) {
-                            2 -> UrlData.HangarUrlData(owner = parts[0], projectName = parts[1])
-                            1 -> UrlData.HangarUrlData(owner = "", projectName = parts[0])
-                            else -> null
-                        }
-                    }
-            else -> null
-        }
 
     /**
      * 新しいVersionSpecifierを旧APIのVersionSpecifierに変換する
@@ -1895,7 +1923,7 @@ class PluginLifecycleServiceImpl :
         // リポジトリファイルからURLデータを作成
         val repositoryFile = repositoryManager.getRepositoryFile(repoName)
         val firstRepository = repositoryFile?.repositories?.firstOrNull()
-        val urlData = firstRepository?.let { createUrlData(it) }
+        val urlData = firstRepository?.toUrlData()
 
         if (urlData == null) {
             return VersionPinResult.FallbackToLatest("リポジトリ情報が取得できません")

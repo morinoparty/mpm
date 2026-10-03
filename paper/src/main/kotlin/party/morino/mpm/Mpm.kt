@@ -58,6 +58,7 @@ import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.plugin.file.PluginJarFileServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.application.project.SelfRegistrar
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.event.listener.WebhookEventListener
@@ -336,6 +337,7 @@ open class Mpm :
                 // plugins/ 直下のJARを管理情報に触れず直接削除する（自己更新で残った旧JARの片付けなど）
                 single<PluginJarFileService> { PluginJarFileServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
+                single { SelfRegistrar() }
 
                 // スケジューラーの登録
                 single<UpdateScheduler> { UpdateSchedulerImpl() }

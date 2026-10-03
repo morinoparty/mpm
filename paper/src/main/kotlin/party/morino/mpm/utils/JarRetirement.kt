@@ -81,3 +81,32 @@ internal fun isSameFile(
     } catch (_: Exception) {
         a.absoluteFile == b.absoluteFile
     }
+
+/**
+ * 実行中の mpm 自身のJARが、既に指定バージョンで配置されているかを判定する
+ *
+ * mpm 自身は `latest` で管理されるため、`mpm install` のたびに同じバージョンの取り直しが走る。
+ * 取り直すと実行中のJARを無駄に退避・上書きすることになり、手元でビルドしたJARでは
+ * ハッシュ不一致で毎回失敗してしまうため、install 側はこの判定が真なら何もしない。
+ *
+ * @param plugin mpm 自身
+ * @param pluginsDir pluginsディレクトリ
+ * @param pluginName インストール対象のプラグイン名
+ * @param recordedVersion メタデータに記録された現在のバージョン（raw）
+ * @param recordedFileName メタデータに記録されたJARのファイル名
+ * @param version インストールしようとしているバージョン（raw）
+ */
+internal fun isRunningSelfAt(
+    plugin: JavaPlugin,
+    pluginsDir: File,
+    pluginName: String,
+    recordedVersion: String?,
+    recordedFileName: String?,
+    version: String
+): Boolean {
+    // mpm 自身以外、またはバージョンが変わる場合は通常どおりインストールする
+    if (pluginName != plugin.name || recordedVersion != version || recordedFileName == null) return false
+    // 記録されたJARが実際に実行中のJARである場合だけ、配置済みとみなす
+    val runningJar = runningJarOf(plugin) ?: return false
+    return isSameFile(runningJar, File(pluginsDir, recordedFileName))
+}

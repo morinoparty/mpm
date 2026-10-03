@@ -47,6 +47,7 @@ import party.morino.mpm.application.plugin.PluginInfoServiceImpl
 import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
 import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
 import party.morino.mpm.application.project.ProjectServiceImpl
+import party.morino.mpm.application.project.SelfRegistrar
 import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
 import party.morino.mpm.application.search.PluginSearchServiceImpl
 import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
@@ -156,6 +157,7 @@ class MpmTest :
                 single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
                 single<PluginUpdateService> { PluginUpdateServiceImpl() }
                 single<ProjectService> { ProjectServiceImpl() }
+                single { SelfRegistrar() }
 
                 // スケジューラーの登録
                 single<UpdateScheduler> { UpdateSchedulerImpl() }
