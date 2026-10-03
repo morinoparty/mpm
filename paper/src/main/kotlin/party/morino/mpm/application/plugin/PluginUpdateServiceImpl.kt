@@ -62,6 +62,7 @@ import party.morino.mpm.infrastructure.downloader.PluginDownloadException
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.FileNameTemplate
 import party.morino.mpm.utils.SafeFileName
+import party.morino.mpm.utils.isRunningSelfAt
 import party.morino.mpm.utils.regenerateQuietly
 import party.morino.mpm.utils.replaceJarAtomically
 import party.morino.mpm.utils.retireOldJar
@@ -1866,6 +1867,22 @@ class PluginUpdateServiceImpl :
                 ?.current
                 ?.raw
         val previousStoredSha256 = previousMetadata?.mpmInfo?.download?.sha256
+
+        // 実行中の mpm 自身が既にこのバージョンなら、実行中のJARを差し替えずに済ませる
+        if (isRunningSelfAt(
+                plugin,
+                pluginDirectory.getPluginsDirectory(),
+                pluginName,
+                previousStoredVersion,
+                previousMetadata?.mpmInfo?.download?.fileName,
+                versionData.version
+            )
+        ) {
+            return InstallResult(
+                installed = PluginInstallInfo(pluginName, versionData.version, latestVersionData.version),
+                removed = null
+            ).right()
+        }
 
         // メタデータが存在するか確認し、更新または作成
         // 新規作成時はチャンネル固有のversionModifierを尊重するため、解決チャンネルを渡す
