@@ -15,9 +15,9 @@ import java.io.File
 /**
  * 今すぐ削除できないJARを、後で削除するために予約しておくサービス
  *
- * 代表的なのは mpm 自身の更新である。実行中のJARをディスクから消すと、
- * クラスローダー経由のリソース読み込み（kotlin-reflect の builtins など）が
- * 開き直しに失敗して動作が止まるため、旧JARはサーバー停止まで残しておく必要がある。
+ * 代表的なのは、稼働中のプラグイン（mpm 自身を含む）が読み込んでいるJARの更新・削除である。
+ * 実行中のJARをディスクから消すと、クラスローダー経由のリソース読み込み（kotlin-reflect の builtins など）が
+ * 開き直しに失敗して動作が止まるため、旧JARはそのプラグインが停止するまで残しておく必要がある。
  * Windows のように実行中のJARを削除できない環境でも同じ仕組みで後始末する。
  */
 interface DeferredJarDeletion {
@@ -50,19 +50,30 @@ interface DeferredJarDeletion {
     fun isScheduled(jarFile: File): Boolean
 
     /**
-     * 予約済みのJARをまとめて削除する（サーバー停止時に呼び出す）
+     * 予約済みのJARのうち、有効なプラグインが読み込んでいないものを削除する（mpm の停止時に呼び出す）
+     *
+     * mpm より後に停止するプラグインのJARは、ここでは削除せずに予約に残す。
+     * それらは [installShutdownHook] で登録したフックが、JVM の終了時に削除する。
      *
      * @return 実際に削除できたJAR
      */
     fun deleteScheduled(): List<File>
 
     /**
+     * JVM の終了時に、残っている予約済みのJARを削除するフックを登録する（mpm の起動時に呼び出す）
+     *
+     * フックは、予約済みのJARを読み込んでいるプラグインがすべて停止するのを待ってから削除する。
+     * SIGTERM などで停止処理とフックが並行して走る場合でも、停止前のプラグインのJARを消さないため。
+     */
+    fun installShutdownHook()
+
+    /**
      * 起動時に、前回削除しきれなかったJARを片付ける
      *
-     * 削除予約されたJARを Paper がこちらとして読み込んでしまった場合（クラッシュ後に
+     * 削除予約されたJARを Paper が読み込んでしまった場合（クラッシュ後に
      * 新旧のJARが並んだ状態で旧側が選ばれた場合）は削除せず、警告だけ出して予約を残す。
      *
-     * @param runningJar 現在実行中の mpm 自身のJAR
+     * @param loadedJars 現在読み込まれているプラグインのJAR
      */
-    fun cleanupOnStartup(runningJar: File)
+    fun cleanupOnStartup(loadedJars: Collection<File>)
 }

@@ -26,4 +26,16 @@ class JarRetirementTest {
         assertTrue(isSameFile(jar, File(pluginsDir, "./mpm_0.0.26.jar")))
         assertFalse(isSameFile(jar, File(pluginsDir, "mpm_0.0.25.jar")))
     }
+
+    @Test
+    @DisplayName("isLoadedJar detects a jar loaded by a running plugin")
+    fun testIsLoadedJar(
+        @TempDir pluginsDir: File
+    ) {
+        // 読み込み元のJARは、パスの書き方が違っても同じファイルとして判定する
+        val loaded = File(pluginsDir, "MoripaUtils-0.1.6.jar").apply { writeText("old") }
+        val placed = File(pluginsDir, "MoripaUtils-0.1.7.jar").apply { writeText("new") }
+        assertTrue(isLoadedJar(File(pluginsDir, "./MoripaUtils-0.1.6.jar"), listOf(loaded)))
+        assertFalse(isLoadedJar(placed, listOf(loaded)))
+    }
 }
