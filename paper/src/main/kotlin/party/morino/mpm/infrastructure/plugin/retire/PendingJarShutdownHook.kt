@@ -17,7 +17,7 @@ import java.io.File
  *
  * mpm より後に停止するプラグインのJARは mpm の onDisable では削除できないため、このフックが後始末する。
  * SIGTERM で停止した場合は Paper の停止処理もシャットダウンフックとして並行して走るため、
- * 予約済みのJARを読み込んでいるプラグインがすべて無効化されるまで待ってから削除する。
+ * 予約済みのJARを読み込んでいるプラグインがすべて無効化されるまで待ち、onDisable の完了を見込んで少し置いてから削除する。
  *
  * 実行時には mpm のクラスローダーが閉じられ、mpm 自身のJARも削除済みの場合があるため、
  * まだ読み込まれていないクラスを使わないよう、JDK と Bukkit API だけで処理する。
@@ -40,11 +40,15 @@ class PendingJarShutdownHook(
 
         // 予約済みのJARを使うプラグインが停止しきるまで待つ（停止処理が固まっても終了を妨げないよう上限を設ける）
         val deadline = System.currentTimeMillis() + WAIT_TIMEOUT_MILLIS
+        var waited = false
         while (hasEnabledOwner(targets) && System.currentTimeMillis() < deadline) {
+            waited = true
             sleep(POLL_INTERVAL_MILLIS)
         }
         // 待ちきれなかった場合は消さずに残し、次回起動時の片付けに任せる
         if (hasEnabledOwner(targets)) return
+        // isEnabled は onDisable の前に false になるため、停止処理と並行している場合は onDisable が終わるまで少し待つ
+        if (waited) sleep(DISABLE_GRACE_MILLIS)
 
         // 待っている間に取り消された予約は消さない
         // 削除できなかったファイルは pending-delete.json に残っているため、次回起動時に再試行される
@@ -82,5 +86,8 @@ class PendingJarShutdownHook(
 
         /** プラグインの状態を確認する間隔（ミリ秒） */
         const val POLL_INTERVAL_MILLIS = 100L
+
+        /** 最後のプラグインが無効化されてから、onDisable の完了を待つ時間（ミリ秒） */
+        const val DISABLE_GRACE_MILLIS = 5_000L
     }
 }
