@@ -34,4 +34,22 @@ class DeferredJarDeletionImplTest {
         assertFalse(old.exists())
         assertTrue(keep.exists())
     }
+
+    @Test
+    @DisplayName("deletePending keeps jars that are still in use by enabled plugins")
+    fun testDeletePendingKeepsInUseJars(
+        @TempDir pluginsDir: File
+    ) {
+        // 稼働中のプラグインが読み込んでいる旧JARと、もう使われていない旧JAR
+        val inUse = File(pluginsDir, "MoripaUtils-0.1.6.jar").apply { writeText("in use") }
+        val unused = File(pluginsDir, "mpm_0.0.25.jar").apply { writeText("old") }
+
+        val (deleted, remaining) =
+            DeferredJarDeletionImpl.deletePending(listOf(inUse.name, unused.name), pluginsDir, listOf(inUse))
+
+        assertEquals(listOf(unused), deleted)
+        assertEquals(listOf(inUse.name), remaining)
+        assertTrue(inUse.exists())
+        assertFalse(unused.exists())
+    }
 }

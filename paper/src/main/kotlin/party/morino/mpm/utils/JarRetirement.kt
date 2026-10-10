@@ -9,6 +9,8 @@
 
 package party.morino.mpm.utils
 
+import org.bukkit.Server
+import org.bukkit.plugin.Plugin
 import org.bukkit.plugin.java.JavaPlugin
 import party.morino.mpm.api.application.plugin.DeferredJarDeletion
 import java.io.File
@@ -17,7 +19,7 @@ import java.io.File
  * 更新で不要になった旧JARを片付ける
  *
  * 通常はその場で削除するが、次の場合は [DeferredJarDeletion] に削除を予約してサーバー停止時に回す。
- * - mpm 自身の更新: 実行中のJARを消すとクラスローダー経由のリソース読み込みが壊れる
+ * - 稼働中のプラグイン（mpm 自身を含む）が読み込んでいるJAR: 実行中のJARを消すとクラスローダー経由のリソース読み込みが壊れる
  * - 削除に失敗した場合: Windows など実行中のJARをロックする環境
  *
  * @param oldFile 不要になった旧JAR
@@ -34,6 +36,12 @@ internal fun retireOldJar(
     val logger = plugin.logger
     if (isSelfUpdate(oldFile, pluginName, plugin)) {
         logger.info("mpm 自身の更新のため、旧JAR ${oldFile.name} はサーバー停止時に削除します")
+        deferredJarDeletion.schedule(oldFile).onLeft { logger.warning("旧JAR ${oldFile.name} の削除予約に失敗しました: $it") }
+        return
+    }
+    if (isLoadedJar(oldFile, loadedPluginJars(plugin.server))) {
+        // 他のプラグインも、停止するまではリソースを旧JARから読み込むため残しておく
+        logger.info("旧JAR ${oldFile.name} は稼働中のプラグインが読み込んでいるため、サーバー停止時に削除します")
         deferredJarDeletion.schedule(oldFile).onLeft { logger.warning("旧JAR ${oldFile.name} の削除予約に失敗しました: $it") }
         return
     }
@@ -57,8 +65,11 @@ private fun isSelfUpdate(
 
 /**
  * プラグインクラスの読み込み元JARを返す（取得できない場合は null）
+ *
+ * Paper が再マッピングしたプラグインは plugins/.paper-remapped/ 配下のJARが返るため、
+ * plugins/ 直下のJARとは一致しない（そのJARは消しても稼働中のプラグインに影響しない）。
  */
-internal fun runningJarOf(plugin: JavaPlugin): File? =
+internal fun runningJarOf(plugin: Plugin): File? =
     try {
         plugin::class.java.protectionDomain
             ?.codeSource
@@ -68,6 +79,36 @@ internal fun runningJarOf(plugin: JavaPlugin): File? =
     } catch (_: Exception) {
         null
     }
+
+/**
+ * 読み込まれているすべてのプラグイン（無効化済みを含む）のJARを返す
+ *
+ * 無効化済みのプラグインもクラスローダーがJARを参照し続けるため含める。
+ *
+ * @param server サーバー
+ * @return 各プラグインの読み込み元JAR（取得できないものは除く）
+ */
+internal fun loadedPluginJars(server: Server): List<File> = loadedPluginJars(server.pluginManager.plugins.asList())
+
+/**
+ * 指定したプラグインのJARを返す
+ *
+ * @param plugins 対象のプラグイン
+ * @return 各プラグインの読み込み元JAR（取得できないものは除く）
+ */
+internal fun loadedPluginJars(plugins: Collection<Plugin>): List<File> = plugins.mapNotNull { runningJarOf(it) }
+
+/**
+ * JARが、読み込まれているプラグインのJARのいずれかと同じファイルかを判定する純粋なロジック
+ *
+ * @param jarFile 判定するJAR
+ * @param loadedJars 読み込まれているプラグインのJAR
+ * @return いずれかと同じファイルなら true
+ */
+internal fun isLoadedJar(
+    jarFile: File,
+    loadedJars: Collection<File>
+): Boolean = loadedJars.any { isSameFile(it, jarFile) }
 
 /**
  * 2つのパスが同じファイルを指すかを判定する（シンボリックリンクや相対パスの違いを吸収する）

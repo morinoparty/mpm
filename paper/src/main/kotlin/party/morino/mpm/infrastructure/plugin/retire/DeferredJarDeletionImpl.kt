@@ -19,8 +19,10 @@ import party.morino.mpm.api.application.plugin.DeferredJarDeletion
 import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.infrastructure.migration.AtomicFileWriter
 import party.morino.mpm.utils.Utils
-import party.morino.mpm.utils.isSameFile
+import party.morino.mpm.utils.isLoadedJar
+import party.morino.mpm.utils.loadedPluginJars
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 削除予約を `plugins/mpm/pending-delete.json` に永続化する [DeferredJarDeletion] の実装
@@ -37,6 +39,13 @@ class DeferredJarDeletionImpl :
 
     // 予約ファイルの読み書きが競合しないようにする
     private val lock = Any()
+
+    // シャットダウンフックと共有する予約済みのファイル名（JVM の終了時はファイルを読まずにこちらを使う）
+    private val pendingNames: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    // シャットダウンフックを二重に登録しない
+    @Volatile
+    private var shutdownHookInstalled = false
 
     /**
      * 予約ファイルの場所（plugins/mpm/pending-delete.json）
@@ -65,33 +74,61 @@ class DeferredJarDeletionImpl :
     override fun deleteScheduled(): List<File> =
         synchronized(lock) {
             val pluginsDir = pluginDirectory.getPluginsDirectory()
-            val (deleted, remaining) = deletePending(load().files, pluginsDir)
+            // mpm より後に停止するプラグインのJARは、まだ使われているため残す（シャットダウンフックが削除する）
+            val inUse = enabledPluginJars()
+            val (deleted, remaining) = deletePending(load().files, pluginsDir, inUse)
             deleted.forEach { plugin.logger.info("削除予約されていた ${it.name} を削除しました") }
-            remaining.forEach { plugin.logger.warning("削除予約されていた $it を削除できませんでした。次回起動時に再試行します") }
+            remaining.forEach { name ->
+                if (isLoadedJar(File(pluginsDir, name), inUse)) {
+                    plugin.logger.info("削除予約されていた $name はまだ稼働中のプラグインが使っているため、そのプラグインの停止後に削除します")
+                } else {
+                    plugin.logger.warning("削除予約されていた $name を削除できませんでした。次回起動時に再試行します")
+                }
+            }
             save(PendingJarDeletions(remaining)).onLeft { plugin.logger.warning(it) }
             deleted
         }
 
-    override fun cleanupOnStartup(runningJar: File) {
+    override fun installShutdownHook() {
+        synchronized(lock) {
+            if (shutdownHookInstalled) return
+            // 起動時点の予約をフックと共有する集合に読み込む（以降は save で追従する）
+            pendingNames.addAll(load().files)
+            Runtime.getRuntime().addShutdownHook(
+                PendingJarShutdownHook(plugin.server, pluginDirectory.getPluginsDirectory(), pendingNames)
+            )
+            shutdownHookInstalled = true
+        }
+    }
+
+    override fun cleanupOnStartup(loadedJars: Collection<File>) {
         synchronized(lock) {
             val pending = load().files
             if (pending.isEmpty()) return
 
             val pluginsDir = pluginDirectory.getPluginsDirectory()
-            // Paper が「削除予約された旧JAR」の方を読み込んでしまった場合は、自分自身なので削除しない
-            val (self, others) = pending.partition { isSameFile(File(pluginsDir, it), runningJar) }
-            self.forEach { name ->
+            // Paper が「削除予約された旧JAR」の方を読み込んでしまった場合は、稼働中なので削除しない
+            val (loaded, others) = pending.partition { isLoadedJar(File(pluginsDir, it), loadedJars) }
+            loaded.forEach { name ->
                 plugin.logger.warning(
-                    "実行中の $name は削除予約された旧JARです。新しい mpm のJARが plugins/ に並んでいるはずなので、" +
-                        "$name を手動で削除してからサーバーを再起動してください"
+                    "読み込まれている $name は削除予約された旧JARです。新しいJARが plugins/ に並んでいるはずなので、" +
+                        "サーバーを停止して $name を手動で削除してから再起動してください"
                 )
             }
 
             val (deleted, remaining) = deletePending(others, pluginsDir)
             deleted.forEach { plugin.logger.info("前回削除しきれなかった ${it.name} を削除しました") }
             remaining.forEach { plugin.logger.warning("前回削除しきれなかった $it をまだ削除できません。サーバー停止時に再試行します") }
-            save(PendingJarDeletions(self + remaining)).onLeft { plugin.logger.warning(it) }
+            save(PendingJarDeletions(loaded + remaining)).onLeft { plugin.logger.warning(it) }
         }
+    }
+
+    /**
+     * 有効なプラグインが読み込んでいるJARを返す（無効化済みのプラグインはJARを使い終えているため除く）
+     */
+    private fun enabledPluginJars(): List<File> {
+        val enabled = plugin.server.pluginManager.plugins.filter { it.isEnabled }
+        return loadedPluginJars(enabled)
     }
 
     /**
@@ -112,6 +149,9 @@ class DeferredJarDeletionImpl :
      * 予約ファイルを保存する（予約が空になったらファイルごと削除する）
      */
     private fun save(pending: PendingJarDeletions): Either<String, Unit> {
+        // シャットダウンフックが参照する集合を、ファイルの保存結果に関係なく最新の予約に合わせる
+        pendingNames.retainAll(pending.files.toSet())
+        pendingNames.addAll(pending.files)
         val file = pendingFile
         if (pending.files.isEmpty()) {
             // 空の予約ファイルを残さない
@@ -133,11 +173,13 @@ class DeferredJarDeletionImpl :
          *
          * @param pending 予約済みのファイル名
          * @param pluginsDir 解決先の plugins ディレクトリ
+         * @param inUse まだ使われているため削除せずに予約に残すJAR
          * @return 削除できたファイルと、まだ削除できず予約に残すファイル名
          */
         internal fun deletePending(
             pending: List<String>,
-            pluginsDir: File
+            pluginsDir: File,
+            inUse: Collection<File> = emptyList()
         ): Pair<List<File>, List<String>> {
             val deleted = mutableListOf<File>()
             val remaining = mutableListOf<String>()
@@ -145,6 +187,7 @@ class DeferredJarDeletionImpl :
                 val file = File(pluginsDir, name)
                 when {
                     !file.exists() -> Unit
+                    isLoadedJar(file, inUse) -> remaining.add(name)
                     file.delete() -> deleted.add(file)
                     else -> remaining.add(name)
                 }

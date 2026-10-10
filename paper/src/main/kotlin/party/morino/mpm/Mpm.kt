@@ -106,6 +106,7 @@ import party.morino.mpm.ui.command.repo.RepositoryCommands
 import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
 import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
 import party.morino.mpm.utils.command.resolver.VersionSpecifierParameterType
+import party.morino.mpm.utils.loadedPluginJars
 import revxrsal.commands.bukkit.BukkitLamp
 
 /**
@@ -142,8 +143,12 @@ open class Mpm :
             _configManager.reload()
         }
 
-        // 前回の自己更新で削除しきれなかった旧JARを片付ける（自分自身のJARは削除しない）
-        GlobalContext.get().get<DeferredJarDeletion>().cleanupOnStartup(file)
+        // 前回削除しきれなかった旧JARを片付ける（読み込まれているJARは削除しない）
+        GlobalContext.get().get<DeferredJarDeletion>().apply {
+            cleanupOnStartup(loadedPluginJars(server))
+            // mpm より後に停止するプラグインの旧JARを、JVM の終了時に削除できるようにする
+            installShutdownHook()
+        }
 
         // パーミッション階層の登録（mpm.commandが全子パーミッションを含む）
         registerPermissions()
@@ -181,7 +186,7 @@ open class Mpm :
         GlobalContext.getOrNull()?.getOrNull<RepositoryManager>()?.shutdown()
         GlobalContext.getOrNull()?.getOrNull<DownloaderRepository>()?.shutdown()
 
-        // 自己更新などで削除を予約していた旧JARを、実行中のJARが不要になるこのタイミングで削除する
+        // 削除を予約していた旧JARのうち、もう使われていないものを削除する（残りはシャットダウンフックが削除する）
         GlobalContext.getOrNull()?.getOrNull<DeferredJarDeletion>()?.deleteScheduled()
 
         // Koin DIコンテナを停止（リソースリーク防止）

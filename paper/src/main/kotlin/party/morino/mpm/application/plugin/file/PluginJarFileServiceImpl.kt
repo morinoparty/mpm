@@ -29,7 +29,9 @@ import party.morino.mpm.event.lifecycle.PluginJarDeleteEvent
 import party.morino.mpm.utils.BukkitDispatcher
 import party.morino.mpm.utils.PluginDataUtils
 import party.morino.mpm.utils.SafeFileName
+import party.morino.mpm.utils.isLoadedJar
 import party.morino.mpm.utils.isSameFile
+import party.morino.mpm.utils.loadedPluginJars
 import party.morino.mpm.utils.runningJarOf
 import java.io.File
 import java.time.Instant
@@ -80,10 +82,9 @@ class PluginJarFileServiceImpl :
      * @return 予約に回した場合は true、即時削除できた場合は false
      */
     private fun deleteOrSchedule(target: File): Either<MpmError, Boolean> {
-        // 実行中の mpm 自身のJARを消すとクラスローダー経由の読み込みが壊れるため、停止時の削除に回す
-        val runningJar = runningJarOf(plugin)
-        if (runningJar != null && isSameFile(runningJar, target)) {
-            plugin.logger.info("${target.name} は実行中の mpm 自身のJARのため、サーバー停止時に削除します")
+        // 稼働中のプラグイン（mpm 自身を含む）のJARを消すとクラスローダー経由の読み込みが壊れるため、停止時の削除に回す
+        if (isLoadedJar(target, loadedPluginJars(plugin.server))) {
+            plugin.logger.info("${target.name} は稼働中のプラグインが読み込んでいるため、サーバー停止時に削除します")
             return scheduleDeferred(target).map { true }
         }
 
