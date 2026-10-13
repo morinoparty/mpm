@@ -82,6 +82,7 @@ Paperのルートインデックスはプラグインを直接持たず、成熟
 `https://mpm.plugin.morino.party/velocity/index.json` は、Velocityプロキシ向けのjarを配布するプラグインの定義をまとめたカタログです。
 各定義の `fileNameRegex` と `versionMatcher` は、Velocity用のjarだけを選ぶように書かれています。
 Modrinthの定義は、Velocityローダー（`loaders=["velocity"]`）でバージョン一覧を取得することを前提としています。
+現在のmpm（Paper版）はModrinthからPaper/Spigot向けのバージョンだけを取得するため、このカタログはPaperサーバーの `config.json` には指定せず、Velocity版のmpm（今後提供予定）から利用します。
 mpm自身のVelocity版は、GitHubリリースの `mpm-velocity_<tag>.jar` を参照します（Paper版は `mpm_<tag>.jar`）。
 
 ### 🗂️ 定義の管理

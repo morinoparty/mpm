@@ -15,7 +15,7 @@
       },
       "beta": {
         "versionMatcher": "-BETA",
-        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA(?:-\\d+)?"
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA(?:-?\\d+)?"
       }
     }
   ]
