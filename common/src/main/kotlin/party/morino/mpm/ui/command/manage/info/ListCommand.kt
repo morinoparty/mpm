@@ -83,7 +83,10 @@ class ListCommand : KoinComponent {
     ) {
         plugins.forEach { plugin ->
             val lockIcon = if (plugin.isLocked) " 🔒" else ""
-            sender.sendRichMessage(" - ${plugin.name} (v${plugin.currentVersion.raw})$lockIcon")
+            // "v5.5.71" のように既に v で始まるバージョンへ v を重ねて "vv5.5.71" と表示しないようにする
+            val raw = plugin.currentVersion.raw
+            val version = if (raw.startsWith("v", ignoreCase = true)) raw else "v$raw"
+            sender.sendRichMessage(" - ${plugin.name} ($version)$lockIcon")
         }
 
         if (plugins.isEmpty()) {

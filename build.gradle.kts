@@ -14,6 +14,10 @@ plugins {
     java
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.dokka)
+    // run-task 系をルートのクラスパスに先に載せる。dokka の古い kotlinx-serialization が優先されると
+    // runServer / runVelocity が AbstractMethodError / NoSuchMethodError で落ちるため（PluginTemplateKt と同じ対策）
+    alias(libs.plugins.run.paper) apply false
+    alias(libs.plugins.run.velocity) apply false
     alias(libs.plugins.ktlint)
     alias(libs.plugins.spotless)
     id("dev.detekt") version "2.0.0-alpha.6"
