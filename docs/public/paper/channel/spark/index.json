@@ -3,6 +3,26 @@
   "schemaVersion": 1,
   "name": "morinoparty-paper-spark",
   "plugins": {
+    "AdvancedPortals": {
+      "id": "AdvancedPortals",
+      "website": "https://modrinth.com/plugin/advanced-portals",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "axTqSWQA",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+(\\.\\d+)*-[Ss]pigot$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "(?i)legacy-?spigot$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
     "CarbonChat": {
       "id": "CarbonChat",
       "website": "https://modrinth.com/plugin/carbon",
@@ -20,6 +40,154 @@
         }
       ],
       "defaultVersion": "tag:beta"
+    },
+    "Craftconomy3": {
+      "id": "Craftconomy3",
+      "website": "https://github.com/pavog/craftconomy3",
+      "source": "https://github.com/pavog/craftconomy3",
+      "license": "LGPL-3.0",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "pavog/craftconomy3",
+          "fileNameRegex": "craftconomy3-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
+    "FancyHolograms": {
+      "id": "FancyHolograms",
+      "website": "https://modrinth.com/plugin/fancyholograms",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "5QNgOj66",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*))?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+(\\.\\d+|\\+\\d+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*))?"
+          },
+          "beta": {
+            "versionMatcher": "-SNAPSHOT",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-SNAPSHOT\\.\\d+"
+          }
+        }
+      ]
+    },
+    "GSit": {
+      "id": "GSit",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "62325",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "HuskHomes": {
+      "id": "HuskHomes",
+      "website": "https://modrinth.com/plugin/huskhomes",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "J6U9o3JG",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+(-[a-f0-9]+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?"
+          }
+        }
+      ]
+    },
+    "MyCommand": {
+      "id": "MyCommand",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "22272",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^v\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "PAPIProxyBridge": {
+      "id": "PAPIProxyBridge",
+      "website": "https://modrinth.com/plugin/papiproxybridge",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "bEIUEGTX",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+-[a-f0-9]+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]+"
+          }
+        }
+      ]
+    },
+    "PlasmoVoice": {
+      "id": "PlasmoVoice",
+      "website": "https://modrinth.com/plugin/plasmo-voice",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "1bZhdhsH",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^spigot-\\d+\\.\\d+\\.\\d+(\\+[a-f0-9]+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?"
+          }
+        }
+      ]
+    },
+    "QuickShop-Hikari": {
+      "id": "QuickShop-Hikari",
+      "website": "https://modrinth.com/plugin/quickshop-hikari",
+      "source": "https://github.com/QuickShop-Community/QuickShop-Hikari",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "ijC5dDkD",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-beta|-RELEASE",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-(?:beta\\d+|RELEASE-\\d+)"
+          }
+        },
+        {
+          "type": "spigotmc",
+          "id": "100125",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "ShulkerPacks": {
+      "id": "ShulkerPacks",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "67466"
+        }
+      ]
     },
     "SlotMachine": {
       "id": "SlotMachine",

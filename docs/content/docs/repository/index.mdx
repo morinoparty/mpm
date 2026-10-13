@@ -64,9 +64,9 @@ Paperのルートインデックスはプラグインを直接持たず、成熟
 
 | チャンネル | インデックスURL | 内容 |
 | --- | --- | --- |
-| 🪐 orbit | `https://mpm.plugin.morino.party/paper/channel/orbit/index.json` | 長く広く使われている、安定したプラグイン（LuckPerms、Vault、WorldEditなど） |
-| 🧩 grid | `https://mpm.plugin.morino.party/paper/channel/grid/index.json` | 標準のチャンネル。多くのプラグインはここに属します |
-| ⚡ spark | `https://mpm.plugin.morino.party/paper/channel/spark/index.json` | 正式リリースがなく、ベータ版やアルファ版だけが配布されているプラグイン |
+| 🪐 orbit | `https://mpm.plugin.morino.party/paper/channel/orbit/index.json` | Modrinthで配布され、バージョンがきれいに切られているプラグイン（Essentials、PlaceholderAPI、Chunkyなど） |
+| 🧩 grid | `https://mpm.plugin.morino.party/paper/channel/grid/index.json` | 標準のチャンネル。orbitとsparkのどちらにも当てはまらないプラグインはここに属します |
+| ⚡ spark | `https://mpm.plugin.morino.party/paper/channel/spark/index.json` | バージョンの切り方が不規則なもの、正規表現による補正が多く必要なもの、ベータ版・アルファ版だけが配布されているプラグイン（GSit、CarbonChatなど） |
 
 ルートの `children` は orbit、grid、spark の順に並び、その後ろに外部の子リポジトリ
 （MineAuth、MoripaFishing）が続きます。

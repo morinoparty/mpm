@@ -98,9 +98,9 @@ mpmは `config.json` の[リモートソース](/docs/format/config#リモート
 ```mermaid
 graph TD
     R["config.json の remote url<br/>（深さ0: ルート）"] --> A["mpm.plugin.morino.party/paper/index.json<br/>plugins: なし"]
-    A -->|children| O["paper/channel/orbit/index.json<br/>plugins: LuckPerms, Vault, ..."]
+    A -->|children| O["paper/channel/orbit/index.json<br/>plugins: Essentials, PlaceholderAPI, ..."]
     A -->|children| G["paper/channel/grid/index.json<br/>plugins: mpm, QuickShop-Hikari, ..."]
-    A -->|children| S["paper/channel/spark/index.json<br/>plugins: CarbonChat, ..."]
+    A -->|children| S["paper/channel/spark/index.json<br/>plugins: GSit, CarbonChat, ..."]
     A -->|children| B["mineauth.plugin.morino.party/.../index.json<br/>plugins: MineAuth, MineAuth-addon-*"]
     A -->|children| F["fishing.plugin.morino.party/.../index.json<br/>plugins: MoripaFishing, MoripaFishing-*"]
     B -->|children| C["（孫リポジトリ、深さ2）"]
@@ -121,9 +121,9 @@ graph TD
 | インデックス | 内容 |
 | --- | --- |
 | `/paper/index.json` | ルート。プラグインは持たず、`children` に orbit、grid、spark の順でチャンネルを並べ、その後ろに `children.json` の外部リンクを続けます |
-| `/paper/channel/orbit/index.json` | 安定したプラグインのチャンネル |
+| `/paper/channel/orbit/index.json` | Modrinthで配布され、バージョンがきれいに切られているプラグインのチャンネル |
 | `/paper/channel/grid/index.json` | 標準のチャンネル |
-| `/paper/channel/spark/index.json` | ベータ版・アルファ版だけのプラグインのチャンネル |
+| `/paper/channel/spark/index.json` | バージョンの切り方が不規則なプラグインや、ベータ版・アルファ版だけのプラグインのチャンネル |
 | `/velocity/index.json` | Velocity向けのカタログ |
 
 ```json title="docs/public/paper/children.json"

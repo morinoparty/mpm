@@ -3,6 +3,39 @@
   "schemaVersion": 1,
   "name": "morinoparty-paper-orbit",
   "plugins": {
+    "AFKPlus": {
+      "id": "AFKPlus",
+      "website": "https://modrinth.com/plugin/afk-plus",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "TFVOdaeG"
+        }
+      ]
+    },
+    "AnnouncerPlus": {
+      "id": "AnnouncerPlus",
+      "website": "https://modrinth.com/plugin/announcer-plus",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "g8XCro6n"
+        }
+      ]
+    },
+    "AxTrade": {
+      "id": "AxTrade",
+      "website": "https://modrinth.com/plugin/axtrade",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "nZSk44a8"
+        }
+      ]
+    },
     "Chunky": {
       "id": "Chunky",
       "website": "https://modrinth.com/plugin/chunky",
@@ -14,18 +47,14 @@
         }
       ]
     },
-    "CoreProtect": {
-      "id": "CoreProtect",
-      "website": "https://modrinth.com/plugin/coreprotect",
-      "license": "Artistic-2.0",
+    "DecentHolograms": {
+      "id": "DecentHolograms",
+      "website": "https://modrinth.com/plugin/decentholograms",
+      "license": "GPL-3.0-or-later",
       "repositories": [
         {
           "type": "modrinth",
-          "id": "Lu3KuzdV",
-          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
-          "latest": {
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-          }
+          "id": "w02MKsTg"
         }
       ]
     },
@@ -51,19 +80,35 @@
         }
       ]
     },
-    "LuckPerms": {
-      "id": "LuckPerms",
-      "website": "https://modrinth.com/plugin/luckperms",
-      "source": "https://github.com/lucko/LuckPerms",
-      "license": "MIT",
+    "InventoryRollbackPlus": {
+      "id": "InventoryRollbackPlus",
+      "website": "https://modrinth.com/plugin/inventoryrollbackplus",
       "repositories": [
         {
           "type": "modrinth",
-          "id": "Vebnzrzj"
-        },
+          "id": "XWKWAzd8"
+        }
+      ]
+    },
+    "MiniPlaceholders": {
+      "id": "MiniPlaceholders",
+      "website": "https://modrinth.com/plugin/miniplaceholders",
+      "license": "Apache-2.0",
+      "repositories": [
         {
-          "type": "spigotmc",
-          "id": "28140"
+          "type": "modrinth",
+          "id": "HQyibRsN"
+        }
+      ]
+    },
+    "NoteBlockAPI": {
+      "id": "NoteBlockAPI",
+      "website": "https://modrinth.com/plugin/noteblockapi",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "7FN5Qhm4"
         }
       ]
     },
@@ -78,70 +123,36 @@
         }
       ]
     },
-    "ProtocolLib": {
-      "id": "ProtocolLib",
-      "repositories": [
-        {
-          "type": "spigotmc",
-          "id": "1997"
-        }
-      ]
-    },
-    "Vault": {
-      "id": "Vault",
-      "repositories": [
-        {
-          "type": "spigotmc",
-          "id": "34315",
-          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
-          "latest": {
-            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-          }
-        }
-      ]
-    },
-    "WorldEdit": {
-      "id": "WorldEdit",
-      "website": "https://modrinth.com/plugin/worldedit",
-      "license": "GPL-3.0-only",
+    "TAB-Bridge": {
+      "id": "TAB-Bridge",
+      "website": "https://modrinth.com/plugin/tab-bridge",
+      "license": "Apache-2.0",
       "repositories": [
         {
           "type": "modrinth",
-          "id": "1u6JkXh5",
-          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
-          "latest": {
-            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-          },
-          "beta": {
-            "versionMatcher": "-beta",
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta-\\d+(?:\\.\\d+)?"
-          },
-          "alpha": {
-            "versionMatcher": "-rc",
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-rc-\\d+"
-          }
+          "id": "kG3hVbBX"
         }
       ]
     },
-    "WorldGuard": {
-      "id": "WorldGuard",
-      "website": "https://modrinth.com/plugin/worldguard",
-      "license": "LGPL-3.0-only",
+    "TabTPS": {
+      "id": "TabTPS",
+      "website": "https://modrinth.com/plugin/tabtps",
+      "license": "MIT",
       "repositories": [
         {
           "type": "modrinth",
-          "id": "DKY9btbd",
-          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
-          "latest": {
-            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-          },
-          "beta": {
-            "versionMatcher": "-beta",
-            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta-?\\d+"
-          }
+          "id": "cUhi3iB2"
+        }
+      ]
+    },
+    "WanderingTrades": {
+      "id": "WanderingTrades",
+      "website": "https://modrinth.com/plugin/wanderingtrades",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "ZfddU72x"
         }
       ]
     }
