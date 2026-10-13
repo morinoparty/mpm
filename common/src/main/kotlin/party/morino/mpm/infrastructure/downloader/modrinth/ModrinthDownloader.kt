@@ -270,7 +270,10 @@ open class ModrinthDownloader(
         try {
             // クエリをURLエンコードして検索APIを呼び出す
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
-            val url = "https://api.modrinth.com/v2/search?query=$encodedQuery&limit=$limit"
+            // 動作中のプラットフォームのローダーに対応したプロジェクトだけを検索する（内側の配列は OR 条件）
+            val facetsJson = platform.modrinthLoaders.joinToString(",", "[[", "]]") { "\"categories:$it\"" }
+            val encodedFacets = URLEncoder.encode(facetsJson, "UTF-8")
+            val url = "https://api.modrinth.com/v2/search?query=$encodedQuery&limit=$limit&facets=$encodedFacets"
             val response = getRequest(url, "application/json")
             val searchResponse = json.decodeFromString<ModrinthSearchResponse>(response)
 

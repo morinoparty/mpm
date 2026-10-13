@@ -32,8 +32,10 @@ class HangarDownloaderTest {
 
     /**
      * バージョン一覧APIをモックするダウンローダーを生成する
+     *
+     * @param platform ダウンローダーの動作プラットフォーム（フィクスチャは PAPER / WATERFALL のファイルだけを持つ）
      */
-    private fun versionsMockDownloader(): HangarDownloader {
+    private fun versionsMockDownloader(platform: TargetPlatform = TargetPlatform.PAPER): HangarDownloader {
         val mockEngine =
             MockEngine { request ->
                 when {
@@ -65,7 +67,7 @@ class HangarDownloaderTest {
                     else -> respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
                 }
             }
-        return object : HangarDownloader(TargetPlatform.PAPER) {
+        return object : HangarDownloader(platform) {
             init {
                 httpClient = HttpClient(mockEngine)
             }
@@ -202,6 +204,37 @@ class HangarDownloaderTest {
                 val urlData = UrlData.HangarUrlData("kennytv", "Maintenance")
                 testDownloader.getVersionByName(urlData, "9.9.9")
             }
+        }
+    }
+
+    @Test
+    @DisplayName("velocity ignores versions without a VELOCITY file")
+    fun velocityIgnoresOtherPlatformVersions() {
+        val testDownloader = versionsMockDownloader(TargetPlatform.VELOCITY)
+
+        runBlocking {
+            val urlData = UrlData.HangarUrlData("kennytv", "Maintenance")
+
+            // フィクスチャのバージョンはすべて PAPER 向けのため、Velocity では一覧に出ず最新版も無い
+            assertTrue(testDownloader.getAllVersions(urlData).isEmpty())
+            assertThrows<Exception> { testDownloader.getLatestVersion(urlData) }
+        }
+    }
+
+    @Test
+    @DisplayName("velocity download does not fall back to another platform")
+    fun velocityDownloadDoesNotFallBack() {
+        val testDownloader = versionsMockDownloader(TargetPlatform.VELOCITY)
+
+        runBlocking {
+            val urlData = UrlData.HangarUrlData("kennytv", "Maintenance")
+            val version = VersionData("5.1.0", "5.1.0")
+
+            // VELOCITY のファイルが無いバージョンでは、PAPER のファイルを代わりにダウンロードせず失敗する
+            val error = assertThrows<Exception> { testDownloader.downloadByVersion(urlData, version, null) }
+            assertTrue(error.message!!.contains("VELOCITY"))
+            // ハッシュもダウンロードと同じ選択に従い、他のプラットフォームのものを返さない
+            assertNull(testDownloader.getVersionHashesByName(urlData, "5.1.0", null))
         }
     }
 }

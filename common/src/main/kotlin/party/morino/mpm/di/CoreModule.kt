@@ -71,6 +71,7 @@ import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
 import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
 import party.morino.mpm.infrastructure.scheduler.OutdatedNotificationLedgerImpl
 import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
+import party.morino.mpm.infrastructure.webhook.WebhookEventPublisher
 
 /**
  * Paper / Velocity で共通の Koin モジュール
@@ -127,6 +128,8 @@ object CoreModule {
 
             // Webhook通知の登録
             single<WebhookNotifier> { DiscordWebhookNotifier() }
+            // イベントの内容を Webhook 通知に組み立てる（Paper / Velocity のリスナーから共用）
+            single { WebhookEventPublisher() }
 
             // Application Serviceの登録
             single<PluginInfoService> { PluginInfoServiceImpl() }

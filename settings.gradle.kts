@@ -22,4 +22,5 @@ plugins {
 }
 
 // common: Paper / Velocity で共有するプラットフォーム非依存のロジック
-include("paper", "api", "common")
+// velocity: Velocity プロキシ版の mpm
+include("paper", "api", "common", "velocity")

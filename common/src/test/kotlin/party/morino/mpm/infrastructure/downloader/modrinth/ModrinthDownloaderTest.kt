@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import party.morino.mpm.api.domain.downloader.model.RepositoryType
@@ -69,6 +70,33 @@ class ModrinthDownloaderTest {
             // project_typeがURLに反映されること
             assertEquals("https://modrinth.com/mod/plasmo-voice", results[0].url)
         }
+    }
+
+    @Test
+    @DisplayName("searchPlugins filters by the platform loaders")
+    fun searchPluginsUsesPlatformFacet() {
+        // 送られた検索リクエストのURLを記録する
+        var requestedFacets: String? = null
+        val mockEngine =
+            MockEngine { request ->
+                requestedFacets = request.url.parameters["facets"]
+                respond(
+                    content = ByteReadChannel("""{"hits":[]}"""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.VELOCITY) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking { testDownloader.searchPlugins("proxy", 5) }
+
+        // Velocity では velocity ローダーのプロジェクトだけを検索する
+        assertEquals("""[["categories:velocity"]]""", requestedFacets)
     }
 
     @Test

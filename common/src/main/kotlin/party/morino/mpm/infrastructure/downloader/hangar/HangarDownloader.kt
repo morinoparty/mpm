@@ -94,6 +94,19 @@ open class HangarDownloader(
     }
 
     /**
+     * 動作中のプラットフォーム向けのファイルを持つバージョンだけを取得する
+     *
+     * Paper 版と Velocity 版を同じプロジェクトで配布している場合、片方だけのバージョンが混ざることがあるため、
+     * 最新版の判定やバージョン一覧には読み込めるファイルがあるバージョンだけを使う。
+     * ダウンロード情報が付いていないバージョンは判定できないため残す。
+     *
+     * @param urlData HangarのURL情報
+     * @return 動作中のプラットフォーム向けのバージョンのリスト（新しい順）
+     */
+    private suspend fun fetchPlatformVersions(urlData: UrlData.HangarUrlData): List<HangarVersion> =
+        fetchAllVersions(urlData).filter { it.downloads.isEmpty() || preferredPlatform in it.downloads }
+
+    /**
      * 最新バージョンの取得
      *
      * チャンネル指定がない場合はReleaseチャンネルを優先する（Beta/Alpha/Snapshotを除外）。
@@ -104,8 +117,8 @@ open class HangarDownloader(
      */
     override suspend fun getLatestVersion(urlData: UrlData): VersionData {
         urlData as UrlData.HangarUrlData
-        val versions = fetchAllVersions(urlData)
-        if (versions.isEmpty()) throw Exception("このプロジェクトにはバージョンがありません")
+        val versions = fetchPlatformVersions(urlData)
+        if (versions.isEmpty()) throw Exception("このプロジェクトには $preferredPlatform 向けのバージョンがありません")
 
         // Releaseチャンネルを優先し、無ければ全体の最新にフォールバック
         val releaseVersions = versions.filter { it.channel.name.equals("Release", ignoreCase = true) }
@@ -128,7 +141,7 @@ open class HangarDownloader(
         tag: String
     ): VersionData? {
         urlData as UrlData.HangarUrlData
-        val versions = fetchAllVersions(urlData)
+        val versions = fetchPlatformVersions(urlData)
 
         // チャンネル名がタグに一致するバージョンをフィルタ（最初の要素が最新）
         val latest =
@@ -195,7 +208,7 @@ open class HangarDownloader(
      */
     override suspend fun getAllVersions(urlData: UrlData): List<VersionData> {
         urlData as UrlData.HangarUrlData
-        return fetchAllVersions(urlData).map { VersionData(downloadId = it.name, version = it.name) }
+        return fetchPlatformVersions(urlData).map { VersionData(downloadId = it.name, version = it.name) }
     }
 
     /**
@@ -203,7 +216,7 @@ open class HangarDownloader(
      *
      * バージョン詳細を取得し、プラットフォーム別のダウンロードURLからファイルを取得する。
      * fileNamePatternが指定された場合はファイル名に一致するプラットフォームを選択し、
-     * 未指定の場合はPAPERを優先する。
+     * 未指定の場合は動作中のプラットフォーム（Paper: PAPER / Velocity: VELOCITY）のファイルを選択する。
      *
      * @param urlData HangarのURL情報
      * @param version バージョン（downloadIdにバージョン名が入る）
@@ -244,7 +257,8 @@ open class HangarDownloader(
                 ?: if (fileNamePattern != null) {
                     throw Exception("パターン '$fileNamePattern' にマッチするファイルが見つかりません")
                 } else {
-                    throw Exception("このバージョンにはダウンロード可能なファイルがありません")
+                    // 他のプラットフォーム向けのファイルはこのサーバーで読み込めないため、代わりにダウンロードしない
+                    throw Exception("このバージョンには $preferredPlatform 向けのダウンロード可能なファイルがありません")
                 }
 
         val download = version.downloads.getValue(chosenPlatform)
@@ -283,9 +297,9 @@ open class HangarDownloader(
                     download.fileInfo?.name?.let { regex.matches(it) } == true && resolveUrl(platform) != null
                 }?.key
         } else {
-            // PAPERを優先し、無ければダウンロード可能な最初のプラットフォーム
+            // 動作中のプラットフォーム（Paper: PAPER / Velocity: VELOCITY）のファイルだけを選ぶ
+            // 他のプラットフォームのファイルへは切り替えない（ダウンロードしても読み込めず、検証で拒否されるだけのため）
             version.downloads.keys.firstOrNull { it == preferredPlatform && resolveUrl(it) != null }
-                ?: version.downloads.keys.firstOrNull { resolveUrl(it) != null }
         }
     }
 
@@ -324,7 +338,9 @@ open class HangarDownloader(
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
             // Hangar APIのlimit上限は25。超過すると空になるため上限でクランプする
             val clampedLimit = limit.coerceIn(1, 25)
-            val url = "https://hangar.papermc.io/api/v1/projects?q=$encodedQuery&limit=$clampedLimit"
+            // 動作中のプラットフォーム向けのプロジェクトだけを検索する
+            val url =
+                "https://hangar.papermc.io/api/v1/projects?q=$encodedQuery&limit=$clampedLimit&platform=$preferredPlatform"
             val response = getRequest(url, "application/json")
             val searchResponse = json.decodeFromString<HangarProjectSearchResponse>(response)
 
