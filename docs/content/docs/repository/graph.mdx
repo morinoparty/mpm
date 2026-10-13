@@ -19,7 +19,7 @@ mpmはルートのインデックスからリンクを再帰的にたどり、�
 
 ```json title="index.json"
 {
-    "$schema": "https://repo.mpm.nikomaru.dev/schema/repository-index/v1.json",
+    "$schema": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
     "schemaVersion": 1,
     "name": "morinoparty",
     "generated": "2026-09-22T00:00:00.000Z",
@@ -97,7 +97,10 @@ mpmは `config.json` の[リモートソース](/docs/format/config#リモート
 
 ```mermaid
 graph TD
-    R["config.json の remote url<br/>（深さ0: ルート）"] --> A["repo.mpm.nikomaru.dev/paper/index.json<br/>plugins: LuckPerms, Vault, ..."]
+    R["config.json の remote url<br/>（深さ0: ルート）"] --> A["mpm.plugin.morino.party/paper/index.json<br/>plugins: なし"]
+    A -->|children| O["paper/channel/orbit/index.json<br/>plugins: Essentials, PlaceholderAPI, ..."]
+    A -->|children| G["paper/channel/grid/index.json<br/>plugins: mpm, LuckPerms, Vault, ..."]
+    A -->|children| S["paper/channel/spark/index.json<br/>plugins: GSit, CarbonChat, ..."]
     A -->|children| B["mineauth.plugin.morino.party/.../index.json<br/>plugins: MineAuth, MineAuth-addon-*"]
     A -->|children| F["fishing.plugin.morino.party/.../index.json<br/>plugins: MoripaFishing, MoripaFishing-*"]
     B -->|children| C["（孫リポジトリ、深さ2）"]
@@ -105,15 +108,25 @@ graph TD
 
 ## 🏗️ 公式リポジトリの構成
 
-`repo.mpm.nikomaru.dev` の `index.json` は、リポジトリ（`repo/`）の次のファイルから
-`pnpm run build`（`repo/scripts/build.ts`）で生成されます。
+公式リポジトリ（`https://mpm.plugin.morino.party`）は、このドキュメントサイトの静的ファイル（`docs/public/`）として配信されています。
+`index.json` は次のファイルから `pnpm run build:repository`（`docs/scripts/build-repository.ts`）で生成され、
+ドキュメントサイトのビルド（`pnpm run build`）でも毎回実行されます。
 
-- `public/paper/plugins/<id>.json`: プラグイン定義（1プラグイン1ファイル、レビュー用の正本）
-- `public/paper/children.json`: 子リポジトリへのリンク一覧
+- `public/paper/channel/<チャンネル>/plugins/<id>.json`: Paper向けのプラグイン定義（1プラグイン1ファイル、レビュー用の正本）
+- `public/paper/children.json`: ルートにつなぐ外部の子リポジトリへのリンク一覧
+- `public/velocity/plugins/<id>.json`: Velocity向けのプラグイン定義
 
-Velocity向けのインデックス（`/velocity/index.json`）も、同じ構成の`public/velocity/`から生成されます。
+生成されるインデックスは次の5つです。
 
-```json title="repo/public/paper/children.json"
+| インデックス | 内容 |
+| --- | --- |
+| `/paper/index.json` | ルート。プラグインは持たず、`children` に orbit、grid、spark の順でチャンネルを並べ、その後ろに `children.json` の外部リンクを続けます |
+| `/paper/channel/orbit/index.json` | Modrinthで配布され、バージョンがきれいに切られているプラグインのチャンネル |
+| `/paper/channel/grid/index.json` | 標準のチャンネル |
+| `/paper/channel/spark/index.json` | バージョンの切り方が不規則なプラグインや、ベータ版・アルファ版だけのプラグインのチャンネル |
+| `/velocity/index.json` | Velocity向けのカタログ |
+
+```json title="docs/public/paper/children.json"
 [
     {
         "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json"
@@ -124,9 +137,16 @@ Velocity向けのインデックス（`/velocity/index.json`）も、同じ構�
 ]
 ```
 
-ビルドでは各プラグイン定義と `children.json` をスキーマ検証したうえで `index.json` と
-JSON Schema（`/schema/plugin-info/v1.json`, `/schema/repository-index/v1.json`）を静的ファイルとして書き出します。
-検証に失敗するとデプロイは止まり、壊れたカタログは配信されません。
+ビルドでは各プラグイン定義と `children.json` をスキーマ検証し、同じプラグインが複数のチャンネルに置かれていないことも確かめます。
+そのうえで各 `index.json` と JSON Schema（`/schema/plugin-info/v1.json`, `/schema/repository-index/v1.json`）を静的ファイルとして書き出します。
+検証に失敗するとビルドは止まり、壊れたカタログは配信されません。
+生成されたファイルは、差分をレビューできるようにリポジトリにもコミットします。
+
+<Callout type="info" title="旧リポジトリ">
+従来の `repo.mpm.nikomaru.dev` は当面のあいだ引き続き配信されます。
+こちらは `repo/` ディレクトリの `public/paper/plugins/*.json` から `repo/scripts/build.ts` で生成されており、
+新しいリポジトリとは別のファイルとして管理されています。
+</Callout>
 
 ## 🧩 自分のプラグインを子リポジトリとして配信する
 
