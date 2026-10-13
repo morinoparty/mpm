@@ -4,7 +4,8 @@
     "version": "0.0.1",
     "scripts": {
         "dev": "next dev",
-        "build": "next build && node scripts/postbuild.mjs",
+        "build:repository": "tsx scripts/build-repository.ts",
+        "build": "pnpm run build:repository && next build && node scripts/postbuild.mjs",
         "start": "next start"
     },
     "dependencies": {
@@ -48,6 +49,7 @@
         "@types/node": "^25.0.3",
         "@types/react": "^19.2.7",
         "@types/react-dom": "^19.2.3",
+        "tsx": "^4.23.15",
         "typescript": "^5.9.3"
     },
     "license": "CC0-1.0",
