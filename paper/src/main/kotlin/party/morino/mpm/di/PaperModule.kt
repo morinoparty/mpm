@@ -20,10 +20,12 @@ import party.morino.mpm.platform.LoadedPluginRegistry
 import party.morino.mpm.platform.MpmEventDispatcher
 import party.morino.mpm.platform.PendingJarShutdownHookFactory
 import party.morino.mpm.platform.SelfInfo
+import party.morino.mpm.platform.paper.PaperCommandPlatform
 import party.morino.mpm.platform.paper.PaperEventDispatcher
 import party.morino.mpm.platform.paper.PaperLoadedPluginRegistry
 import party.morino.mpm.platform.paper.PaperPendingJarShutdownHookFactory
 import party.morino.mpm.platform.paper.PaperSelfInfo
+import party.morino.mpm.ui.command.platform.CommandPlatform
 import java.io.File
 
 /**
@@ -58,5 +60,8 @@ object PaperModule {
             single<LoadedPluginRegistry> { PaperLoadedPluginRegistry() }
             single<MpmEventDispatcher> { PaperEventDispatcher() }
             single<PendingJarShutdownHookFactory> { PaperPendingJarShutdownHookFactory() }
+
+            // コマンドの送信者・パーミッションの解釈（ルートは /mpm）
+            single<CommandPlatform> { PaperCommandPlatform() }
         }
 }

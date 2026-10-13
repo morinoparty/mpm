@@ -27,43 +27,18 @@ import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.migration.SchemaMigrator
 import party.morino.mpm.api.domain.migration.SchemaVersions
-import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
-import party.morino.mpm.api.model.plugin.InstalledPlugin
-import party.morino.mpm.api.model.plugin.RepositoryPlugin
 import party.morino.mpm.di.CoreModule
 import party.morino.mpm.di.PaperModule
 import party.morino.mpm.event.listener.WebhookEventListener
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
 import party.morino.mpm.infrastructure.mineauth.MpmApiPermission
 import party.morino.mpm.platform.LoadedPluginRegistry
-import party.morino.mpm.ui.command.ReloadCommand
-import party.morino.mpm.ui.command.manage.control.BackupCommand
-import party.morino.mpm.ui.command.manage.control.CacheCommand
-import party.morino.mpm.ui.command.manage.control.InitCommand
-import party.morino.mpm.ui.command.manage.control.LockCommand
-import party.morino.mpm.ui.command.manage.control.PinCommand
-import party.morino.mpm.ui.command.manage.info.DependencyCommand
-import party.morino.mpm.ui.command.manage.info.DoctorCommand
-import party.morino.mpm.ui.command.manage.info.InfoCommand
-import party.morino.mpm.ui.command.manage.info.ListCommand
-import party.morino.mpm.ui.command.manage.info.OutdatedCommand
-import party.morino.mpm.ui.command.manage.info.SearchCommand
-import party.morino.mpm.ui.command.manage.info.VerifyCommand
-import party.morino.mpm.ui.command.manage.info.VersionsCommand
-import party.morino.mpm.ui.command.manage.lifecycle.AddCommand
-import party.morino.mpm.ui.command.manage.lifecycle.AdoptCommand
-import party.morino.mpm.ui.command.manage.lifecycle.InstallCommand
-import party.morino.mpm.ui.command.manage.lifecycle.RemoveCommand
-import party.morino.mpm.ui.command.manage.lifecycle.RollbackCommand
-import party.morino.mpm.ui.command.manage.lifecycle.UninstallCommand
-import party.morino.mpm.ui.command.manage.lifecycle.UpdateCommand
-import party.morino.mpm.ui.command.repo.RepositoryCommands
-import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
-import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
-import party.morino.mpm.utils.command.resolver.VersionSpecifierParameterType
+import party.morino.mpm.ui.command.MpmCommands
+import party.morino.mpm.ui.command.platform.CommandPlatform
+import party.morino.mpm.ui.command.platform.MpmLampSetup
 import revxrsal.commands.bukkit.BukkitLamp
 
 /**
@@ -243,43 +218,20 @@ open class Mpm :
 
     /**
      * Lampコマンドハンドラーのセットアップ
-     * コマンドの登録とParameterTypeの設定を行う
+     *
+     * コマンドクラスは Velocity と共通（common モジュール）のため、送信者・パーミッション・パラメータ型の設定は
+     * [MpmLampSetup] にまとめ、Paper 固有の部分（BukkitLamp・Bukkit のパーミッション判定）だけをここで組み合わせる。
      */
     private fun setupCommandHandler() {
-        // BukkitLampの作成
+        // BukkitLamp の設定の後に共通設定を適用する（Bukkit 固有の送信者型の解決を優先させるため）
         val lamp =
             BukkitLamp
                 .builder(this)
-                .parameterTypes { builder ->
-                    // カスタムParameterTypeの登録
-                    builder.addParameterType(RepositoryPlugin::class.java, RepositoryPluginParameterType())
-                    builder.addParameterType(InstalledPlugin::class.java, InstalledPluginParameterType())
-                    builder.addParameterType(VersionSpecifier::class.java, VersionSpecifierParameterType())
-                }.build()
+                .accept(MpmLampSetup(GlobalContext.get().get<CommandPlatform>()))
+                .build()
 
-        // 全コマンドの登録
-        lamp.register(AddCommand())
-        lamp.register(AdoptCommand())
-        lamp.register(BackupCommand())
-        lamp.register(CacheCommand())
-        lamp.register(DependencyCommand())
-        lamp.register(InitCommand())
-        lamp.register(InstallCommand())
-        lamp.register(ListCommand())
-        lamp.register(LockCommand())
-        lamp.register(OutdatedCommand())
-        lamp.register(RemoveCommand())
-        lamp.register(RollbackCommand())
-        lamp.register(UninstallCommand())
-        lamp.register(PinCommand())
-        lamp.register(UpdateCommand())
-        lamp.register(InfoCommand())
-        lamp.register(SearchCommand())
-        lamp.register(DoctorCommand())
-        lamp.register(VerifyCommand())
-        lamp.register(VersionsCommand())
-        lamp.register(RepositoryCommands())
-        lamp.register(ReloadCommand())
+        // 全コマンドの登録（BukkitLamp は登録と同時にサーバーへコマンドを追加する）
+        lamp.register(*MpmCommands.all().toTypedArray())
     }
 
     // API getters - 式本体で簡潔に

@@ -33,6 +33,9 @@ dependencies {
     // Velocity API（実行時はプロキシが提供する）
     compileOnly(libs.velocity.api)
 
+    // Lamp（コマンドフレームワーク）の Velocity 版。brigadier へ変換する lamp.brigadier も同梱する
+    implementation(libs.bundles.commands.velocity)
+
     // Kotlin の標準ライブラリ・kotlinx は JAR に同梱する
     // （他のプラグインから借りると、同名のクラスが別々のクラスローダーから読み込まれて LinkageError になるため）
     implementation(kotlin("stdlib"))
@@ -72,6 +75,8 @@ tasks {
             // Velocity 本体が同じものを提供し、プラグインのクラスローダーは親（プロキシ）を優先するため同梱しない
             exclude(dependency("org.slf4j:.*:.*"))
             exclude(dependency("org.yaml:snakeyaml:.*"))
+            // Mojang の brigadier はプロキシ本体が提供するため同梱しない（同梱すると別クラスローダーの型になり登録できない）
+            exclude(dependency("com.mojang:brigadier:.*"))
         }
     }
     runVelocity {

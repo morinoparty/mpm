@@ -17,6 +17,7 @@ import org.koin.core.component.inject
 import org.slf4j.Logger
 import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.project.ProjectService
+import party.morino.mpm.api.domain.downloader.model.TargetPlatform
 import party.morino.mpm.api.domain.plugin.model.PluginName
 import party.morino.mpm.api.domain.plugin.model.PluginSpec
 import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
@@ -46,6 +47,9 @@ class ProjectServiceImpl :
 
     // mpm 自身の名前（登録失敗時の案内に使う）
     private val selfInfo: SelfInfo by inject()
+
+    // 案内メッセージに出すコマンドのルート名（Paper は mpm、Velocity は mpmv）を得るために使う
+    private val targetPlatform: TargetPlatform by inject()
 
     /**
      * プロジェクトを初期化する
@@ -100,7 +104,7 @@ class ProjectServiceImpl :
         selfRegistration.fold(
             { reason ->
                 logger.warn(
-                    "mpm 自身を管理対象に登録できませんでした: $reason（後から /mpm add ${selfInfo.id} で登録できます）"
+                    "mpm 自身を管理対象に登録できませんでした: $reason（後から /${targetPlatform.commandRoot} add ${selfInfo.id} で登録できます）"
                 )
             },
             { project = it }

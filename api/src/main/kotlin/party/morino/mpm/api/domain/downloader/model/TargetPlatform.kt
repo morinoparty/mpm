@@ -19,16 +19,18 @@ import party.morino.mpm.api.model.plugin.PluginData
  *
  * @property modrinthLoaders Modrinth のバージョン一覧APIに渡す loaders の値
  * @property hangarPlatform Hangar のダウンロードで優先するプラットフォーム名
+ * @property commandRoot mpm のコマンドのルート名（Velocity ではバックエンドの /mpm と衝突しないよう mpmv にする）
  */
 enum class TargetPlatform(
     val modrinthLoaders: List<String>,
-    val hangarPlatform: String
+    val hangarPlatform: String,
+    val commandRoot: String
 ) {
     /** Paper（Bukkit 系）サーバー */
-    PAPER(listOf("paper", "spigot"), "PAPER"),
+    PAPER(listOf("paper", "spigot"), "PAPER", "mpm"),
 
-    /** Velocity プロキシ */
-    VELOCITY(listOf("velocity"), "VELOCITY");
+    /** Velocity プロキシ（プロキシの /mpm はバックエンドへ転送されなくなるため、別名の /mpmv を使う） */
+    VELOCITY(listOf("velocity"), "VELOCITY", "mpmv");
 
     /**
      * プラグイン記述子がこのプラットフォーム向けかを判定する

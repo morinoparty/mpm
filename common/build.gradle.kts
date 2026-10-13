@@ -29,6 +29,9 @@ dependencies {
     compileOnly(libs.slf4j.api)
     compileOnly(libs.bundles.adventure)
 
+    // Lamp（コマンドフレームワーク）の共通部分。実体は各プラットフォームの JAR が自分の bundle で同梱する
+    compileOnly(libs.lamp.common)
+
     // Arrow for functional programming
     implementation(libs.arrow.core)
     implementation(libs.arrow.fx.coroutines)
@@ -61,6 +64,7 @@ dependencies {
     // compileOnly はテストのクラスパスに載らないため、テストでは明示的に追加する
     testImplementation(libs.slf4j.api)
     testImplementation(libs.bundles.adventure)
+    testImplementation(libs.lamp.common)
 
     testImplementation(libs.bundles.junit.common)
     testImplementation(libs.bundles.koin.test)

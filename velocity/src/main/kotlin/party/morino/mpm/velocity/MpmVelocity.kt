@@ -31,7 +31,12 @@ import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.di.CoreModule
 import party.morino.mpm.di.VelocityModule
 import party.morino.mpm.platform.LoadedPluginRegistry
+import party.morino.mpm.ui.command.MpmCommands
+import party.morino.mpm.ui.command.platform.CommandPlatform
+import party.morino.mpm.ui.command.platform.MpmLampSetup
 import party.morino.mpm.velocity.event.listener.VelocityWebhookEventListener
+import revxrsal.commands.velocity.VelocityLamp
+import revxrsal.commands.velocity.VelocityVisitors
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -84,6 +89,9 @@ class MpmVelocity
 
             // Webhookイベントリスナーの登録
             proxy.eventManager.register(this, VelocityWebhookEventListener())
+
+            // コマンド（/mpmv）の登録
+            setupCommandHandler()
 
             // 自動更新スケジューラーの起動
             GlobalContext.get().get<UpdateScheduler>().start()
@@ -147,6 +155,27 @@ class MpmVelocity
             report.failures.forEach {
                 logger.warn("${it.fileName} のスキーマ移行に失敗しました: ${it.reason}")
             }
+        }
+
+        /**
+         * Lampコマンドハンドラーのセットアップ
+         *
+         * コマンドクラスは Paper と共通のため、`@Command("mpm")` は [MpmLampSetup] が `/mpmv` に書き換える。
+         * VelocityLamp は register の時点ではプロキシへ登録しないため、すべて登録した後に brigadier のコマンドとして登録する。
+         */
+        private fun setupCommandHandler() {
+            // VelocityLamp の設定の後に共通設定を適用する（Velocity 固有の送信者型の解決を優先させるため）
+            val lamp =
+                VelocityLamp
+                    .builder(this, proxy)
+                    .accept(MpmLampSetup(GlobalContext.get().get<CommandPlatform>()))
+                    .build()
+
+            // 全コマンドを Lamp に登録する
+            lamp.register(*MpmCommands.all().toTypedArray())
+
+            // 登録済みのコマンドをまとめてプロキシへ登録する（register より後に呼ばないと何も登録されない）
+            lamp.accept(VelocityVisitors.brigadier(proxy))
         }
 
         /**

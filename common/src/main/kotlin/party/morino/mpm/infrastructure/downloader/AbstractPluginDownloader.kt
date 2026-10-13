@@ -371,7 +371,7 @@ abstract class AbstractPluginDownloader :
         if (!authenticated && remaining == "0") {
             logger.warning(
                 "config.json の settings.githubToken にPersonal Access Tokenを設定すると" +
-                    "GitHub APIの上限が60→5000リクエスト/時になります。設定後は `/mpm reload` で反映されます"
+                    "GitHub APIの上限が60→5000リクエスト/時になります。設定後は reload コマンド（Paper は `/mpm reload`、Velocity は `/mpmv reload`）で反映されます"
             )
             return
         }

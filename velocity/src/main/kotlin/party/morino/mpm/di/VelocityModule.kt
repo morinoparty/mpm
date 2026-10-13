@@ -20,10 +20,12 @@ import party.morino.mpm.platform.LoadedPluginRegistry
 import party.morino.mpm.platform.MpmEventDispatcher
 import party.morino.mpm.platform.PendingJarShutdownHookFactory
 import party.morino.mpm.platform.SelfInfo
+import party.morino.mpm.platform.velocity.VelocityCommandPlatform
 import party.morino.mpm.platform.velocity.VelocityEventDispatcher
 import party.morino.mpm.platform.velocity.VelocityLoadedPluginRegistry
 import party.morino.mpm.platform.velocity.VelocityPendingJarShutdownHookFactory
 import party.morino.mpm.platform.velocity.VelocitySelfInfo
+import party.morino.mpm.ui.command.platform.CommandPlatform
 import party.morino.mpm.velocity.MpmVelocity
 import java.io.File
 import java.nio.file.Path
@@ -72,5 +74,8 @@ object VelocityModule {
             single<LoadedPluginRegistry> { VelocityLoadedPluginRegistry() }
             single<MpmEventDispatcher> { VelocityEventDispatcher() }
             single<PendingJarShutdownHookFactory> { VelocityPendingJarShutdownHookFactory() }
+
+            // コマンドの送信者・パーミッションの解釈（ルートは /mpmv）
+            single<CommandPlatform> { VelocityCommandPlatform() }
         }
 }

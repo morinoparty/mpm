@@ -93,7 +93,7 @@ spotless = { id = "com.diffplug.spotless", version = "8.10.3" }
 
 [bundles]
 commands = ["lamp-common", "lamp-bukkit", "lamp-brigadier"]
-commands-velocity = ["lamp-common", "lamp-velocity"]
+commands-velocity = ["lamp-common", "lamp-velocity", "lamp-brigadier"]
 coroutines = ["mccoroutine-bukkit-api", "mccoroutine-bukkit-core" , "kotlinx-coroutines-core"]
 ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-mock", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json"]
 junit = ["junit-jupiter", "junit-platform-launcher", "kotlinx-coroutines-test", "mockk", "mock-bukkit"]
