@@ -1,0 +1,587 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
+  "schemaVersion": 1,
+  "name": "morinoparty-paper-grid",
+  "plugins": {
+    "AFKPlus": {
+      "id": "AFKPlus",
+      "website": "https://modrinth.com/plugin/afk-plus",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "TFVOdaeG"
+        }
+      ]
+    },
+    "AdvancedPortals": {
+      "id": "AdvancedPortals",
+      "website": "https://modrinth.com/plugin/advanced-portals",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "axTqSWQA",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+(\\.\\d+)*-[Ss]pigot$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "(?i)legacy-?spigot$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "AnnouncerPlus": {
+      "id": "AnnouncerPlus",
+      "website": "https://modrinth.com/plugin/announcer-plus",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "g8XCro6n"
+        }
+      ]
+    },
+    "AntiRaidFarm": {
+      "id": "AntiRaidFarm",
+      "website": "https://modrinth.com/plugin/antiraidfarm",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "Qm6qtEOC"
+        }
+      ]
+    },
+    "AxTrade": {
+      "id": "AxTrade",
+      "website": "https://modrinth.com/plugin/axtrade",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "nZSk44a8"
+        }
+      ]
+    },
+    "BetonQuest": {
+      "id": "BetonQuest",
+      "website": "https://modrinth.com/plugin/betonquest",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "uVhukxY9",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-DEV",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-DEV-\\d+"
+          }
+        }
+      ]
+    },
+    "ChestCleaner": {
+      "id": "ChestCleaner",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "40313"
+        }
+      ]
+    },
+    "Craftconomy3": {
+      "id": "Craftconomy3",
+      "website": "https://github.com/pavog/craftconomy3",
+      "source": "https://github.com/pavog/craftconomy3",
+      "license": "LGPL-3.0",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "pavog/craftconomy3",
+          "fileNameRegex": "craftconomy3-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
+    "DecentHolograms": {
+      "id": "DecentHolograms",
+      "website": "https://modrinth.com/plugin/decentholograms",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "w02MKsTg"
+        }
+      ]
+    },
+    "DeluxeHubReloaded": {
+      "id": "DeluxeHubReloaded",
+      "website": "https://modrinth.com/plugin/deluxehubreloaded",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "oFhgZ1sL"
+        }
+      ]
+    },
+    "EntityDetection": {
+      "id": "EntityDetection",
+      "website": "https://modrinth.com/plugin/entitydetection",
+      "license": "MPL-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "NUsm3vyS"
+        }
+      ]
+    },
+    "FancyHolograms": {
+      "id": "FancyHolograms",
+      "website": "https://modrinth.com/plugin/fancyholograms",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "5QNgOj66",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*))?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+(\\.\\d+|\\+\\d+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\.(0|[1-9]\\d*))?"
+          },
+          "beta": {
+            "versionMatcher": "-SNAPSHOT",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-SNAPSHOT\\.\\d+"
+          }
+        }
+      ]
+    },
+    "GSit": {
+      "id": "GSit",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "62325",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "GriefPrevention": {
+      "id": "GriefPrevention",
+      "website": "https://modrinth.com/plugin/griefprevention",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "O4o4mKaq",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-beta",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\d+"
+          }
+        }
+      ]
+    },
+    "Hat": {
+      "id": "Hat",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "33980"
+        }
+      ]
+    },
+    "HuskHomes": {
+      "id": "HuskHomes",
+      "website": "https://modrinth.com/plugin/huskhomes",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "J6U9o3JG",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+(-[a-f0-9]+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?"
+          }
+        }
+      ]
+    },
+    "ImageFrame": {
+      "id": "ImageFrame",
+      "website": "https://modrinth.com/plugin/imageframe",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "lJFOpcEj",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "InventoryRollbackPlus": {
+      "id": "InventoryRollbackPlus",
+      "website": "https://modrinth.com/plugin/inventoryrollbackplus",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "XWKWAzd8"
+        }
+      ]
+    },
+    "LWC": {
+      "id": "LWC",
+      "website": "https://modrinth.com/plugin/lwc",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "rAVMDz0v"
+        }
+      ]
+    },
+    "LastLoginAPI": {
+      "id": "LastLoginAPI",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "66348"
+        }
+      ]
+    },
+    "MineStamp": {
+      "id": "MineStamp",
+      "website": "https://modrinth.com/plugin/minestamp",
+      "license": "CC0-1.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "SdV5cyLq"
+        }
+      ]
+    },
+    "MiniPlaceholders": {
+      "id": "MiniPlaceholders",
+      "website": "https://modrinth.com/plugin/miniplaceholders",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "HQyibRsN"
+        }
+      ]
+    },
+    "MyCommand": {
+      "id": "MyCommand",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "22272",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^v\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "NBTAPI": {
+      "id": "NBTAPI",
+      "website": "https://modrinth.com/plugin/nbtapi",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "nfGCP9fk",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-RC",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-RC\\d*"
+          }
+        }
+      ]
+    },
+    "NoteBlockAPI": {
+      "id": "NoteBlockAPI",
+      "website": "https://modrinth.com/plugin/noteblockapi",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "7FN5Qhm4"
+        }
+      ]
+    },
+    "OreAnnouncer": {
+      "id": "OreAnnouncer",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "33464"
+        }
+      ]
+    },
+    "PAPIProxyBridge": {
+      "id": "PAPIProxyBridge",
+      "website": "https://modrinth.com/plugin/papiproxybridge",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "bEIUEGTX",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+-[a-f0-9]+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]+"
+          }
+        }
+      ]
+    },
+    "PlasmoVoice": {
+      "id": "PlasmoVoice",
+      "website": "https://modrinth.com/plugin/plasmo-voice",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "1bZhdhsH",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^spigot-\\d+\\.\\d+\\.\\d+(\\+[a-f0-9]+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?"
+          }
+        }
+      ]
+    },
+    "PlugManX": {
+      "id": "PlugManX",
+      "website": "https://modrinth.com/plugin/plugmanx",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "yro4niHu",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-RC",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-RC\\.\\d+"
+          }
+        }
+      ]
+    },
+    "PureTickets": {
+      "id": "PureTickets",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "71677"
+        }
+      ]
+    },
+    "QuickShop-Hikari": {
+      "id": "QuickShop-Hikari",
+      "website": "https://modrinth.com/plugin/quickshop-hikari",
+      "source": "https://github.com/QuickShop-Community/QuickShop-Hikari",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "ijC5dDkD",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-beta|-RELEASE",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-(?:beta\\d+|RELEASE-\\d+)"
+          }
+        },
+        {
+          "type": "spigotmc",
+          "id": "100125",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "RaceAssist": {
+      "id": "RaceAssist",
+      "source": "https://github.com/RaceAssist/RaceAssist-core",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "RaceAssist/RaceAssist-core",
+          "fileNameRegex": "RaceAssist_.*\\.jar$"
+        }
+      ]
+    },
+    "RegionRaid": {
+      "id": "RegionRaid",
+      "source": "https://github.com/OffLuffy/RegionRaid",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "OffLuffy/RegionRaid",
+          "fileNameRegex": "regionraid-.*\\.jar$"
+        }
+      ]
+    },
+    "ShulkerPacks": {
+      "id": "ShulkerPacks",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "67466"
+        }
+      ]
+    },
+    "SignedVelocity": {
+      "id": "SignedVelocity",
+      "website": "https://modrinth.com/plugin/signedvelocity",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "7IbzD4Zm",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-BETA",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA(?:-\\d+)?"
+          }
+        }
+      ]
+    },
+    "TAB-Bridge": {
+      "id": "TAB-Bridge",
+      "website": "https://modrinth.com/plugin/tab-bridge",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "kG3hVbBX"
+        }
+      ]
+    },
+    "TabTPS": {
+      "id": "TabTPS",
+      "website": "https://modrinth.com/plugin/tabtps",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "cUhi3iB2"
+        }
+      ]
+    },
+    "TitleAnnouncer": {
+      "id": "TitleAnnouncer",
+      "website": "https://modrinth.com/plugin/titleannouncer",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "d769vI4q",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-BETA",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA\\d+"
+          }
+        }
+      ]
+    },
+    "VotingPlugin": {
+      "id": "VotingPlugin",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "15358",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "WanderingTrades": {
+      "id": "WanderingTrades",
+      "website": "https://modrinth.com/plugin/wanderingtrades",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "ZfddU72x"
+        }
+      ]
+    },
+    "WorldGuardExtraFlags": {
+      "id": "WorldGuardExtraFlags",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "4823"
+        }
+      ]
+    },
+    "mpm": {
+      "id": "mpm",
+      "website": "https://mpm.plugin.morino.party",
+      "source": "https://github.com/morinoparty/mpm",
+      "license": "CC0-1.0",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/mpm",
+          "fileNameRegex": "mpm_.*\\.jar$"
+        }
+      ]
+    },
+    "squaremap": {
+      "id": "squaremap",
+      "website": "https://modrinth.com/plugin/squaremap",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "PFb7ZqK6"
+        }
+      ]
+    }
+  },
+  "children": []
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "WanderingTrades",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/wanderingtrades",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "ZfddU72x"
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
+  "schemaVersion": 1,
+  "name": "morinoparty-paper-orbit",
+  "plugins": {
+    "Chunky": {
+      "id": "Chunky",
+      "website": "https://modrinth.com/plugin/chunky",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "fALzjamp"
+        }
+      ]
+    },
+    "CoreProtect": {
+      "id": "CoreProtect",
+      "website": "https://modrinth.com/plugin/coreprotect",
+      "license": "Artistic-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "Lu3KuzdV",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "DiscordSRV": {
+      "id": "DiscordSRV",
+      "website": "https://modrinth.com/plugin/discordsrv",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "UmLGoGij"
+        }
+      ]
+    },
+    "Essentials": {
+      "id": "Essentials",
+      "website": "https://modrinth.com/plugin/essentialsx",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "hXiIvTyT"
+        }
+      ]
+    },
+    "LuckPerms": {
+      "id": "LuckPerms",
+      "website": "https://modrinth.com/plugin/luckperms",
+      "source": "https://github.com/lucko/LuckPerms",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "Vebnzrzj"
+        },
+        {
+          "type": "spigotmc",
+          "id": "28140"
+        }
+      ]
+    },
+    "PlaceholderAPI": {
+      "id": "PlaceholderAPI",
+      "website": "https://modrinth.com/plugin/placeholderapi",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "lKEzGugV"
+        }
+      ]
+    },
+    "ProtocolLib": {
+      "id": "ProtocolLib",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "1997"
+        }
+      ]
+    },
+    "Vault": {
+      "id": "Vault",
+      "repositories": [
+        {
+          "type": "spigotmc",
+          "id": "34315",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "WorldEdit": {
+      "id": "WorldEdit",
+      "website": "https://modrinth.com/plugin/worldedit",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "1u6JkXh5",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-beta",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta-\\d+(?:\\.\\d+)?"
+          },
+          "alpha": {
+            "versionMatcher": "-rc",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-rc-\\d+"
+          }
+        }
+      ]
+    },
+    "WorldGuard": {
+      "id": "WorldGuard",
+      "website": "https://modrinth.com/plugin/worldguard",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "DKY9btbd",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-beta",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta-?\\d+"
+          }
+        }
+      ]
+    }
+  },
+  "children": []
+}

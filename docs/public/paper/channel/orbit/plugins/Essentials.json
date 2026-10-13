@@ -1,0 +1,12 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "Essentials",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/essentialsx",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "hXiIvTyT"
+    }
+  ]
+}

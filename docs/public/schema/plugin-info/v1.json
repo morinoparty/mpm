@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "id": "PluginInfo",
+  "title": "mpm Plugin Repository File",
+  "description": "mpmのパブリックリポジトリにおける1プラグイン分の定義ファイル。mpm.plugin.morino.party が配信するスキーマと対応する。",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "website": {
+      "type": "string",
+      "format": "uri"
+    },
+    "source": {
+      "type": "string",
+      "format": "uri"
+    },
+    "license": {
+      "type": "string"
+    },
+    "repositories": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Repository"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "softDependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "defaultVersion": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "repositories"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Repository": {
+      "id": "Repository",
+      "description": "プラグインのダウンロード元を定義するリポジトリ設定",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fileNameRegex": {
+          "type": "string"
+        },
+        "versionModifier": {
+          "type": "string"
+        },
+        "downloadUrl": {
+          "type": "string"
+        },
+        "fileNameTemplate": {
+          "type": "string"
+        },
+        "latest": {
+          "$ref": "#/$defs/Channel"
+        },
+        "beta": {
+          "$ref": "#/$defs/Channel"
+        },
+        "alpha": {
+          "$ref": "#/$defs/Channel"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Channel": {
+      "id": "Channel",
+      "description": "リリースチャンネルを識別する設定。versionMatcher (regex) が優先、なければuseUpstreamLabelによりネイティブラベルを使用",
+      "type": "object",
+      "properties": {
+        "versionMatcher": {
+          "type": "string"
+        },
+        "versionModifier": {
+          "type": "string"
+        },
+        "useUpstreamLabel": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "x-schema-version": "v1"
+}

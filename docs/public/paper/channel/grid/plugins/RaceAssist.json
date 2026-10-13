@@ -1,0 +1,12 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "RaceAssist",
+  "source": "https://github.com/RaceAssist/RaceAssist-core",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "RaceAssist/RaceAssist-core",
+      "fileNameRegex": "RaceAssist_.*\\.jar$"
+    }
+  ]
+}

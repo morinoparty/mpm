@@ -1,0 +1,10 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "LastLoginAPI",
+  "repositories": [
+    {
+      "type": "spigotmc",
+      "id": "66348"
+    }
+  ]
+}

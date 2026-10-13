@@ -1,0 +1,12 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "RegionRaid",
+  "source": "https://github.com/OffLuffy/RegionRaid",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "OffLuffy/RegionRaid",
+      "fileNameRegex": "regionraid-.*\\.jar$"
+    }
+  ]
+}

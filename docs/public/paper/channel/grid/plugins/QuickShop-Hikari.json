@@ -1,0 +1,31 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "QuickShop-Hikari",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/quickshop-hikari",
+  "source": "https://github.com/QuickShop-Community/QuickShop-Hikari",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "ijC5dDkD",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      },
+      "beta": {
+        "versionMatcher": "-beta|-RELEASE",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-(?:beta\\d+|RELEASE-\\d+)"
+      }
+    },
+    {
+      "type": "spigotmc",
+      "id": "100125",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "^\\d+\\.\\d+\\.\\d+\\.\\d+$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      }
+    }
+  ]
+}

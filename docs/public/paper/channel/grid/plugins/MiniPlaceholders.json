@@ -1,0 +1,12 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "MiniPlaceholders",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/miniplaceholders",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "HQyibRsN"
+    }
+  ]
+}
