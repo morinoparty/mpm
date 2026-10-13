@@ -1,0 +1,370 @@
+/*
+ * Written in 2023-2026 by Nikomaru <nikomaru@nikomaru.dev>
+ *
+ * To the extent possible under law, the author(s) have dedicated all copyright and related and neighboring rights to this software to the public domain worldwide.This software is distributed without any warranty.
+ *
+ * You should have received a copy of the CC0 Public Domain Dedication along with this software.
+ * If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+ */
+
+package party.morino.mpm.infrastructure.downloader.modrinth
+
+import io.ktor.client.*
+import io.ktor.client.engine.mock.*
+import io.ktor.http.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import party.morino.mpm.api.domain.downloader.model.RepositoryType
+import party.morino.mpm.api.domain.downloader.model.TargetPlatform
+import party.morino.mpm.api.domain.downloader.model.UrlData
+import party.morino.mpm.api.domain.downloader.model.VersionData
+
+class ModrinthDownloaderTest {
+    // テスト用のModrinthDownloaderインスタンス
+    private val downloader = ModrinthDownloader(TargetPlatform.PAPER)
+
+    @Test
+    fun `searchPlugins parses hits into PluginSearchResult`() {
+        // Modrinth検索APIのモックレスポンス
+        val searchJson =
+            """
+            {"hits":[
+              {"slug":"plasmo-voice","title":"Plasmo Voice","description":"Proximity voice chat","downloads":1234567,"project_type":"mod"},
+              {"slug":"luckperms","title":"LuckPerms","description":"Permissions","downloads":9999,"project_type":"plugin"}
+            ]}
+            """.trimIndent()
+        val mockEngine =
+            MockEngine { request ->
+                when {
+                    request.url.toString().contains("/v2/search") ->
+                        respond(
+                            content = ByteReadChannel(searchJson),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        )
+                    else -> respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
+                }
+            }
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.PAPER) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking {
+            val results = testDownloader.searchPlugins("voice", 10)
+
+            assertEquals(2, results.size)
+            assertEquals(RepositoryType.MODRINTH, results[0].source)
+            assertEquals("plasmo-voice", results[0].slug)
+            assertEquals("Plasmo Voice", results[0].name)
+            assertEquals(1234567L, results[0].downloads)
+            // project_typeがURLに反映されること
+            assertEquals("https://modrinth.com/mod/plasmo-voice", results[0].url)
+        }
+    }
+
+    @Test
+    @DisplayName("searchPlugins filters by the platform loaders")
+    fun searchPluginsUsesPlatformFacet() {
+        // 送られた検索リクエストのURLを記録する
+        var requestedFacets: String? = null
+        val mockEngine =
+            MockEngine { request ->
+                requestedFacets = request.url.parameters["facets"]
+                respond(
+                    content = ByteReadChannel("""{"hits":[]}"""),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.VELOCITY) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking { testDownloader.searchPlugins("proxy", 5) }
+
+        // Velocity では velocity ローダーのプロジェクトだけを検索する
+        assertEquals("""[["categories:velocity"]]""", requestedFacets)
+    }
+
+    @Test
+    @DisplayName("version lookup sends the platform loaders and names them when empty")
+    fun latestVersionUsesPlatformLoaders() {
+        // 送られたバージョン一覧リクエストの loaders パラメータを記録する
+        var requestedLoaders: String? = null
+        val mockEngine =
+            MockEngine { request ->
+                requestedLoaders = request.url.parameters["loaders"]
+                // velocity 対応版が1つもないプロジェクトを想定して空配列を返す
+                respond(
+                    content = ByteReadChannel("[]"),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.VELOCITY) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        val error =
+            assertThrows<Exception> {
+                runBlocking { testDownloader.getLatestVersion(UrlData.ModrinthUrlData("some-proxy-plugin")) }
+            }
+
+        // Velocity では velocity ローダーのバージョンだけを問い合わせる
+        assertEquals("""["velocity"]""", requestedLoaders)
+        // 対応版がない場合のメッセージにはプラットフォームのローダー名が入る
+        assertTrue(error.message!!.contains("velocity"))
+    }
+
+    @Test
+    fun getRepositoryType() {
+        // ModrinthのURLが正しく認識されることをテスト
+        val validUrl = "https://modrinth.com/plugin/plasmo-voice"
+        assertEquals(RepositoryType.MODRINTH, downloader.getRepositoryType(validUrl))
+
+        // 無効なURLがnullを返すことをテスト
+        val invalidUrl = "https://example.com/plugin/plasmo-voice"
+        assertNull(downloader.getRepositoryType(invalidUrl))
+    }
+
+    @Test
+    fun getUrlData() {
+        // 正しいURLからURLデータを抽出できることをテスト
+        val url = "https://modrinth.com/plugin/plasmo-voice"
+        val urlData = downloader.getUrlData(url)
+
+        assertNotNull(urlData)
+        assertTrue(urlData is UrlData.ModrinthUrlData)
+
+        val modrinthUrlData = urlData as UrlData.ModrinthUrlData
+        assertEquals("plasmo-voice", modrinthUrlData.id)
+    }
+
+    @Test
+    fun getLatestVersion() {
+        // mockファイルからデータを読み込み
+        val mockEngine =
+            MockEngine { request ->
+                // APIリクエストのURLに応じてモックレスポンスを返す
+                when {
+                    request.url.toString().contains("/version?loaders=") -> {
+                        respond(
+                            content =
+                                ByteReadChannel(
+                                    party.morino.mpm.utils.MockDataLoader.Modrinth
+                                        .getProjectVersions()
+                                ),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        )
+                    }
+
+                    else -> {
+                        respond(
+                            content = ByteReadChannel(""),
+                            status = HttpStatusCode.NotFound
+                        )
+                    }
+                }
+            }
+
+        // モックエンジンを使用するダウンローダーを作成
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.PAPER) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        // テストを実行
+        runBlocking {
+            val urlData = UrlData.ModrinthUrlData("plasmo-voice")
+            val versionData = testDownloader.getLatestVersion(urlData)
+
+            // 実際のデータに基づいたアサーション（version.jsonの最初のバージョン）
+            assertEquals("j9WvAurZ", versionData.downloadId)
+            assertEquals("spigot-2.1.6", versionData.version)
+        }
+    }
+
+    @Test
+    fun `downloadByVersion should select primary file when fileNamePattern is null`() {
+        // パターンが指定されていない場合、プライマリファイルを選択することをテスト
+        val mockEngine =
+            MockEngine { request ->
+                when {
+                    request.url.toString().contains("/version/") -> {
+                        // mockファイルからバージョン詳細を読み込み（単一オブジェクト）
+                        respond(
+                            content =
+                                ByteReadChannel(
+                                    party.morino.mpm.utils.MockDataLoader.Modrinth
+                                        .getVersionDetail()
+                                ),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        )
+                    }
+
+                    request.url.toString().startsWith("https://cdn.modrinth.com/") -> {
+                        // ファイルダウンロードのモックレスポンス
+                        // version-detail.json の size と一致させ、ダウンロードサイズ検証を通す
+                        respond(
+                            content = ByteReadChannel(ByteArray(8645636)),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
+                        )
+                    }
+
+                    else -> {
+                        respond(
+                            content = ByteReadChannel(""),
+                            status = HttpStatusCode.NotFound
+                        )
+                    }
+                }
+            }
+
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.PAPER) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking {
+            val urlData = UrlData.ModrinthUrlData("plasmo-voice")
+            val versionData = VersionData("j9WvAurZ", "spigot-2.1.6")
+
+            // fileNamePattern が null の場合
+            val file = testDownloader.downloadByVersion(urlData, versionData, null)
+
+            // ファイルがダウンロードされたことを確認
+            assertNotNull(file)
+            assertTrue(file!!.exists())
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `downloadByVersion should select matching file when fileNamePattern is specified`() {
+        // 正規表現にマッチするファイルを選択することをテスト
+        val mockEngine =
+            MockEngine { request ->
+                when {
+                    request.url.toString().contains("/version/") -> {
+                        // mockファイルからバージョン詳細を読み込み（単一オブジェクト）
+                        respond(
+                            content =
+                                ByteReadChannel(
+                                    party.morino.mpm.utils.MockDataLoader.Modrinth
+                                        .getVersionDetail()
+                                ),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        )
+                    }
+
+                    request.url.toString().startsWith("https://cdn.modrinth.com/") -> {
+                        // ファイルダウンロードのモックレスポンス
+                        // version-detail.json の size と一致させ、ダウンロードサイズ検証を通す
+                        respond(
+                            content = ByteReadChannel(ByteArray(8645636)),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
+                        )
+                    }
+
+                    else -> {
+                        respond(
+                            content = ByteReadChannel(""),
+                            status = HttpStatusCode.NotFound
+                        )
+                    }
+                }
+            }
+
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.PAPER) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        runBlocking {
+            val urlData = UrlData.ModrinthUrlData("plasmo-voice")
+            val versionData = VersionData("j9WvAurZ", "spigot-2.1.6")
+
+            // 正規表現で .jar を含むファイルを指定
+            val file = testDownloader.downloadByVersion(urlData, versionData, ".*Paper.*\\.jar")
+
+            // ファイルがダウンロードされたことを確認
+            assertNotNull(file)
+            assertTrue(file!!.exists())
+            file.delete()
+        }
+    }
+
+    @Test
+    fun `downloadByVersion should throw exception when no matching file is found`() {
+        // 正規表現にマッチするファイルがない場合、例外を投げることをテスト
+        val mockEngine =
+            MockEngine { request ->
+                when {
+                    request.url.toString().contains("/version/") -> {
+                        // mockファイルからバージョン詳細を読み込み（単一オブジェクト）
+                        respond(
+                            content =
+                                ByteReadChannel(
+                                    party.morino.mpm.utils.MockDataLoader.Modrinth
+                                        .getVersionDetail()
+                                ),
+                            status = HttpStatusCode.OK,
+                            headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        )
+                    }
+
+                    else -> {
+                        respond(
+                            content = ByteReadChannel(""),
+                            status = HttpStatusCode.NotFound
+                        )
+                    }
+                }
+            }
+
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.PAPER) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        // 例外が投げられることを確認
+        assertThrows<Exception> {
+            runBlocking {
+                val urlData = UrlData.ModrinthUrlData("plasmo-voice")
+                val versionData = VersionData("j9WvAurZ", "spigot-2.1.6")
+
+                // マッチしない正規表現を指定
+                testDownloader.downloadByVersion(urlData, versionData, ".*\\.zip")
+            }
+        }
+    }
+}

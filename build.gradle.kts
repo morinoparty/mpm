@@ -14,6 +14,10 @@ plugins {
     java
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.dokka)
+    // run-task 系をルートのクラスパスに先に載せる。dokka の古い kotlinx-serialization が優先されると
+    // runServer / runVelocity が AbstractMethodError / NoSuchMethodError で落ちるため（PluginTemplateKt と同じ対策）
+    alias(libs.plugins.run.paper) apply false
+    alias(libs.plugins.run.velocity) apply false
     alias(libs.plugins.ktlint)
     alias(libs.plugins.spotless)
     id("dev.detekt") version "2.0.0-alpha.6"
@@ -57,6 +61,8 @@ allprojects {
         ignoreFailures.set(true)
         filter {
             include("paper/**")
+            include("common/**")
+            include("velocity/**")
             include("api/**")
             exclude("**/config/**")
         }
@@ -85,6 +91,8 @@ allprojects {
 
 dependencies {
     dokka(project(":paper"))
+    dokka(project(":common"))
+    dokka(project(":velocity"))
     dokka(project(":api"))
 }
 
@@ -110,11 +118,11 @@ spotless {
     // （例: 2023 → 2023-2026）。新規ファイルは現在年のみ。全ファイルを対象にするため ratchet は使わない。
     val licenseHeader = rootProject.file("config/spotless/license-header.kt")
     kotlin {
-        target("api/src/**/*.kt", "paper/src/**/*.kt")
+        target("api/src/**/*.kt", "common/src/**/*.kt", "paper/src/**/*.kt", "velocity/src/**/*.kt")
         licenseHeaderFile(licenseHeader).updateYearWithLatest(true)
     }
     kotlinGradle {
-        target("*.gradle.kts", "api/*.gradle.kts", "paper/*.gradle.kts")
+        target("*.gradle.kts", "api/*.gradle.kts", "common/*.gradle.kts", "paper/*.gradle.kts", "velocity/*.gradle.kts")
         // .gradle.kts の最初の非ヘッダー行（build: import / settings: pluginManagement 等）を区切りとする。
         licenseHeaderFile(
             licenseHeader,
@@ -126,7 +134,16 @@ spotless {
 detekt {
     // The directories where detekt looks for source files.
     // Defaults to `files("src/main/java", "src/test/java", "src/main/kotlin", "src/test/kotlin")`.
-    source.setFrom("api/src/main/java", "api/src/main/kotlin", "paper/src/main/java", "paper/src/main/kotlin")
+    source.setFrom(
+        "api/src/main/java",
+        "api/src/main/kotlin",
+        "common/src/main/java",
+        "common/src/main/kotlin",
+        "paper/src/main/java",
+        "paper/src/main/kotlin",
+        "velocity/src/main/java",
+        "velocity/src/main/kotlin"
+    )
 
     // Builds the AST in parallel. Rules are always executed in parallel.
     // Can lead to speedups in larger projects. `false` by default.

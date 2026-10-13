@@ -27,6 +27,9 @@ dependencies {
     // API module dependency
     implementation(project(":api"))
 
+    // Paper / Velocity 共通のプラットフォーム非依存ロジック
+    implementation(project(":common"))
+
     // Paper API
     compileOnly(libs.paper.api)
 

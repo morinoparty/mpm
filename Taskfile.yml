@@ -22,12 +22,17 @@ tasks:
     silent: true
   run:
     cmds:
-      - ./gradlew clean runServer
+      - ./gradlew clean :paper:runServer
+    silent: true
+  run:velocity:
+    cmds:
+      - ./gradlew clean :velocity:runVelocity
     silent: true
   run:clean:
     cmds:
       - rm -rf ./paper/run/plugins/*
       - rm -rf ./paper/run/**/session.lock
+      - rm -rf ./velocity/run/plugins/*
     silent: true
   dokka:
     cmds:

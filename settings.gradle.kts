@@ -21,4 +21,6 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-include("paper", "api")
+// common: Paper / Velocity で共有するプラットフォーム非依存のロジック
+// velocity: Velocity プロキシ版の mpm
+include("paper", "api", "common", "velocity")

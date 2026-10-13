@@ -135,6 +135,12 @@ repository/
   - **id**: リポジトリ固有のID
   - **fileNameRegex**: 複数ファイルがある場合の選択パターン（オプション）
 
+<Callout type="info" title="Velocityの場合">
+Velocityでは、ModrinthとHangarからVelocity向けのファイルが自動で選ばれます。
+`spigotmc`はBukkit向けのJARを返すことが多く、Velocityではインストール時に拒否されます。
+詳しくは[Velocityで使う](/docs/usage/velocity)を参照してください。
+</Callout>
+
 ## よくあるパターン
 
 ### GitHub Releasesからインストール
@@ -166,6 +172,9 @@ repository/
     ]
 }
 ```
+
+`fileNameRegex`の`.*Paper.*`は、1つのバージョンにPaper用とVelocity用のファイルが同梱されている場合に、Paper用を選ぶための指定です。
+Velocityプロキシで使う場合は、Velocity用のファイル名に合わせて変更してください。
 
 ### SpigotMCからインストール
 
@@ -203,6 +212,8 @@ repository/
 ```
 
 最初のリポジトリからのダウンロードに失敗した場合、次のリポジトリを試行します。
+
+なお、この例の`LuckPerms-Bukkit.*\\.jar`はPaper向けのファイルを選びます。Velocityでは`LuckPerms-Velocity.*\\.jar`のように変更してください。
 
 ## チーム間での共有
 

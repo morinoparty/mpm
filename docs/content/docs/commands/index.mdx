@@ -58,6 +58,39 @@ mpm管理下にないプラグインは、`mpm removeUnmanaged`で削除され�
 `mpm install`実行時に自動的にコピーされます。
 </Callout>
 
+## 🌐 Velocityでのコマンド
+
+Velocityプロキシでは、すべてのコマンドのルートが`/mpm`ではなく`/mpmv`になります。
+プロキシで`/mpm`を登録すると、バックエンドのPaperサーバーの`/mpm`に転送されなくなるためです。
+サブコマンドと引数はPaperと同じです（例: `/mpmv add QuickShop`、`/mpmv backup list`）。
+
+パーミッションノードもPaperと同じものを使います。
+VelocityにはOPが無いため、LuckPermsなどのパーミッションプラグインでノードを付与してください。
+コンソールからはすべてのコマンドを実行できます。
+
+| パーミッション | 使えるコマンド |
+|---|---|
+| `mpm.command` | 下記のすべて（親ノード）、`repository list` |
+| `mpm.command.add` | `add`, `adopt` |
+| `mpm.command.remove` | `remove`, `removeUnmanaged` |
+| `mpm.command.install` | `install` |
+| `mpm.command.uninstall` | `uninstall` |
+| `mpm.command.update` | `update`, `pin`, `pin-all` |
+| `mpm.command.rollback` | `rollback` |
+| `mpm.command.list` | `list`, `info`, `search`, `outdated`, `versions`, `verify`, `doctor`, `deps` |
+| `mpm.command.backup` | `backup` |
+| `mpm.command.cache` | `cache` |
+| `mpm.command.lock` | `lock`, `unlock` |
+| `mpm.command.init` | `init` |
+| `mpm.command.reload` | `reload` |
+
+<Callout type="info" title="親ノードの扱い">
+Velocityには親子関係のあるパーミッションの仕組みが無いため、mpmは子ノード（例: `mpm.command.add`）が未設定のとき、
+親ノードの`mpm.command`を確認します。
+そのため、Paperと同じく`mpm.command`を付与するだけで、すべてのコマンドを使えます。
+子ノードに明示的に`false`を設定した場合は、親ノードが`true`でもそのコマンドは使えません。
+</Callout>
+
 ## 次のステップ
 
 - [ライフサイクル管理コマンド](/docs/commands/plugin-management/lifecycle) - 詳細なコマンドリファレンス
