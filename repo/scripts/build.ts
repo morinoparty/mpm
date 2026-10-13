@@ -25,13 +25,11 @@ const PLUGIN_INFO_SCHEMA_VERSION = "v1";
 const REPOSITORY_INDEX_SCHEMA_VERSION = "v1";
 
 const publicDir = join(__dirname, "..", "public");
+const paperDir = join(publicDir, "paper");
+const pluginsDir = join(paperDir, "plugins");
+const childrenFile = join(paperDir, "children.json");
+const indexFile = join(paperDir, "index.json");
 const schemaDir = join(publicDir, "schema");
-
-// インデックスを生成するプラットフォーム。各プラットフォームは public/<platform>/ 以下に
-// plugins/*.json と（任意の）children.json を持ち、public/<platform>/index.json を生成する。
-// Velocity 版の mpm は Paper とは別の JAR を取得する必要があるため、カタログもプラットフォームごとに分ける
-const PLATFORMS = ["paper", "velocity"] as const;
-type Platform = (typeof PLATFORMS)[number];
 
 /** JSONを整形して書き出す（親ディレクトリが無ければ作る） */
 const write = (path: string, value: unknown) => {
@@ -51,13 +49,10 @@ function fail(message: string, detail?: string): never {
 }
 
 /**
- * public/<platform>/plugins/*.json を読み込み、検証してプラグイン名 -> 定義のマップにする。
+ * public/paper/plugins/*.json を読み込み、検証してプラグイン名 -> 定義のマップにする。
  * バンドルに含める際は各ファイルの `$schema` を落とす（IDE補完用でクライアントには不要）。
  */
-const loadPlugins = (platform: Platform): Record<string, PluginInfo> => {
-    const pluginsDir = join(publicDir, platform, "plugins");
-    // プラグイン定義が1つも無いプラットフォームは空のカタログとして扱う
-    if (!existsSync(pluginsDir)) return {};
+const loadPlugins = (): Record<string, PluginInfo> => {
     const files = readdirSync(pluginsDir)
         .filter((file) => file.endsWith(".json"))
         .sort();
@@ -67,12 +62,12 @@ const loadPlugins = (platform: Platform): Record<string, PluginInfo> => {
         const raw = JSON.parse(readFileSync(join(pluginsDir, file), "utf-8"));
         const parsed = PluginInfoSchema.safeParse(raw);
         if (!parsed.success) {
-            fail(`${platform}/plugins/${file} はPluginInfoSchemaに適合しません`, parsed.error.message);
+            fail(`${file} はPluginInfoSchemaに適合しません`, parsed.error.message);
         }
         const { $schema: _schema, ...info } = parsed.data;
         const name = file.replace(/\.json$/, "");
         if (info.id !== name) {
-            fail(`${platform}/plugins/${file} の id (${info.id}) がファイル名と一致しません`);
+            fail(`${file} の id (${info.id}) がファイル名と一致しません`);
         }
         plugins[name] = info;
     }
@@ -80,21 +75,20 @@ const loadPlugins = (platform: Platform): Record<string, PluginInfo> => {
 };
 
 /**
- * public/<platform>/children.json（子リポジトリへのリンク一覧）を読み込んで検証する。
+ * public/paper/children.json（子リポジトリへのリンク一覧）を読み込んで検証する。
  * ファイルが無ければ子なしとして扱う。
  */
-const loadChildren = (platform: Platform): RepositoryLink[] => {
-    const childrenFile = join(publicDir, platform, "children.json");
+const loadChildren = (): RepositoryLink[] => {
     if (!existsSync(childrenFile)) return [];
     const raw = JSON.parse(readFileSync(childrenFile, "utf-8"));
     const parsed = z.array(RepositoryLinkSchema).safeParse(raw);
     if (!parsed.success) {
-        fail(`${platform}/children.json はRepositoryLinkSchemaに適合しません`, parsed.error.message);
+        fail("children.json はRepositoryLinkSchemaに適合しません", parsed.error.message);
     }
     // 同じ index を2回書くのは誤りとみなす
     const seen = new Set<string>();
     for (const link of parsed.data) {
-        if (seen.has(link.index)) fail(`${platform}/children.json に重複したリンクがあります: ${link.index}`);
+        if (seen.has(link.index)) fail(`children.json に重複したリンクがあります: ${link.index}`);
         seen.add(link.index);
     }
     return parsed.data;
@@ -111,13 +105,10 @@ const writeSchema = (schema: z.ZodType, relativePath: string, version: string) =
     console.log(`Generated schema/${relativePath}`);
 };
 
-/**
- * 1プラットフォーム分の index.json を組み立て、自己検証してから書き出す
- */
-const buildIndex = (platform: Platform) => {
+const main = () => {
     // ---- 1. プラグイン定義と子リンクを読み込む ----
-    const plugins = loadPlugins(platform);
-    const children = loadChildren(platform);
+    const plugins = loadPlugins();
+    const children = loadChildren();
 
     // ---- 2. index.json を組み立てて自己検証する ----
     const index = {
@@ -130,17 +121,12 @@ const buildIndex = (platform: Platform) => {
     };
     const verified = RepositoryIndexSchema.safeParse(index);
     if (!verified.success) {
-        fail(`生成した ${platform}/index.json がRepositoryIndexSchemaに適合しません`, verified.error.message);
+        fail("生成した index.json がRepositoryIndexSchemaに適合しません", verified.error.message);
     }
-    write(join(publicDir, platform, "index.json"), index);
+    write(indexFile, index);
     console.log(
-        `Generated ${platform}/index.json with ${Object.keys(plugins).length} plugins and ${children.length} children`,
+        `Generated paper/index.json with ${Object.keys(plugins).length} plugins and ${children.length} children`,
     );
-};
-
-const main = () => {
-    // ---- 1-2. プラットフォームごとに index.json を生成する ----
-    for (const platform of PLATFORMS) buildIndex(platform);
 
     // ---- 3. JSON Schema を静的ファイルとして書き出す ----
     // 各プラグインJSONの `$schema` が参照する。旧パス（plugin-info.json）も最新版のエイリアスとして残す
