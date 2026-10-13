@@ -7,6 +7,12 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 mpmを使って、プラグインを簡単に管理する方法を学びましょう。
 
+<Callout type="info" title="Velocityを使う場合">
+このページではPaperサーバーを例に説明しています。
+Velocityプロキシでは、コマンドの`/mpm`を`/mpmv`に読み替えてください。
+パーミッションの付与やリポジトリの設定など、Velocity固有の内容は[Velocityで使う](/docs/usage/velocity)を参照してください。
+</Callout>
+
 ## クイックスタート
 
 ### ステップ1: リポジトリファイルを作成
@@ -189,6 +195,7 @@ A: はい！リポジトリ配列に複数のエントリを追加できます�
 ```
 
 最初のリポジトリ（Modrinth）からのダウンロードに失敗した場合、次のリポジトリ（GitHub）を試行します。
+なお、この例の`LuckPerms-Bukkit.*\\.jar`はPaper向けのファイルを選びます。Velocityでは`LuckPerms-Velocity.*\\.jar`のように変更してください。
 これにより、より高い可用性と柔軟性を実現できます。
 
 ### Q: プラグインを更新するには？
@@ -238,6 +245,7 @@ git pull
 - [ライフサイクル管理コマンド](/docs/commands/plugin-management/lifecycle) - プラグイン管理コマンドの一覧
 - [リポジトリ管理コマンド](/docs/commands/repo) - リポジトリコマンドの一覧
 - [リポジトリファイル形式](/docs/repository/file) - ファイル形式の詳細
+- [Velocityで使う](/docs/usage/velocity) - Velocityプロキシでmpmを使う
 
 ## トラブルシューティング
 

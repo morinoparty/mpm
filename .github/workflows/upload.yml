@@ -40,15 +40,21 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build -x test
 
-      - name: Rename jar
-        run: mv ./paper/build/libs/paper-*-all.jar ./mpm_${{ github.event.release.tag_name }}.jar
+      # Paper jar は既存の命名 (mpm_<tag>.jar) を維持し、Velocity jar は mpm-velocity_<tag>.jar とする
+      - name: Rename jars
+        run: |
+          mv ./paper/build/libs/paper-*-all.jar ./mpm_${{ github.event.release.tag_name }}.jar
+          mv ./velocity/build/libs/velocity-*-all.jar ./mpm-velocity_${{ github.event.release.tag_name }}.jar
 
       # GitHub Attestations で署名（SLSA build provenance）
+      # Paper / Velocity の両 jar を1つの attestation にまとめ、リリースノートのリンクを1本で済ませる
       - name: Attest JAR artifacts
         id: attest
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: ./mpm_${{ github.event.release.tag_name }}.jar
+          subject-path: |
+            ./mpm_${{ github.event.release.tag_name }}.jar
+            ./mpm-velocity_${{ github.event.release.tag_name }}.jar
 
       - uses: Kir-Antipov/mc-publish@v3.3
         with:
@@ -68,6 +74,37 @@ jobs:
           game-version-filter: releases
           java: |
             21
+
+      # Velocity 版は同じ Modrinth プロジェクトに loaders: velocity の別バージョンとして公開する。
+      # github-token を渡すと mc-publish が GitHub Release の name/body を更新してしまうため、
+      # ここでは Modrinth のみに公開し、GitHub Release へのアップロードは次の step で gh を使って行う。
+      - name: Publish Velocity jar to Modrinth
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          modrinth-id: txv68jS0
+          modrinth-featured: true
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+
+          name: mpm ${{ github.event.release.tag_name }} (Velocity)
+          files: |
+            ./mpm-velocity_${{ github.event.release.tag_name }}.jar
+          loaders: |
+            velocity
+          game-versions: |
+            1.21
+          game-version-filter: releases
+          # velocity-api 4.2.0 は Java 25 を要求するため、Velocity 版は Java 25 として公開する
+          java: |
+            25
+
+      # Velocity jar を GitHub Release に添付する（Paper jar は上の mc-publish が添付済み）
+      - name: Upload Velocity jar to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            ./mpm-velocity_${{ github.event.release.tag_name }}.jar \
+            --clobber
 
       # リリースノートにAttestationの検証リンクを追記する（利用者がリリースページから直接検証できるように）
       - name: Append attestation link to release notes

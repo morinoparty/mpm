@@ -19,13 +19,22 @@ import com.velocitypowered.api.proxy.ProxyServer
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.GlobalContext
 import org.slf4j.Logger
+import party.morino.mpm.api.MpmAPI
+import party.morino.mpm.api.application.dependency.DependencyService
 import party.morino.mpm.api.application.job.JobService
 import party.morino.mpm.api.application.plugin.DeferredJarDeletion
+import party.morino.mpm.api.application.plugin.PluginInfoService
+import party.morino.mpm.api.application.plugin.PluginLifecycleService
+import party.morino.mpm.api.application.plugin.PluginUpdateService
+import party.morino.mpm.api.application.project.ProjectService
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
+import party.morino.mpm.api.domain.backup.ServerBackupManager
 import party.morino.mpm.api.domain.config.ConfigManager
+import party.morino.mpm.api.domain.config.PluginDirectory
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.migration.SchemaMigrator
 import party.morino.mpm.api.domain.migration.SchemaVersions
+import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.di.CoreModule
@@ -44,6 +53,7 @@ import java.nio.file.Path
  * Velocity 版 mpm のメインクラス
  *
  * Velocity は Guice でこのクラスを生成し、自動的にイベントリスナーとして登録する。
+ * 他の Velocity プラグインは、プラグインID `mpm` のインスタンスを [MpmAPI] として利用できる。
  * コンストラクタの時点ではまだプラグインとして登録されていないため、初期化はすべて [ProxyInitializeEvent] で行う。
  *
  * @param proxy プロキシサーバー
@@ -58,7 +68,21 @@ class MpmVelocity
         private val logger: Logger,
         @param:DataDirectory private val dataDirectory: Path,
         private val container: PluginContainer
-    ) {
+    ) : MpmAPI {
+        // 公開APIで返すインスタンスをKoinから遅延取得する（Koinの起動は ProxyInitializeEvent のため、参照時に取得する）
+        private val _configManager: ConfigManager by lazy { GlobalContext.get().get() }
+        private val _pluginDirectory: PluginDirectory by lazy { GlobalContext.get().get() }
+        private val _pluginMetadataManager: PluginMetadataManager by lazy { GlobalContext.get().get() }
+        private val _repositoryManager: RepositoryManager by lazy { GlobalContext.get().get() }
+
+        // Application Serviceのインスタンス
+        private val _pluginInfoService: PluginInfoService by lazy { GlobalContext.get().get() }
+        private val _pluginLifecycleService: PluginLifecycleService by lazy { GlobalContext.get().get() }
+        private val _pluginUpdateService: PluginUpdateService by lazy { GlobalContext.get().get() }
+        private val _projectService: ProjectService by lazy { GlobalContext.get().get() }
+        private val _dependencyService: DependencyService by lazy { GlobalContext.get().get() }
+        private val _serverBackupManager: ServerBackupManager by lazy { GlobalContext.get().get() }
+
         /**
          * プロキシの起動時の処理
          *
@@ -194,4 +218,25 @@ class MpmVelocity
                 )
             }
         }
+
+        // API getters（他の Velocity プラグインが getPlugin("mpm") のインスタンスを MpmAPI として使う）
+        override fun getConfigManager(): ConfigManager = _configManager
+
+        override fun getPluginDirectory(): PluginDirectory = _pluginDirectory
+
+        override fun getPluginInfoService(): PluginInfoService = _pluginInfoService
+
+        override fun getPluginLifecycleService(): PluginLifecycleService = _pluginLifecycleService
+
+        override fun getPluginUpdateService(): PluginUpdateService = _pluginUpdateService
+
+        override fun getPluginMetadataManager(): PluginMetadataManager = _pluginMetadataManager
+
+        override fun getProjectService(): ProjectService = _projectService
+
+        override fun getRepositoryManager(): RepositoryManager = _repositoryManager
+
+        override fun getDependencyService(): DependencyService = _dependencyService
+
+        override fun getServerBackupManager(): ServerBackupManager = _serverBackupManager
     }

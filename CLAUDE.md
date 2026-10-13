@@ -112,8 +112,10 @@ commitの絵文字などに関しては、changelog.config.jsを参考にして�
 
 ## ディレクトリ配置規則
 
-- docs/docs/ にドキュメントを配置します。
-- paper/src/main/kotlin/party/morino/mpm/ にプラグインのメインクラスを配置します。
+- docs/content/docs/ にドキュメントを配置します。
+- common/src/main/kotlin/party/morino/mpm/ にプラットフォームに依存しない共通ロジック（サービス・コマンド・ダウンローダーなど）を配置します。
+- paper/src/main/kotlin/party/morino/mpm/ にPaper版のメインクラスとPaper固有の実装を配置します。
+- velocity/src/main/kotlin/party/morino/mpm/ にVelocity版のメインクラスとVelocity固有の実装を配置します。
 - api/src/main/kotlin/party/morino/mpm/api/ にAPIのインターフェースを配置します。
 - data classはそれぞれのmodelに配置します。
 - 一つのファイルに一つのクラスを配置します。

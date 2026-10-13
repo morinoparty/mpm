@@ -100,6 +100,39 @@ class ModrinthDownloaderTest {
     }
 
     @Test
+    @DisplayName("version lookup sends the platform loaders and names them when empty")
+    fun latestVersionUsesPlatformLoaders() {
+        // 送られたバージョン一覧リクエストの loaders パラメータを記録する
+        var requestedLoaders: String? = null
+        val mockEngine =
+            MockEngine { request ->
+                requestedLoaders = request.url.parameters["loaders"]
+                // velocity 対応版が1つもないプロジェクトを想定して空配列を返す
+                respond(
+                    content = ByteReadChannel("[]"),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            }
+        val testDownloader =
+            object : ModrinthDownloader(TargetPlatform.VELOCITY) {
+                init {
+                    httpClient = HttpClient(mockEngine)
+                }
+            }
+
+        val error =
+            assertThrows<Exception> {
+                runBlocking { testDownloader.getLatestVersion(UrlData.ModrinthUrlData("some-proxy-plugin")) }
+            }
+
+        // Velocity では velocity ローダーのバージョンだけを問い合わせる
+        assertEquals("""["velocity"]""", requestedLoaders)
+        // 対応版がない場合のメッセージにはプラットフォームのローダー名が入る
+        assertTrue(error.message!!.contains("velocity"))
+    }
+
+    @Test
     fun getRepositoryType() {
         // ModrinthのURLが正しく認識されることをテスト
         val validUrl = "https://modrinth.com/plugin/plasmo-voice"

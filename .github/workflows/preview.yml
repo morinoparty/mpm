@@ -66,6 +66,7 @@ jobs:
         if: steps.build.outcome == 'success'
         run: |
           mv paper/build/libs/paper-*-all.jar paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+          mv velocity/build/libs/velocity-*-all.jar velocity/build/libs/${{ env.PROJECT_NAME }}-velocity-${{ steps.vars.outputs.sha }}.jar
           mv api/build/libs/api-*.jar api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
 
       - name: Install Allure CLI
@@ -106,6 +107,7 @@ jobs:
         with:
           subject-path: |
             paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+            velocity/build/libs/${{ env.PROJECT_NAME }}-velocity-${{ steps.vars.outputs.sha }}.jar
             api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
 
       - name: Upload JAR artifacts
@@ -115,6 +117,7 @@ jobs:
           retention-days: 1
           path: |
             paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
+            velocity/build/libs/${{ env.PROJECT_NAME }}-velocity-${{ steps.vars.outputs.sha }}.jar
             api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
             paper/build/reports/tests/test/
             build/reports/detekt/
@@ -232,6 +235,7 @@ jobs:
 
           # JAR artifacts（build-jarジョブで既にAttestation対象のファイル名へリネーム済みのため、そのまま配置する）
           mv artifacts/jar-artifacts/paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
+          mv artifacts/jar-artifacts/velocity/build/libs/${{ env.PROJECT_NAME }}-velocity-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
           mv artifacts/jar-artifacts/api/build/libs/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
           cp -r artifacts/jar-artifacts/paper/build/reports/tests/test/* ./upload/junit/ || true
           cp -r artifacts/jar-artifacts/build/reports/detekt/* ./upload/detekt/ || true
@@ -280,8 +284,10 @@ jobs:
       - name: Create comment file
         env:
           ARTIFACT_NAME: "${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar"
+          ARTIFACT_NAME_VELOCITY: "${{ env.PROJECT_NAME }}-velocity-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_NAME_API: "${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar"
+          ARTIFACT_URL_VELOCITY: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-velocity-${{ env.COMMIT_SHORT_SHA }}.jar"
           ARTIFACT_URL_API: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/jars/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar"
           JUNIT_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/junit/index.html"
           ALLURE_REPORT_URL: "${{ env.PREVIEW_BASE_URL }}/${{ env.COMMIT_SHORT_SHA }}/allure/index.html"
@@ -302,6 +308,7 @@ jobs:
           | Artifact | Download |
           |----------|----------|
           | Bukkit (Paper) | [$ARTIFACT_NAME]($ARTIFACT_URL) |
+          | Velocity | [$ARTIFACT_NAME_VELOCITY]($ARTIFACT_URL_VELOCITY) |
           | API | [$ARTIFACT_NAME_API]($ARTIFACT_URL_API) |
 
           > 📜 **Attestation** (SLSA provenance): [Verify on GitHub]($ATTESTATION_URL) or run \`gh attestation verify <jar-file> --owner morinoparty\`

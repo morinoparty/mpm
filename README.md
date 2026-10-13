@@ -2,12 +2,12 @@
 
 ## About
 
-mpm is a comprehensive plugin management system for Minecraft servers. It simplifies the process of installing, updating, and managing plugins from multiple platforms including SpigotMC, Modrinth, Hangar, and GitHub.
+mpm is a comprehensive plugin management system for Minecraft servers and Velocity proxies. It simplifies the process of installing, updating, and managing plugins from multiple platforms including SpigotMC, Modrinth, Hangar, and GitHub.
 
 ## Tech Stack
 
 - Language: Kotlin
-- Server Software: PaperMC
+- Server Software: PaperMC, Velocity
 - Dependency Injection: Koin
 - HTTP Client: Ktor
 - Serialization: kotlinx-serialization(json, yaml)
@@ -16,11 +16,18 @@ mpm is a comprehensive plugin management system for Minecraft servers. It simpli
 ## Features
 
 - **Multi-Platform Support**: Download plugins from SpigotMC, Modrinth, Hangar, and GitHub
+- **Paper and Velocity**: Runs on Paper servers (`/mpm`) and Velocity proxies (`/mpmv`), sharing the same workflow and file formats
 - **Repository-Based Workflow**: Manage plugins using JSON configuration files
 - **Automatic Version Detection**: Auto-detect compatible versions for your server
 - **File Pattern Matching**: Filter and select specific plugin files using patterns
 - **Command-Line Interface**: Intuitive commands for plugin management
 - **Dependency Injection**: Clean architecture using Koin DI framework
+
+## Velocity
+
+The Velocity build uses the `/mpmv` root command so it does not shadow `/mpm` on backend servers.
+Velocity has no OP, so grant permissions with a permission plugin such as LuckPerms (e.g. `/lpv group admin permission set mpm.command true`).
+See the [Velocity guide](https://mpm.plugin.morino.party/docs/usage/velocity) for details.
 
 ## Build & Development
 
@@ -28,6 +35,13 @@ Build the plugin:
 
 ```bash
 task build
+```
+
+Start a local Paper server or Velocity proxy with the plugin:
+
+```bash
+task run
+task run:velocity
 ```
 
 Run tests:
@@ -55,8 +69,10 @@ For detailed documentation, please visit the [documentation site](https://mpm.pl
 ## Project Structure
 
 - `api/` - API interfaces and configuration classes
+- `common/` - Platform-independent logic shared by Paper and Velocity
 - `paper/` - PaperMC plugin implementation
-- `docs/` - Documentation site (Docusaurus)
+- `velocity/` - Velocity plugin implementation
+- `docs/` - Documentation site (Fumadocs)
 
 ## License
 

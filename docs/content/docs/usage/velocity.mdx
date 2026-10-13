@@ -1,0 +1,228 @@
+---
+title: 🌐 Velocityで使う
+description: Velocityプロキシにmpmを導入し、プロキシのプラグインを管理する方法を説明します
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+mpmはPaperサーバーだけでなく、Velocityプロキシでも動作します。
+プロキシ側のプラグインも、Paperと同じリポジトリファイルベースのワークフローで管理できます。
+
+このページでは、Velocity版のmpmを導入する手順と、Paper版との違いについて説明します。
+基本的な使い方は[はじめに](/docs/usage/getting-started)と共通です。
+
+## 📦 導入
+
+Velocity用のJARを[GitHub Releases](https://github.com/morinoparty/mpm/releases)からダウンロードし、プロキシの`plugins/`ディレクトリに配置してからプロキシを起動します。
+Velocity用のJARはPaper用とは別のファイルとして配布されています。Paper用のJARをプロキシに配置しても動作しません。
+
+<Callout type="info" title="Javaのバージョン">
+mpmはJava 25向けにビルドされています。
+プロキシもJava 25以上のランタイムで起動してください。
+</Callout>
+
+### ☕ Kotlinランタイム
+
+Velocity用のJARには、Kotlinの標準ライブラリ、kotlin-reflect、kotlinx-serialization、kotlinx-coroutinesが同梱されています。
+プロキシ側にKotlinランタイムを別途用意する必要はありません。
+
+Velocityのプラグインは、自分のJARに無いクラスを他のプラグインから借りて読み込みます。
+Kotlinの標準ライブラリやkotlinx系のライブラリを別々のプラグインから借りると、同じ名前のクラスが別々のクラスローダーから読み込まれ、起動時に`LinkageError`（loader constraint violation）で失敗することがあります。
+そのため、これらのライブラリはすべてmpmのJARに同梱し、mpm自身のJARから読み込むようにしています。
+
+### 📁 データディレクトリ
+
+Velocityでは、プラグインのデータディレクトリはプラグインIDで命名されます。
+mpmのプラグインIDは`mpm`のため、データは`plugins/mpm/`に保存されます。
+
+```
+your-proxy/
+├── plugins/
+│   ├── mpm-velocity_x.y.z.jar
+│   └── mpm/
+│       ├── config.json    ← プラグイン設定
+│       ├── mpm.json       ← プロジェクト設定ファイル
+│       ├── mpm-lock.yaml  ← 自動生成されるロックファイル
+│       ├── repository/    ← ローカルリポジトリ
+│       ├── metadata/
+│       ├── cache/
+│       └── backups/
+└── velocity.toml
+```
+
+ファイルの構成と形式はPaper版と同じです。
+各ファイルの詳細は[プラグイン設定 (config.json)](/docs/format/config)と[プロジェクト設定 (mpm.json)](/docs/format/mpm-config)を参照してください。
+
+<Callout type="warn" title="Paperサーバーとは別に管理する">
+Velocityのプラグインは、`plugin.yml`の名前ではなく`velocity-plugin.json`のプラグインID（小文字）で識別されます。
+そのため、Paperサーバーの`mpm.json`や`mpm-lock.yaml`をそのままプロキシにコピーしても、プラグイン名が一致しません。
+プロキシとバックエンドサーバーは、それぞれ別のプロジェクトとして管理してください。
+</Callout>
+
+## ⌨️ コマンド
+
+Velocity版のルートコマンドは`/mpmv`です。
+サブコマンドの構成はPaper版の`/mpm`と同じで、`/mpm`を`/mpmv`に読み替えて使います。
+
+```bash
+/mpmv add luckperms
+/mpmv install
+/mpmv outdated
+/mpmv update
+```
+
+### なぜ`/mpm`ではないのか
+
+Velocityは、プレイヤーが入力したコマンドをまずプロキシで処理し、プロキシに登録されていないコマンドだけをバックエンドサーバーへ転送します。
+プロキシ側でも`/mpm`を登録すると、プレイヤーが入力した`/mpm`はすべてプロキシに奪われ、バックエンドのPaperサーバーで動いているmpmを操作できなくなります。
+
+そこで、Velocity版は別名の`/mpmv`を使います。
+これにより、同じプレイヤーが`/mpm`でバックエンドを、`/mpmv`でプロキシを操作できます。
+
+コンソールから実行する場合も、Velocityのコンソールでは`mpmv`を使います。
+
+```bash
+mpmv list
+```
+
+## 🔑 パーミッション
+
+### Velocityには OP が無い
+
+Paperでは、mpmのパーミッションはOPに自動で付与されます。
+一方、Velocityには OP の概念がなく、プラグインが既定のパーミッションを配る仕組みもありません。
+そのため、プレイヤーが`/mpmv`を使うには、[LuckPerms](https://luckperms.net/)などのパーミッションプラグインで明示的に権限を付与する必要があります。
+
+<Callout type="info" title="コンソール">
+プロキシのコンソールはすべての権限を持つため、パーミッションの設定をしなくても`mpmv`コマンドを実行できます。
+</Callout>
+
+### パーミッションノード
+
+パーミッションノードはPaper版と同じものを使います。
+ノードとサブコマンドの対応は[コマンド一覧](/docs/commands)の「Velocityでのコマンド」の表を参照してください。
+
+<Callout type="info" title="親ノードの扱い">
+Velocityにはパーミッションの親子関係を登録する仕組みがありません。
+そのため、mpmは子ノード（例: `mpm.command.install`）が未設定のときに、親ノードの`mpm.command`を確認します。
+Paperと同じく、`mpm.command`を付与するだけですべてのコマンドを使えます。
+子ノードに明示的に`false`を設定した場合は、親ノードが`true`でもそのコマンドは使えません。
+</Callout>
+
+### LuckPermsでの付与例
+
+LuckPermsのVelocity版では、コマンドは`/lpv`です。
+
+管理者グループにすべてのmpmコマンドを許可する場合：
+
+```bash
+/lpv group admin permission set mpm.command true
+```
+
+特定のプレイヤーにすべてのmpmコマンドを許可する場合：
+
+```bash
+/lpv user Notch permission set mpm.command true
+```
+
+閲覧系のコマンドだけを許可する場合：
+
+```bash
+/lpv group moderator permission set mpm.command.list true
+```
+
+すべてのコマンドを許可しつつ、一部のコマンドだけを禁止する場合：
+
+```bash
+/lpv group staff permission set mpm.command true
+/lpv group staff permission set mpm.command.uninstall false
+```
+
+インストールと更新だけを許可する場合：
+
+```bash
+/lpv group operator permission set mpm.command.add true
+/lpv group operator permission set mpm.command.install true
+/lpv group operator permission set mpm.command.update true
+/lpv group operator permission set mpm.command.list true
+```
+
+## 📚 リポジトリの設定
+
+Velocity向けのプラグインをまとめた公式リポジトリとして、以下のインデックスを用意しています。
+
+```
+https://mpm.plugin.morino.party/velocity/index.json
+```
+
+Paper向けのインデックスとは別に、Velocityで動作するプラグインだけを収録しています。
+`plugins/mpm/config.json`の`repositories`に追加してください。
+
+```json title="plugins/mpm/config.json"
+{
+    "schemaVersion": 2,
+    "repositories": [
+        {
+            "type": "local",
+            "path": "repository"
+        },
+        {
+            "type": "remote",
+            "url": "https://mpm.plugin.morino.party/velocity/index.json"
+        }
+    ]
+}
+```
+
+`settings`など、ここに記載していない項目はPaper版と同じです。
+リモートソースの詳細は[プラグイン設定 (config.json)](/docs/format/config)を参照してください。
+
+<Callout type="warn" title="Paper向けのインデックスを指定しない">
+Velocityで`/paper/index.json`を指定すると、Paper向けのJARを取得しようとしてインストールに失敗します。
+プロキシでは必ずVelocity向けのインデックスを使ってください。
+</Callout>
+
+### ダウンロード元ごとの扱い
+
+mpmはVelocity上で動作しているとき、ダウンロード元に対してVelocity向けのファイルを要求します。
+
+- **Modrinth**: ローダーに`velocity`を指定してバージョンを取得します。`/mpmv search`でも`velocity`対応のプロジェクトだけを検索します
+- **Hangar**: プラットフォーム`VELOCITY`のファイルだけを選びます。Velocity向けのファイルが無いバージョンは、最新版の判定やバージョン一覧から除外されます
+- **GitHub**: Releasesのファイルを選ぶ仕組みはPaperと同じです。Paper用とVelocity用のJARが同じリリースに並んでいる場合は、`fileNameRegex`でVelocity用のファイルを指定してください
+- **SpigotMC**: SpigotMCは主にBukkit系のプラグインを配布しています。Bukkit向けのJARが取得された場合は、後述のチェックによりインストールが拒否されます
+
+## 🚫 他のプラットフォーム向けのJARは拒否される
+
+mpmは、ダウンロードしたJARに含まれるプラグイン記述子を確認してからインストールします。
+Velocityでは`velocity-plugin.json`を持つJARだけを受け付け、`plugin.yml`や`paper-plugin.yml`しか持たないBukkit/Paper向けのJARはインストールしません。
+
+このとき、次のようなエラーが表示されます。
+
+```
+このJARは plugin.yml を持つ他のプラットフォーム向けのプラグインのため、VELOCITY では読み込めません
+```
+
+このチェックは、`install`や`update`で`--force`を指定しても無効化できません。
+他のプラットフォーム向けのJARは配置しても読み込まれないため、誤って配置されることを防いでいます。
+
+Paper版のmpmでも同じように、`velocity-plugin.json`しか持たないJARは拒否されます。
+Paper向けとVelocity向けの記述子を両方持つJARは、どちらのプラットフォームでもインストールできます。
+
+エラーが表示された場合は、リポジトリファイルの`fileNameRegex`やチャンネルの`versionMatcher`が、Velocity向けのファイルを選ぶようになっているか確認してください。
+
+## 🔌 Paper版との違い
+
+| 項目 | Paper | Velocity |
+|---|---|---|
+| ルートコマンド | `/mpm` | `/mpmv` |
+| 既定のパーミッション | OPに付与 | なし（LuckPermsなどで付与） |
+| `mpm.command`による一括付与 | 可能 | 可能（未設定の子ノードは親ノードを確認する） |
+| データディレクトリ | `plugins/mpm/` | `plugins/mpm/` |
+| プラグインの識別 | `plugin.yml` / `paper-plugin.yml`の`name` | `velocity-plugin.json`の`id` |
+| MineAuth連携（HTTP API） | 利用可能 | 利用不可 |
+
+### MineAuth連携は利用できない
+
+[MineAuth連携](/docs/api/http/mineauth)によるHTTP APIは、Paper専用の機能です。
+MineAuthはPaperプラグインのため、Velocity版のmpmではHTTP APIは提供されず、`mpm.api`系のパーミッションも使われません。
+プロキシのプラグインを外部から操作する場合は、`/mpmv`コマンドか、他のVelocityプラグインから[公開API](/docs/api/overview#velocityで取得)を利用してください。
