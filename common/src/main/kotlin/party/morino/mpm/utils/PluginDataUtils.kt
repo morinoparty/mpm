@@ -85,21 +85,36 @@ object PluginDataUtils {
     private const val VELOCITY_PLUGIN_JSON = "velocity-plugin.json"
 
     /**
-     * JARからプラグイン記述子を読み取る
+     * JARから、動作中のプラットフォームが読み込めるプラグイン記述子を読み取る
+     *
+     * 他のプラットフォーム向けのプラグイン（Paper 上の Velocity 専用JARなど）は、サーバーに置かれていても読み込まれないため、
+     * 記述子を持たないJARと同じく null を返す。一覧表示・依存解析・管理外JARの片付けなどはこの関数を使う。
+     *
+     * @param file 読み取るJAR
+     * @param platform mpm が動作しているプラットフォーム
+     * @return このプラットフォーム向けの記述子。該当しない・記述子が無い場合は null
+     */
+    fun getPluginData(
+        file: File,
+        platform: TargetPlatform
+    ): PluginData? = readAnyPluginData(file, platform)?.takeIf { platform.supports(it) }
+
+    /**
+     * JARからプラグイン記述子を、他のプラットフォーム向けのものも含めて読み取る
      *
      * 複数のプラットフォーム向けの記述子を同梱したJAR（plugin.yml と velocity-plugin.json の両方を持つものなど）では、
      * 動作中のプラットフォームが実際に読み込む記述子を優先する。
      * - Paper: paper-plugin.yml → plugin.yml → velocity-plugin.json
      * - Velocity: velocity-plugin.json → paper-plugin.yml → plugin.yml
      *
-     * 他のプラットフォーム向けの記述子も最後に読むのは、インストール前の検証で
-     * 「このサーバーでは動かないプラグイン」として明確に拒否できるようにするため。
+     * インストール前の検証で「このサーバーでは動かないプラグイン」として明確に拒否するために使う。
+     * それ以外の用途では [getPluginData] を使うこと。
      *
      * @param file 読み取るJAR
      * @param platform mpm が動作しているプラットフォーム（記述子の優先順位を決める）
      * @return 記述子。どの記述子も含まない場合は null
      */
-    fun getPluginData(
+    fun readAnyPluginData(
         file: File,
         platform: TargetPlatform
     ): PluginData? {

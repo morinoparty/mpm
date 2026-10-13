@@ -53,9 +53,10 @@ class PluginInstallValidator : KoinComponent {
         force: Boolean
     ): PluginInstallValidationResult {
         // tempファイルからプラグインデータを抽出（破損JARでも例外を握りつぶしてスキップする）
+        // 他のプラットフォーム向けの記述子も読み取り、下の互換性チェックで明確に拒否する
         val pluginData =
             try {
-                PluginDataUtils.getPluginData(downloadedFile, targetPlatform)
+                PluginDataUtils.readAnyPluginData(downloadedFile, targetPlatform)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

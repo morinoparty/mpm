@@ -132,15 +132,18 @@ class PluginDataTest {
     }
 
     @Test
-    @DisplayName("Velocity-only jar is read on Paper but not supported")
+    @DisplayName("Velocity-only jar is ignored on Paper but readable for validation")
     fun testVelocityOnlyJarIsNotSupportedOnPaper(
         @TempDir dir: File
     ) {
         val velocityOnly = File(dir, "velocity-only.jar")
         writeJar(velocityOnly, "velocity-plugin.json" to """{"id":"proxyonly","version":"2.0.0","main":"a.b.C"}""")
 
-        // 他のプラットフォーム向けでも記述子は読み取れる（インストール前の検証で拒否するため）
-        val data = PluginDataUtils.getPluginData(velocityOnly, TargetPlatform.PAPER)
+        // Paper では読み込まれないため、通常の読み取りでは記述子が無いJARと同じ扱いになる
+        assertNull(PluginDataUtils.getPluginData(velocityOnly, TargetPlatform.PAPER))
+
+        // インストール前の検証用には他のプラットフォーム向けの記述子も読み取れる
+        val data = PluginDataUtils.readAnyPluginData(velocityOnly, TargetPlatform.PAPER)
         assertTrue(data is PluginData.VelocityPluginData)
         assertFalse(TargetPlatform.PAPER.supports(data!!))
         assertTrue(TargetPlatform.VELOCITY.supports(data))
