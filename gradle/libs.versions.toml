@@ -1,6 +1,6 @@
 [versions]
 lamp = "4.0.0-rc.19"
-paper = "26.2.build.129-stable"
+paper = "26.2.build.133-stable"
 # Velocity API（プロキシ版mpm向け）
 velocity = "4.2.0"
 # Paper / Velocity の双方が同梱する Adventure と SLF4J（common は compileOnly で参照する）
