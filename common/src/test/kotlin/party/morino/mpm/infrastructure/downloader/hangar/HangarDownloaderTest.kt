@@ -237,4 +237,20 @@ class HangarDownloaderTest {
             assertNull(testDownloader.getVersionHashesByName(urlData, "5.1.0", null))
         }
     }
+
+    @Test
+    @DisplayName("velocity file name pattern does not match another platform")
+    fun velocityPatternDoesNotMatchOtherPlatform() {
+        val testDownloader = versionsMockDownloader(TargetPlatform.VELOCITY)
+
+        runBlocking {
+            val urlData = UrlData.HangarUrlData("kennytv", "Maintenance")
+            val version = VersionData("5.1.0", "5.1.0")
+            // どのファイル名にも一致するパターンでも、PAPER / WATERFALL のファイルは選ばれない
+            val anyJar = ".*"
+
+            assertNull(testDownloader.getVersionHashesByName(urlData, "5.1.0", anyJar))
+            assertThrows<Exception> { testDownloader.downloadByVersion(urlData, version, anyJar) }
+        }
+    }
 }

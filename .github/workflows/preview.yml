@@ -119,7 +119,9 @@ jobs:
             paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ steps.vars.outputs.sha }}.jar
             velocity/build/libs/${{ env.PROJECT_NAME }}-velocity-${{ steps.vars.outputs.sha }}.jar
             api/build/libs/${{ env.PROJECT_NAME }}-api-${{ steps.vars.outputs.sha }}.jar
+            common/build/reports/tests/test/
             paper/build/reports/tests/test/
+            velocity/build/reports/tests/test/
             build/reports/detekt/
             build/allure-report/
 
@@ -237,7 +239,24 @@ jobs:
           mv artifacts/jar-artifacts/paper/build/libs/${{ env.PROJECT_NAME }}-paper-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
           mv artifacts/jar-artifacts/velocity/build/libs/${{ env.PROJECT_NAME }}-velocity-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
           mv artifacts/jar-artifacts/api/build/libs/${{ env.PROJECT_NAME }}-api-${{ env.COMMIT_SHORT_SHA }}.jar ./upload/jars/ || true
-          cp -r artifacts/jar-artifacts/paper/build/reports/tests/test/* ./upload/junit/ || true
+          # JUnit HTML レポートはモジュールごとに生成されるため、junit/<module>/ に配置し、
+          # 各モジュールへのリンクを持つ junit/index.html を生成する（PR コメントのリンク先を維持するため）
+          for module in common paper velocity; do
+            if [ -d "artifacts/jar-artifacts/$module/build/reports/tests/test" ]; then
+              mkdir -p "./upload/junit/$module"
+              cp -r "artifacts/jar-artifacts/$module/build/reports/tests/test/." "./upload/junit/$module/"
+            fi
+          done
+          {
+            echo '<!doctype html><html><head><meta charset="utf-8"><title>JUnit reports</title></head><body>'
+            echo '<h1>JUnit reports</h1><ul>'
+            for dir in ./upload/junit/*/; do
+              [ -d "$dir" ] || continue
+              module=$(basename "$dir")
+              echo "<li><a href=\"$module/index.html\">$module</a></li>"
+            done
+            echo '</ul></body></html>'
+          } > ./upload/junit/index.html
           cp -r artifacts/jar-artifacts/build/reports/detekt/* ./upload/detekt/ || true
           cp -r artifacts/jar-artifacts/build/allure-report/* ./upload/allure/ || true
 

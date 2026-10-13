@@ -290,11 +290,15 @@ open class HangarDownloader(
         fun resolveUrl(platform: String) = version.downloads[platform]?.let { it.downloadUrl ?: it.externalUrl }
 
         return if (fileNamePattern != null) {
-            // パターンにマッチするファイル名を持つプラットフォームを選択
+            // 動作中のプラットフォームのファイルのうち、パターンにマッチするものだけを選択する
+            // 他のプラットフォーム（例: Velocity 上での PAPER）のファイルは、名前が一致しても選ばない
+            // （JSON の並び順で他プラットフォームの JAR を取得し、検証で拒否されるのを防ぐため）
             val regex = Regex(fileNamePattern)
             version.downloads.entries
                 .firstOrNull { (platform, download) ->
-                    download.fileInfo?.name?.let { regex.matches(it) } == true && resolveUrl(platform) != null
+                    platform == preferredPlatform &&
+                        download.fileInfo?.name?.let { regex.matches(it) } == true &&
+                        resolveUrl(platform) != null
                 }?.key
         } else {
             // 動作中のプラットフォーム（Paper: PAPER / Velocity: VELOCITY）のファイルだけを選ぶ

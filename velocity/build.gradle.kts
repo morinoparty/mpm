@@ -51,6 +51,9 @@ dependencies {
     testImplementation(libs.velocity.api)
     testImplementation(libs.bundles.junit.common)
     testImplementation(libs.bundles.koin.test)
+
+    // Allureレポート用（JUnit5の実行結果をallure-resultsとして出力する）
+    testImplementation(libs.allure.junit5)
 }
 
 tasks {
@@ -88,6 +91,11 @@ tasks {
             // デフォルトのtestタスクではintegrationタグを除外する
             excludeTags("integration")
         }
+        // Allure結果の出力先を指定（CIでレポート生成する際に common / paper と集約する）
+        systemProperty("allure.results.directory", "${project.layout.buildDirectory.get().asFile}/allure-results")
+        // allure-resultsはsystemPropertyによる副作用出力のためGradleに出力として明示しないと
+        // ビルドキャッシュ復元時にディレクトリが復元されない
+        outputs.dir(project.layout.buildDirectory.dir("allure-results"))
         testLogging {
             showStandardStreams = true
             events("passed", "skipped", "failed")

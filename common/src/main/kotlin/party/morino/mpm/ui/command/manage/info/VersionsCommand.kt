@@ -19,6 +19,7 @@ import party.morino.mpm.ui.command.annotation.MpmPermission
 import party.morino.mpm.utils.command.sendRichMessage
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Flag
+import revxrsal.commands.annotation.Optional
 import revxrsal.commands.annotation.Subcommand
 
 /**
@@ -42,7 +43,8 @@ class VersionsCommand : KoinComponent {
     suspend fun versions(
         sender: Audience,
         plugin: RepositoryPlugin,
-        @Flag("limit") limit: Int = 20
+        // Kotlin のデフォルト値だけでは Lamp は任意扱いしないため @Optional を付ける（Velocity の brigadier ツリーでフラグ省略時に実行できなくなるのを防ぐ）
+        @Optional @Flag("limit") limit: Int = 20
     ) {
         // --limitに0以下の値を渡すとList.take()が例外を投げるため、事前に検証する
         if (limit <= 0) {

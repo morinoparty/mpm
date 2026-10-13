@@ -19,6 +19,7 @@ import party.morino.mpm.utils.escapeMiniMessage
 import revxrsal.commands.annotation.Command
 import revxrsal.commands.annotation.Description
 import revxrsal.commands.annotation.Flag
+import revxrsal.commands.annotation.Optional
 import revxrsal.commands.annotation.Subcommand
 
 /**
@@ -44,7 +45,8 @@ class SearchCommand : KoinComponent {
     suspend fun search(
         sender: Audience,
         query: String,
-        @Flag("limit") limit: Int = 10
+        // Kotlin のデフォルト値だけでは Lamp は任意扱いしないため @Optional を付ける（Velocity の brigadier ツリーでフラグ省略時に実行できなくなるのを防ぐ）
+        @Optional @Flag("limit") limit: Int = 10
     ) {
         // --limitに0以下を渡すとtake()が例外を投げるため事前に検証する
         if (limit <= 0) {

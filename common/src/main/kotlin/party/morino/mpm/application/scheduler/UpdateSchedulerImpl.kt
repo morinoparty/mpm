@@ -182,16 +182,20 @@ class UpdateSchedulerImpl :
      *
      * @param executionTime cron実行時刻の計算オブジェクト
      * @param expectedGeneration このスケジュールが属する世代
+     * @param from 次回実行時刻の計算起点（直前に発火したスロット時刻を渡すと同じスロットを再度選ばない）
      */
     private fun scheduleNext(
         executionTime: ExecutionTime,
-        expectedGeneration: Long
+        expectedGeneration: Long,
+        from: ZonedDateTime = ZonedDateTime.now()
     ) {
         // 停止済みまたは世代不一致の場合は再スケジュールしない
         if (!running || generation.get() != expectedGeneration) return
 
         val now = ZonedDateTime.now()
-        val nextOpt = executionTime.nextExecution(now)
+        // 起点が現在より過去の場合（発火が遅れた場合）は現在時刻を起点にし、過去スロットの連続発火を防ぐ
+        val base = if (from.isAfter(now)) from else now
+        val nextOpt = executionTime.nextExecution(base)
         if (!nextOpt.isPresent) {
             logger.warn("Could not calculate next execution time for cron expression.")
             return
@@ -208,11 +212,17 @@ class UpdateSchedulerImpl :
         schedulerTask =
             scope.launch {
                 delay(waitMs)
+                // delay はミリ秒未満を切り捨てた待機のため、cron 境界のわずか手前で起床することがある。
+                // 境界に達するまで待ち足し、早期起床で同じスロットを二重に発火させないようにする
+                while (ZonedDateTime.now().isBefore(next)) {
+                    delay(maxOf(ChronoUnit.MILLIS.between(ZonedDateTime.now(), next), 1L))
+                }
                 // 停止フラグと世代を再チェック（stop/restartが呼ばれている可能性）
                 if (!running || generation.get() != expectedGeneration) return@launch
 
                 // 次回予約を処理の前に行う（長い更新でスロットを飛ばさない）
-                scheduleNext(executionTime, expectedGeneration)
+                // 起点を今回のスロット時刻にすることで、同じスロットが再び選ばれないことを保証する
+                scheduleNext(executionTime, expectedGeneration, from = next)
 
                 scope.launch {
                     executeUpdate()
