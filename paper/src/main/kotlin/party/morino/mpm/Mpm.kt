@@ -12,75 +12,33 @@ package party.morino.mpm
 import kotlinx.coroutines.runBlocking
 import org.bukkit.plugin.java.JavaPlugin
 import org.koin.core.context.GlobalContext
-import org.koin.dsl.binds
-import org.koin.dsl.module
 import party.morino.mpm.api.MpmAPI
 import party.morino.mpm.api.application.dependency.DependencyService
-import party.morino.mpm.api.application.health.DoctorService
 import party.morino.mpm.api.application.job.JobService
-import party.morino.mpm.api.application.lock.LockService
 import party.morino.mpm.api.application.plugin.DeferredJarDeletion
-import party.morino.mpm.api.application.plugin.IntegrityVerifier
 import party.morino.mpm.api.application.plugin.PluginInfoService
-import party.morino.mpm.api.application.plugin.PluginJarFileService
 import party.morino.mpm.api.application.plugin.PluginLifecycleService
 import party.morino.mpm.api.application.plugin.PluginUpdateService
 import party.morino.mpm.api.application.project.ProjectService
-import party.morino.mpm.api.application.scheduler.OutdatedNotificationLedger
 import party.morino.mpm.api.application.scheduler.UpdateScheduler
-import party.morino.mpm.api.application.search.PluginSearchService
 import party.morino.mpm.api.domain.backup.ServerBackupManager
-import party.morino.mpm.api.domain.cache.CacheManager
-import party.morino.mpm.api.domain.cache.HttpMetadataCache
 import party.morino.mpm.api.domain.config.ConfigManager
 import party.morino.mpm.api.domain.config.PluginDirectory
-import party.morino.mpm.api.domain.dependency.DependencyAnalyzer
 import party.morino.mpm.api.domain.downloader.DownloaderRepository
 import party.morino.mpm.api.domain.migration.SchemaMigrator
 import party.morino.mpm.api.domain.migration.SchemaVersions
 import party.morino.mpm.api.domain.plugin.model.VersionSpecifier
-import party.morino.mpm.api.domain.plugin.scan.InstalledJarScanner
 import party.morino.mpm.api.domain.plugin.service.PluginMetadataManager
-import party.morino.mpm.api.domain.project.lock.LockRepository
-import party.morino.mpm.api.domain.project.repository.ProjectRepository
 import party.morino.mpm.api.domain.repository.RepositoryManager
 import party.morino.mpm.api.domain.webhook.WebhookNotifier
 import party.morino.mpm.api.model.plugin.InstalledPlugin
 import party.morino.mpm.api.model.plugin.RepositoryPlugin
-import party.morino.mpm.application.dependency.DependencyServiceImpl
-import party.morino.mpm.application.health.DoctorServiceImpl
-import party.morino.mpm.application.job.JobServiceImpl
-import party.morino.mpm.application.lock.LockServiceImpl
-import party.morino.mpm.application.plugin.IntegrityVerifierImpl
-import party.morino.mpm.application.plugin.PluginInfoServiceImpl
-import party.morino.mpm.application.plugin.PluginInstallValidator
-import party.morino.mpm.application.plugin.PluginLifecycleServiceImpl
-import party.morino.mpm.application.plugin.PluginUpdateServiceImpl
-import party.morino.mpm.application.plugin.file.PluginJarFileServiceImpl
-import party.morino.mpm.application.project.ProjectServiceImpl
-import party.morino.mpm.application.project.SelfRegistrar
-import party.morino.mpm.application.scheduler.UpdateSchedulerImpl
-import party.morino.mpm.application.search.PluginSearchServiceImpl
+import party.morino.mpm.di.CoreModule
+import party.morino.mpm.di.PaperModule
 import party.morino.mpm.event.listener.WebhookEventListener
-import party.morino.mpm.infrastructure.backup.ServerBackupManagerImpl
-import party.morino.mpm.infrastructure.cache.CacheManagerImpl
-import party.morino.mpm.infrastructure.cache.HttpMetadataCacheImpl
-import party.morino.mpm.infrastructure.config.ConfigLoadDiagnostics
-import party.morino.mpm.infrastructure.config.ConfigManagerImpl
-import party.morino.mpm.infrastructure.config.PluginDirectoryImpl
-import party.morino.mpm.infrastructure.dependency.DependencyAnalyzerImpl
-import party.morino.mpm.infrastructure.downloader.DownloaderRepositoryImpl
-import party.morino.mpm.infrastructure.migration.SchemaMigratorImpl
 import party.morino.mpm.infrastructure.mineauth.MineAuthIntegration
 import party.morino.mpm.infrastructure.mineauth.MpmApiPermission
-import party.morino.mpm.infrastructure.persistence.LockRepositoryImpl
-import party.morino.mpm.infrastructure.persistence.ProjectRepositoryImpl
-import party.morino.mpm.infrastructure.plugin.retire.DeferredJarDeletionImpl
-import party.morino.mpm.infrastructure.plugin.scan.InstalledJarScannerImpl
-import party.morino.mpm.infrastructure.plugin.service.PluginMetadataManagerImpl
-import party.morino.mpm.infrastructure.repository.RepositorySourceManagerFactory
-import party.morino.mpm.infrastructure.scheduler.OutdatedNotificationLedgerImpl
-import party.morino.mpm.infrastructure.webhook.DiscordWebhookNotifier
+import party.morino.mpm.platform.LoadedPluginRegistry
 import party.morino.mpm.ui.command.ReloadCommand
 import party.morino.mpm.ui.command.manage.control.BackupCommand
 import party.morino.mpm.ui.command.manage.control.CacheCommand
@@ -106,7 +64,6 @@ import party.morino.mpm.ui.command.repo.RepositoryCommands
 import party.morino.mpm.utils.command.resolver.InstalledPluginParameterType
 import party.morino.mpm.utils.command.resolver.RepositoryPluginParameterType
 import party.morino.mpm.utils.command.resolver.VersionSpecifierParameterType
-import party.morino.mpm.utils.loadedPluginJars
 import revxrsal.commands.bukkit.BukkitLamp
 
 /**
@@ -145,7 +102,7 @@ open class Mpm :
 
         // 前回削除しきれなかった旧JARを片付ける（読み込まれているJARは削除しない）
         GlobalContext.get().get<DeferredJarDeletion>().apply {
-            cleanupOnStartup(loadedPluginJars(server))
+            cleanupOnStartup(GlobalContext.get().get<LoadedPluginRegistry>().loadedJars())
             // mpm より後に停止するプラグインの旧JARを、JVM の終了時に削除できるようにする
             installShutdownHook()
         }
@@ -276,87 +233,11 @@ open class Mpm :
      * 依存性注入の設定を行う
      */
     private fun setupKoin() {
-        // モジュールの定義
-        val appModule =
-            module {
-                // プラグインインスタンス
-                single<Mpm> { this@Mpm }
-                single<JavaPlugin> { this@Mpm }
-
-                // 設定の登録（依存性はKoinのinjectによって自動注入される）
-                single<PluginDirectory> { PluginDirectoryImpl() }
-                // 読み込み失敗の診断情報（ConfigLoadDiagnostics）も同じインスタンスから引けるようにする
-                single { ConfigManagerImpl() } binds arrayOf(ConfigManager::class, ConfigLoadDiagnostics::class)
-
-                // スキーマ移行の登録（他サービスが設定ファイルを読むより前に一度だけ実行される）
-                single<SchemaMigrator> { SchemaMigratorImpl() }
-
-                // リポジトリマネージャーの登録（ファクトリーを使用）
-                single<RepositoryManager> {
-                    RepositorySourceManagerFactory.create(get(), get())
-                }
-
-                // リポジトリの登録（依存性はKoinのinjectによって自動注入される）
-                single<DownloaderRepository> { DownloaderRepositoryImpl() }
-                single<ProjectRepository> { ProjectRepositoryImpl() }
-                single<LockRepository> { LockRepositoryImpl() }
-
-                // メタデータマネージャーの登録（依存性はKoinのinjectによって自動注入される）
-                single<PluginMetadataManager> { PluginMetadataManagerImpl() }
-
-                // plugins ディレクトリのライブスキャン（unmanaged 判定・init で共用）
-                single<InstalledJarScanner> { InstalledJarScannerImpl() }
-
-                // 即時削除できない旧JAR（mpm 自身の更新など）の削除予約
-                single<DeferredJarDeletion> { DeferredJarDeletionImpl() }
-
-                // HTTPメタデータキャッシュとキャッシュ管理（mpm cache コマンドから利用）
-                single<HttpMetadataCache> { HttpMetadataCacheImpl() }
-                single<CacheManager> { CacheManagerImpl() }
-
-                // バックアップ管理の登録
-                single<ServerBackupManager> { ServerBackupManagerImpl() }
-
-                // 依存関係解析の登録
-                single<DependencyAnalyzer> { DependencyAnalyzerImpl() }
-                single<DependencyService> { DependencyServiceImpl() }
-
-                // Webhook通知の登録
-                single<WebhookNotifier> { DiscordWebhookNotifier() }
-
-                // Application Serviceの登録
-                single<PluginInfoService> { PluginInfoServiceImpl() }
-                // リポジトリ横断検索
-                single<PluginSearchService> { PluginSearchServiceImpl() }
-                // ロックファイル（mpm-lock.yaml）管理
-                single<LockService> { LockServiceImpl() }
-                // サーバー健全性診断（mpm doctor）
-                single<DoctorService> { DoctorServiceImpl() }
-                // インストール前検証（依存関係）の共通ロジック
-                // PluginLifecycleServiceImplとPluginUpdateServiceImplの両方から利用される
-                single { PluginInstallValidator() }
-                // ダウンロードしたJARのハッシュ整合性検証
-                single<IntegrityVerifier> { IntegrityVerifierImpl() }
-                single<PluginLifecycleService> { PluginLifecycleServiceImpl() }
-                single<PluginUpdateService> { PluginUpdateServiceImpl() }
-                // plugins/ 直下のJARを管理情報に触れず直接削除する（自己更新で残った旧JARの片付けなど）
-                single<PluginJarFileService> { PluginJarFileServiceImpl() }
-                single<ProjectService> { ProjectServiceImpl() }
-                single { SelfRegistrar() }
-
-                // スケジューラーの登録
-                single<UpdateScheduler> { UpdateSchedulerImpl() }
-                // outdated 通知の通知済み台帳（定期チェックだけが書く）
-                single<OutdatedNotificationLedger> { OutdatedNotificationLedgerImpl() }
-
-                // 非同期ジョブ（HTTP APIの長時間処理）の登録
-                single<JobService> { JobServiceImpl() }
-            }
-
         // 既存のKoinコンテキストが残っている場合は停止してから再起動
         GlobalContext.stopKoin()
         GlobalContext.startKoin {
-            modules(appModule)
+            // 共通のサービス群と、Paper 固有の依存（Logger・データディレクトリ・プラットフォーム実装）を組み合わせる
+            modules(CoreModule.create(), PaperModule.create(this@Mpm))
         }
     }
 

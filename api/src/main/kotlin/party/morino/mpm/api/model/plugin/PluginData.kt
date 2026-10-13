@@ -13,10 +13,22 @@ import kotlinx.serialization.Serializable
 
 /**
  * プラグインのデータを表すドメインモデル
- * BukkitとPaperの2つのタイプがある
+ * Bukkit・Paper・Velocity の3つのタイプがある
  */
 @Serializable
 sealed class PluginData {
+    /**
+     * プラグイン名（Velocity の場合はプラグインID）
+     *
+     * 種類ごとの分岐をせずに名前を参照できるよう、基底クラスで公開する
+     */
+    abstract val name: String
+
+    /**
+     * プラグインのバージョン
+     */
+    abstract val version: String
+
     /**
      * Bukkit/Spigot プラグインのデータモデル
      * @property name プラグイン名
@@ -32,8 +44,8 @@ sealed class PluginData {
      */
     @Serializable
     data class BukkitPluginData(
-        val name: String = "",
-        val version: String = "",
+        override val name: String = "",
+        override val version: String = "",
         val main: String = "",
         val description: String = "",
         val author: String = "",
@@ -61,8 +73,8 @@ sealed class PluginData {
      */
     @Serializable
     data class PaperPluginData(
-        val name: String = "",
-        val version: String = "",
+        override val name: String = "",
+        override val version: String = "",
         val main: String = "",
         val description: String = "",
         val apiVersion: String = "",
@@ -74,4 +86,43 @@ sealed class PluginData {
         val softDepend: List<String> = emptyList(),
         val loadBefore: List<String> = emptyList()
     ) : PluginData()
+
+    /**
+     * Velocity プラグインのデータモデル（velocity-plugin.json）
+     *
+     * Velocity ではプラグインを ID（小文字英数字・ハイフン・アンダースコア）で識別するため、
+     * [name] には ID を入れ、表示名は [displayName] に分けて保持する。
+     *
+     * @property name プラグインID
+     * @property version プラグインのバージョン
+     * @property main メインクラスのパス
+     * @property displayName 表示名（未指定の場合は空文字）
+     * @property description プラグインの説明
+     * @property authors 作者のリスト
+     * @property url ウェブサイト
+     * @property dependencies 依存プラグインのリスト（必須・オプションの両方）
+     */
+    @Serializable
+    data class VelocityPluginData(
+        override val name: String = "",
+        override val version: String = "",
+        val main: String = "",
+        val displayName: String = "",
+        val description: String = "",
+        val authors: List<String> = emptyList(),
+        val url: String = "",
+        val dependencies: List<VelocityDependency> = emptyList()
+    ) : PluginData() {
+        /**
+         * 必須依存プラグインのID
+         */
+        val depend: List<String>
+            get() = dependencies.filterNot { it.optional }.map { it.id }
+
+        /**
+         * オプション依存プラグインのID
+         */
+        val softDepend: List<String>
+            get() = dependencies.filter { it.optional }.map { it.id }
+    }
 }

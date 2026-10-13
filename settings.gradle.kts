@@ -21,4 +21,5 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-include("paper", "api")
+// common: Paper / Velocity で共有するプラットフォーム非依存のロジック
+include("paper", "api", "common")

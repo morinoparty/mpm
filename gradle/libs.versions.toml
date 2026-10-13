@@ -1,6 +1,13 @@
 [versions]
 lamp = "4.0.0-rc.18"
 paper = "26.2.build.129-stable"
+# Velocity API（プロキシ版mpm向け）
+velocity = "4.2.0"
+# Paper / Velocity の双方が同梱する Adventure と SLF4J（common は compileOnly で参照する）
+adventure = "5.2.0"
+slf4j = "2.0.19"
+# run-paper / run-velocity は同じ run-task ファミリーのため版を揃える
+runTask = "3.1.0"
 mccoroutine = "2.23.0"
 koin = "4.2.2"
 coroutine = "1.11.0"
@@ -19,10 +26,17 @@ allure = "2.35.5"
 
 [libraries]
 paper-api = { group = "io.papermc.paper", name = "paper-api", version.ref = "paper" }
+velocity-api = { group = "com.velocitypowered", name = "velocity-api", version.ref = "velocity" }
+
+adventure-api = { group = "net.kyori", name = "adventure-api", version.ref = "adventure" }
+adventure-text-minimessage = { group = "net.kyori", name = "adventure-text-minimessage", version.ref = "adventure" }
+adventure-text-serializer-plain = { group = "net.kyori", name = "adventure-text-serializer-plain", version.ref = "adventure" }
+slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 
 lamp-common = { group = "io.github.revxrsal", name = "lamp.common", version.ref = "lamp" }
 lamp-bukkit = { group = "io.github.revxrsal", name = "lamp.bukkit", version.ref = "lamp" }
 lamp-brigadier = { group = "io.github.revxrsal", name = "lamp.brigadier", version.ref = "lamp" }
+lamp-velocity = { group = "io.github.revxrsal", name = "lamp.velocity", version.ref = "lamp" }
 
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kaml = { group = "com.charleskorn.kaml", name = "kaml", version.ref = "kaml" }
@@ -66,7 +80,8 @@ arrow-fx-coroutines = { module = "io.arrow-kt:arrow-fx-coroutines", version.ref 
 cron-utils = { group = "com.cronutils", name = "cron-utils", version.ref = "cronUtils" }
 
 [plugins]
-run-paper = { id = "xyz.jpenilla.run-paper", version = "3.1.0" }
+run-paper = { id = "xyz.jpenilla.run-paper", version.ref = "runTask" }
+run-velocity = { id = "xyz.jpenilla.run-velocity", version.ref = "runTask" }
 resource-factory = { id = "xyz.jpenilla.resource-factory", version = "1.4.0" }
 shadow = { id = "com.gradleup.shadow", version = "9.6.1" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version = "2.4.20" }
@@ -78,7 +93,12 @@ spotless = { id = "com.diffplug.spotless", version = "8.10.3" }
 
 [bundles]
 commands = ["lamp-common", "lamp-bukkit", "lamp-brigadier"]
+commands-velocity = ["lamp-common", "lamp-velocity"]
 coroutines = ["mccoroutine-bukkit-api", "mccoroutine-bukkit-core" , "kotlinx-coroutines-core"]
 ktor-client = ["ktor-client-core", "ktor-client-cio", "ktor-client-mock", "ktor-client-content-negotiation", "ktor-serialization-kotlinx-json"]
 junit = ["junit-jupiter", "junit-platform-launcher", "kotlinx-coroutines-test", "mockk", "mock-bukkit"]
+# MockBukkit を含まないテスト依存（プラットフォーム非依存の common モジュール向け）
+junit-common = ["junit-jupiter", "junit-platform-launcher", "kotlinx-coroutines-test", "mockk"]
+# common が compileOnly で参照する Adventure（実行時は各プラットフォームが提供する）
+adventure = ["adventure-api", "adventure-text-minimessage", "adventure-text-serializer-plain"]
 koin-test = ["koin-test", "koin-test-junit5"]
