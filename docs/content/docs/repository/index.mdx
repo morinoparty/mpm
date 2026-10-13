@@ -22,7 +22,7 @@ mpmにおける**リポジトリ**とは、「どのプラグインを、どこ�
 ```mermaid
 graph LR
     C["config.json<br/>repositories[]"] --> L["ローカル<br/>plugins/mpm/repository/*.json"]
-    C --> R["リモート<br/>https://repo.mpm.nikomaru.dev/paper/index.json"]
+    C --> R["リモート<br/>https://mpm.plugin.morino.party/paper/index.json"]
     R -->|children| S1["子リポジトリ<br/>index.json"]
     S1 -->|children| S2["孫リポジトリ<br/>index.json"]
 ```
@@ -39,9 +39,62 @@ graph LR
 
 ## 🏛️ 公式リポジトリ
 
-`https://repo.mpm.nikomaru.dev/paper/index.json` がmorinopartyの公式リポジトリです。
-定義は[GitHubリポジトリ](https://github.com/morinoparty/mpm/tree/main/repo/public/paper)の
-`plugins/*.json` と `children.json` で管理され、Pull Requestで追加・修正できます。
+morinopartyの公式リポジトリは、このドキュメントサイトと同じ `mpm.plugin.morino.party` から配信されています。
+対象のサーバーソフトウェアごとに入口となるインデックスが分かれています。
+
+| 対象 | インデックスURL |
+| --- | --- |
+| Paper | `https://mpm.plugin.morino.party/paper/index.json` |
+| Velocity | `https://mpm.plugin.morino.party/velocity/index.json` |
+
+```json title="config.json（公式リポジトリを使う例）"
+{
+    "repositories": [
+        { "type": "local", "path": "repository" },
+        { "type": "remote", "url": "https://mpm.plugin.morino.party/paper/index.json" }
+    ]
+}
+```
+
+### 🛰️ チャンネル（Paper）
+
+Paperのルートインデックスはプラグインを直接持たず、成熟度の異なる3つの**チャンネル**を子リポジトリとして束ねています。
+各プラグインはちょうど1つのチャンネルに属します。ルートを指定すれば3つのチャンネルすべてを利用でき、
+特定のチャンネルだけを使いたい場合はそのチャンネルの `index.json` を直接 `url` に指定します。
+
+| チャンネル | インデックスURL | 内容 |
+| --- | --- | --- |
+| 🪐 orbit | `https://mpm.plugin.morino.party/paper/channel/orbit/index.json` | Modrinthで配布され、バージョンがきれいに切られているプラグイン（Essentials、PlaceholderAPI、Chunkyなど） |
+| 🧩 grid | `https://mpm.plugin.morino.party/paper/channel/grid/index.json` | 標準のチャンネル。orbitとsparkのどちらにも当てはまらないプラグインはここに属します |
+| ⚡ spark | `https://mpm.plugin.morino.party/paper/channel/spark/index.json` | バージョンの切り方が不規則なもの、正規表現による補正が多く必要なもの、ベータ版・アルファ版だけが配布されているプラグイン（GSit、CarbonChatなど） |
+
+ルートの `children` は orbit、grid、spark の順に並び、その後ろに外部の子リポジトリ
+（MineAuth、MoripaFishing）が続きます。
+
+<Callout type="info" title="チャンネルとバージョンタグは別のもの">
+ここでのチャンネルは、カタログ上でプラグインを成熟度ごとに分類したものです。
+`mpm add` で指定する `tag:beta` などのバージョンチャンネル（[リポジトリファイル](/docs/repository/file)の
+`latest` / `beta` / `alpha`）とは独立しています。
+</Callout>
+
+### 🚀 Velocity カタログ
+
+`https://mpm.plugin.morino.party/velocity/index.json` は、Velocityプロキシ向けのjarを配布するプラグインの定義をまとめたカタログです。
+各定義の `fileNameRegex` と `versionMatcher` は、Velocity用のjarだけを選ぶように書かれています。
+Modrinthの定義は、Velocityローダー（`loaders=["velocity"]`）でバージョン一覧を取得することを前提としています。
+現在のmpm（Paper版）はModrinthからPaper/Spigot向けのバージョンだけを取得するため、このカタログはPaperサーバーの `config.json` には指定せず、Velocity版のmpm（今後提供予定）から利用します。
+mpm自身のVelocity版は、GitHubリリースの `mpm-velocity_<tag>.jar` を参照します（Paper版は `mpm_<tag>.jar`）。
+
+### 🗂️ 定義の管理
+
+定義は[GitHubリポジトリ](https://github.com/morinoparty/mpm/tree/main/docs/public)の
+`docs/public/paper/channel/<チャンネル>/plugins/*.json` と `docs/public/velocity/plugins/*.json` で管理され、
+Pull Requestで追加・修正できます。
+
+<Callout type="warn" title="旧リポジトリについて">
+従来の `https://repo.mpm.nikomaru.dev/paper/index.json` も当面は引き続き利用できます。
+旧リポジトリは `repo/` ディレクトリで別に管理されており、新しいリポジトリとはファイルを共有していません。
+</Callout>
 
 ## 関連ドキュメント
 

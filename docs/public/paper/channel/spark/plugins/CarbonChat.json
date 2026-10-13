@@ -1,0 +1,19 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "CarbonChat",
+  "license": "GPL-3.0-only",
+  "website": "https://modrinth.com/plugin/carbon",
+  "source": "https://github.com/Hexaoxide/Carbon",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "QzooIsZI",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)",
+      "beta": {
+        "useUpstreamLabel": true,
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)"
+      }
+    }
+  ],
+  "defaultVersion": "tag:beta"
+}

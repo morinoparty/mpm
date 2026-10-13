@@ -1,0 +1,161 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
+  "schemaVersion": 1,
+  "name": "morinoparty-paper-orbit",
+  "plugins": {
+    "AFKPlus": {
+      "id": "AFKPlus",
+      "website": "https://modrinth.com/plugin/afk-plus",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "TFVOdaeG"
+        }
+      ]
+    },
+    "AnnouncerPlus": {
+      "id": "AnnouncerPlus",
+      "website": "https://modrinth.com/plugin/announcer-plus",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "g8XCro6n"
+        }
+      ]
+    },
+    "AxTrade": {
+      "id": "AxTrade",
+      "website": "https://modrinth.com/plugin/axtrade",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "nZSk44a8"
+        }
+      ]
+    },
+    "Chunky": {
+      "id": "Chunky",
+      "website": "https://modrinth.com/plugin/chunky",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "fALzjamp"
+        }
+      ]
+    },
+    "DecentHolograms": {
+      "id": "DecentHolograms",
+      "website": "https://modrinth.com/plugin/decentholograms",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "w02MKsTg"
+        }
+      ]
+    },
+    "DiscordSRV": {
+      "id": "DiscordSRV",
+      "website": "https://modrinth.com/plugin/discordsrv",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "UmLGoGij"
+        }
+      ]
+    },
+    "Essentials": {
+      "id": "Essentials",
+      "website": "https://modrinth.com/plugin/essentialsx",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "hXiIvTyT"
+        }
+      ]
+    },
+    "InventoryRollbackPlus": {
+      "id": "InventoryRollbackPlus",
+      "website": "https://modrinth.com/plugin/inventoryrollbackplus",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "XWKWAzd8"
+        }
+      ]
+    },
+    "MiniPlaceholders": {
+      "id": "MiniPlaceholders",
+      "website": "https://modrinth.com/plugin/miniplaceholders",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "HQyibRsN"
+        }
+      ]
+    },
+    "NoteBlockAPI": {
+      "id": "NoteBlockAPI",
+      "website": "https://modrinth.com/plugin/noteblockapi",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "7FN5Qhm4"
+        }
+      ]
+    },
+    "PlaceholderAPI": {
+      "id": "PlaceholderAPI",
+      "website": "https://modrinth.com/plugin/placeholderapi",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "lKEzGugV"
+        }
+      ]
+    },
+    "TAB-Bridge": {
+      "id": "TAB-Bridge",
+      "website": "https://modrinth.com/plugin/tab-bridge",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "kG3hVbBX"
+        }
+      ]
+    },
+    "TabTPS": {
+      "id": "TabTPS",
+      "website": "https://modrinth.com/plugin/tabtps",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "cUhi3iB2"
+        }
+      ]
+    },
+    "WanderingTrades": {
+      "id": "WanderingTrades",
+      "website": "https://modrinth.com/plugin/wanderingtrades",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "ZfddU72x"
+        }
+      ]
+    }
+  },
+  "children": []
+}

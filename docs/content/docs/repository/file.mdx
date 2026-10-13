@@ -32,7 +32,7 @@ plugins/mpm/
 
 ```json
 {
-    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "$schema": "https://mpm.plugin.morino.party/schema/plugin-info.json",
     "id": "LuckPerms",
     "website": "https://luckperms.net/",
     "repositories": [
@@ -48,18 +48,19 @@ plugins/mpm/
 ### 🧭 `$schema` によるIDE補完
 
 全てのリポジトリファイルは先頭に `$schema` フィールドを置くことを推奨します。
-mpmの公式リポジトリサーバー（`repo.mpm.nikomaru.dev`）が JSON Schema を配信しているため、
+mpmの公式リポジトリ（`mpm.plugin.morino.party`）が JSON Schema を配信しているため、
 VS CodeやIntelliJなどのJSONスキーマ対応エディタで補完・検証が自動的に有効になります。
 
 ```json
 {
-    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json"
+    "$schema": "https://mpm.plugin.morino.party/schema/plugin-info.json"
 }
 ```
 
 - `mpm` はこのフィールドを無視するため、記述しても動作に影響はありません
-- スキーマはZodの型定義（`repo/src/type/plugin-info.ts`）から `repo/scripts/build.ts` で静的ファイルとして生成されています
-- 推奨URLはバージョン付きの `https://repo.mpm.nikomaru.dev/schema/plugin-info/v1.json` です。
+- スキーマはZodの型定義（`docs/lib/repository/plugin-info.ts`）から `docs/scripts/build-repository.ts` で静的ファイルとして生成されています
+- 旧リポジトリ（`repo.mpm.nikomaru.dev`）も当面は同じ形式のスキーマを配信しているため、既存ファイルの `$schema` はそのままでも動作します
+- 推奨URLはバージョン付きの `https://mpm.plugin.morino.party/schema/plugin-info/v1.json` です。
   `/schema/plugin-info.json` は最新版へのエイリアスとして配信されます
 
 ## リポジトリタイプ
@@ -164,7 +165,7 @@ Hangar（PaperMC公式プラグインリポジトリ）からプラグインを�
 
 ```json title="CarbonChat（全リリースがbetaなのでデフォルトをbetaに寄せる例）"
 {
-    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "$schema": "https://mpm.plugin.morino.party/schema/plugin-info.json",
     "id": "CarbonChat",
     "license": "GPL-3.0-only",
     "website": "https://modrinth.com/plugin/carbon",
@@ -185,7 +186,7 @@ Hangar（PaperMC公式プラグインリポジトリ）からプラグインを�
 
 ```json title="WorldEdit（beta/rcを明示的に振り分ける例）"
 {
-    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "$schema": "https://mpm.plugin.morino.party/schema/plugin-info.json",
     "id": "WorldEdit",
     "repositories": [
         {
@@ -268,7 +269,7 @@ Hangar（PaperMC公式プラグインリポジトリ）からプラグインを�
 
 ```json title="CarbonChat.json (betaチャンネルを常用する例)"
 {
-    "$schema": "https://repo.mpm.nikomaru.dev/schema/plugin-info.json",
+    "$schema": "https://mpm.plugin.morino.party/schema/plugin-info.json",
     "id": "CarbonChat",
     "license": "GPL-3.0-only",
     "website": "https://modrinth.com/plugin/carbon",

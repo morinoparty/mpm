@@ -1,0 +1,14 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "mpm",
+  "license": "CC0-1.0",
+  "website": "https://mpm.plugin.morino.party",
+  "source": "https://github.com/morinoparty/mpm",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/mpm",
+      "fileNameRegex": "mpm_.*\\.jar$"
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
+  "schemaVersion": 1,
+  "name": "morinoparty-velocity",
+  "plugins": {
+    "CarbonChat": {
+      "id": "CarbonChat",
+      "website": "https://modrinth.com/plugin/carbon",
+      "source": "https://github.com/Hexaoxide/Carbon",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "QzooIsZI",
+          "fileNameRegex": "carbonchat-velocity-.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)",
+          "beta": {
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.(0|[1-9]\\d*)",
+            "useUpstreamLabel": true
+          }
+        }
+      ],
+      "defaultVersion": "tag:beta"
+    },
+    "LuckPerms": {
+      "id": "LuckPerms",
+      "website": "https://modrinth.com/plugin/luckperms",
+      "source": "https://github.com/lucko/LuckPerms",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "Vebnzrzj",
+          "fileNameRegex": "LuckPerms-Velocity-.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "-velocity$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "MiniPlaceholders": {
+      "id": "MiniPlaceholders",
+      "website": "https://modrinth.com/plugin/miniplaceholders",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "HQyibRsN",
+          "fileNameRegex": "MiniPlaceholders-Velocity-.*\\.jar"
+        }
+      ]
+    },
+    "PAPIProxyBridge": {
+      "id": "PAPIProxyBridge",
+      "website": "https://modrinth.com/plugin/papiproxybridge",
+      "license": "Apache-2.0",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "bEIUEGTX",
+          "fileNameRegex": "PAPIProxyBridge-Velocity-.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+-[a-f0-9]+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-[a-f0-9]+"
+          }
+        }
+      ]
+    },
+    "PlasmoVoice": {
+      "id": "PlasmoVoice",
+      "website": "https://modrinth.com/plugin/plasmo-voice",
+      "license": "LGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "1bZhdhsH",
+          "fileNameRegex": "PlasmoVoice-Velocity-.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?",
+          "latest": {
+            "versionMatcher": "^velocity-\\d+\\.\\d+\\.\\d+(\\+[a-f0-9]+)?$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:\\+[a-f0-9]+)?"
+          },
+          "beta": {
+            "versionMatcher": "^velocity-.*-beta",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-beta\\.\\d+"
+          }
+        }
+      ]
+    },
+    "PlugManX": {
+      "id": "PlugManX",
+      "website": "https://modrinth.com/plugin/plugmanx",
+      "license": "MIT",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "yro4niHu",
+          "fileNameRegex": "PlugManX-.*Velocity.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "-Velocity$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          }
+        }
+      ]
+    },
+    "SignedVelocity": {
+      "id": "SignedVelocity",
+      "website": "https://modrinth.com/plugin/signedvelocity",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "7IbzD4Zm",
+          "fileNameRegex": "SignedVelocity-Proxy-.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-BETA",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA(?:-?\\d+)?"
+          }
+        }
+      ]
+    },
+    "TitleAnnouncer": {
+      "id": "TitleAnnouncer",
+      "website": "https://modrinth.com/plugin/titleannouncer",
+      "license": "GPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "d769vI4q",
+          "fileNameRegex": "TitleAnnouncer-Velocity-.*\\.jar",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+          "latest": {
+            "versionMatcher": "^\\d+\\.\\d+\\.\\d+$",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+          },
+          "beta": {
+            "versionMatcher": "-BETA",
+            "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-BETA\\d+"
+          }
+        }
+      ]
+    },
+    "mpm": {
+      "id": "mpm",
+      "website": "https://mpm.plugin.morino.party",
+      "source": "https://github.com/morinoparty/mpm",
+      "license": "CC0-1.0",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/mpm",
+          "fileNameRegex": "mpm-velocity_.*\\.jar"
+        }
+      ]
+    }
+  },
+  "children": []
+}

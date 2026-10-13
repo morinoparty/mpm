@@ -1,0 +1,10 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "ChestCleaner",
+  "repositories": [
+    {
+      "type": "spigotmc",
+      "id": "40313"
+    }
+  ]
+}

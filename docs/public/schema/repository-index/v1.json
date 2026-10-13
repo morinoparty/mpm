@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "id": "RepositoryIndex",
+  "title": "mpm Repository Index",
+  "description": "mpmリポジトリのインデックス。全プラグイン定義と子リポジトリへのリンクを1ファイルに含む。",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "generated": {
+      "type": "string"
+    },
+    "plugins": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/PluginInfo"
+      }
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RepositoryLink"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "plugins"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "PluginInfo": {
+      "id": "PluginInfo",
+      "title": "mpm Plugin Repository File",
+      "description": "mpmのパブリックリポジトリにおける1プラグイン分の定義ファイル。mpm.plugin.morino.party が配信するスキーマと対応する。",
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "website": {
+          "type": "string",
+          "format": "uri"
+        },
+        "source": {
+          "type": "string",
+          "format": "uri"
+        },
+        "license": {
+          "type": "string"
+        },
+        "repositories": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Repository"
+          }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "softDependencies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultVersion": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "repositories"
+      ],
+      "additionalProperties": false
+    },
+    "Repository": {
+      "id": "Repository",
+      "description": "プラグインのダウンロード元を定義するリポジトリ設定",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fileNameRegex": {
+          "type": "string"
+        },
+        "versionModifier": {
+          "type": "string"
+        },
+        "downloadUrl": {
+          "type": "string"
+        },
+        "fileNameTemplate": {
+          "type": "string"
+        },
+        "latest": {
+          "$ref": "#/$defs/Channel"
+        },
+        "beta": {
+          "$ref": "#/$defs/Channel"
+        },
+        "alpha": {
+          "$ref": "#/$defs/Channel"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "Channel": {
+      "id": "Channel",
+      "description": "リリースチャンネルを識別する設定。versionMatcher (regex) が優先、なければuseUpstreamLabelによりネイティブラベルを使用",
+      "type": "object",
+      "properties": {
+        "versionMatcher": {
+          "type": "string"
+        },
+        "versionModifier": {
+          "type": "string"
+        },
+        "useUpstreamLabel": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RepositoryLink": {
+      "id": "RepositoryLink",
+      "description": "子リポジトリへのリンク。index のURLだけで成り立ち、必要なら allowedSources で配布元を絞れる",
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "string",
+          "pattern": "^https:\\/\\/.+\\.json$"
+        },
+        "allowedSources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]+:[^\\s]+$"
+          }
+        }
+      },
+      "required": [
+        "index"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
+  "x-schema-version": "v1"
+}

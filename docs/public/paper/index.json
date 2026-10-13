@@ -1,0 +1,23 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/repository-index/v1.json",
+  "schemaVersion": 1,
+  "name": "morinoparty-paper",
+  "plugins": {},
+  "children": [
+    {
+      "index": "https://mpm.plugin.morino.party/paper/channel/orbit/index.json"
+    },
+    {
+      "index": "https://mpm.plugin.morino.party/paper/channel/grid/index.json"
+    },
+    {
+      "index": "https://mpm.plugin.morino.party/paper/channel/spark/index.json"
+    },
+    {
+      "index": "https://mineauth.plugin.morino.party/mpm/paper/index.json"
+    },
+    {
+      "index": "https://fishing.plugin.morino.party/mpm/paper/index.json"
+    }
+  ]
+}

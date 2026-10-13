@@ -1,0 +1,12 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "AntiRaidFarm",
+  "license": "Apache-2.0",
+  "website": "https://modrinth.com/plugin/antiraidfarm",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "Qm6qtEOC"
+    }
+  ]
+}

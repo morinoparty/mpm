@@ -1,0 +1,19 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "LuckPerms",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/luckperms",
+  "source": "https://github.com/lucko/LuckPerms",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "Vebnzrzj",
+      "fileNameRegex": "LuckPerms-Velocity-.*\\.jar",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)",
+      "latest": {
+        "versionMatcher": "-velocity$",
+        "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+      }
+    }
+  ]
+}

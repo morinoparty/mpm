@@ -1,0 +1,17 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "LuckPerms",
+  "license": "MIT",
+  "website": "https://modrinth.com/plugin/luckperms",
+  "source": "https://github.com/lucko/LuckPerms",
+  "repositories": [
+    {
+      "type": "modrinth",
+      "id": "Vebnzrzj"
+    },
+    {
+      "type": "spigotmc",
+      "id": "28140"
+    }
+  ]
+}
