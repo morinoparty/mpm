@@ -22,6 +22,19 @@
       ],
       "defaultVersion": "tag:beta"
     },
+    "LibertyBans": {
+      "id": "LibertyBans",
+      "website": "https://modrinth.com/plugin/libertybans",
+      "source": "https://github.com/A248/LibertyBans",
+      "license": "AGPL-3.0-or-later",
+      "repositories": [
+        {
+          "type": "modrinth",
+          "id": "PgXAUxLZ",
+          "fileNameRegex": "LibertyBans_Release-.*\\.jar$"
+        }
+      ]
+    },
     "LuckPerms": {
       "id": "LuckPerms",
       "website": "https://modrinth.com/plugin/luckperms",
