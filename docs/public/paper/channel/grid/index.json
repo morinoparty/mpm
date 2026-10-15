@@ -3,6 +3,33 @@
   "schemaVersion": 1,
   "name": "morinoparty-paper-grid",
   "plugins": {
+    "AdvanceRailway": {
+      "id": "AdvanceRailway",
+      "website": "https://advance-railway.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/AdvanceRailway",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/AdvanceRailway",
+          "fileNameRegex": "AdvanceRailway_.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
+    "AdvancedShopFinder": {
+      "id": "AdvancedShopFinder",
+      "website": "https://advanced-shop-finder.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/AdvancedShopFinder",
+      "license": "GPL-3.0-only",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/AdvancedShopFinder",
+          "fileNameRegex": "AdvancedShopFinder_.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
     "AntiRaidFarm": {
       "id": "AntiRaidFarm",
       "website": "https://modrinth.com/plugin/antiraidfarm",
@@ -124,6 +151,19 @@
         }
       ]
     },
+    "Kerria": {
+      "id": "Kerria",
+      "website": "https://kerria.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/Kerria",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/Kerria",
+          "fileNameRegex": "Kerria-paper-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
     "LWC": {
       "id": "LWC",
       "website": "https://modrinth.com/plugin/lwc",
@@ -167,6 +207,33 @@
         {
           "type": "modrinth",
           "id": "SdV5cyLq"
+        }
+      ]
+    },
+    "MoripaActivityReport": {
+      "id": "MoripaActivityReport",
+      "website": "https://mar.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/moripa-activity-report",
+      "license": "AGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/moripa-activity-report",
+          "fileNameRegex": "MoripaActivityReport-paper-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
+    "MoripaUtils": {
+      "id": "MoripaUtils",
+      "website": "https://utils.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/moripa-utils",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/moripa-utils",
+          "fileNameRegex": "MoripaUtils-paper-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
         }
       ]
     },

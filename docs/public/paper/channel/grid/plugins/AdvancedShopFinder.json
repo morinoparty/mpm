@@ -1,0 +1,15 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "AdvancedShopFinder",
+  "license": "GPL-3.0-only",
+  "website": "https://advanced-shop-finder.plugin.morino.party/",
+  "source": "https://github.com/morinoparty/AdvancedShopFinder",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/AdvancedShopFinder",
+      "fileNameRegex": "AdvancedShopFinder_.*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

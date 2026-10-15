@@ -1,0 +1,14 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "AdvanceRailway",
+  "website": "https://advance-railway.plugin.morino.party/",
+  "source": "https://github.com/morinoparty/AdvanceRailway",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/AdvanceRailway",
+      "fileNameRegex": "AdvanceRailway_.*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "MoripaActivityReport",
+  "license": "AGPL-3.0-only",
+  "website": "https://mar.plugin.morino.party/",
+  "source": "https://github.com/morinoparty/moripa-activity-report",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/moripa-activity-report",
+      "fileNameRegex": "MoripaActivityReport-paper-.*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}

@@ -22,6 +22,19 @@
       ],
       "defaultVersion": "tag:beta"
     },
+    "Kerria": {
+      "id": "Kerria",
+      "website": "https://kerria.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/Kerria",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/Kerria",
+          "fileNameRegex": "Kerria-velocity-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
     "LuckPerms": {
       "id": "LuckPerms",
       "website": "https://modrinth.com/plugin/luckperms",
@@ -49,6 +62,33 @@
           "type": "modrinth",
           "id": "HQyibRsN",
           "fileNameRegex": "MiniPlaceholders-Velocity-.*\\.jar"
+        }
+      ]
+    },
+    "MoripaActivityReport": {
+      "id": "MoripaActivityReport",
+      "website": "https://mar.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/moripa-activity-report",
+      "license": "AGPL-3.0-only",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/moripa-activity-report",
+          "fileNameRegex": "MoripaActivityReport-velocity-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+        }
+      ]
+    },
+    "MoripaUtils": {
+      "id": "MoripaUtils",
+      "website": "https://utils.plugin.morino.party/",
+      "source": "https://github.com/morinoparty/moripa-utils",
+      "repositories": [
+        {
+          "type": "github",
+          "id": "morinoparty/moripa-utils",
+          "fileNameRegex": "MoripaUtils-velocity-.*\\.jar$",
+          "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
         }
       ]
     },

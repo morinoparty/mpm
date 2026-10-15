@@ -1,0 +1,14 @@
+{
+  "$schema": "https://mpm.plugin.morino.party/schema/plugin-info/v1.json",
+  "id": "MoripaUtils",
+  "website": "https://utils.plugin.morino.party/",
+  "source": "https://github.com/morinoparty/moripa-utils",
+  "repositories": [
+    {
+      "type": "github",
+      "id": "morinoparty/moripa-utils",
+      "fileNameRegex": "MoripaUtils-velocity-.*\\.jar$",
+      "versionModifier": "(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
+    }
+  ]
+}
