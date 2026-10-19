@@ -209,6 +209,8 @@ jobs:
   # S3 アップロード & PRコメント
   upload:
     needs: [build-jar, build-dokka, build-docs]
+    # Dependabot の PR には Actions の secret が渡らず Bitwarden のトークンが取れないため、アップロードと PR コメントを飛ばす
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     env:
       AWS_EC2_METADATA_DISABLED: true
