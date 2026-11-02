@@ -20,7 +20,7 @@ commonsIo = "2.22.0"
 mockk = "1.14.11"
 kaml = "0.77.1"
 ktlint = "14.2.0"
-arrow = "2.2.3"
+arrow = "2.3.0.1"
 cronUtils = "9.2.1"
 allure = "2.35.5"
 
