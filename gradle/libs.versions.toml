@@ -1,5 +1,5 @@
 [versions]
-lamp = "4.0.0"
+lamp = "4.0.1"
 paper = "26.3.build.243-stable"
 # Velocity API（プロキシ版mpm向け）
 velocity = "4.3.1"
