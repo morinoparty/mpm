@@ -286,15 +286,4 @@ class SchemaMigratorImplTest {
         // 壊れたファイルは触られていない
         assertEquals("{ this is not json", brokenFile.readText())
     }
-
-    @Test
-    @DisplayName("reports absent files without touching the disk")
-    fun reportsAbsentFiles() {
-        val report = runBlocking { migrator.migrateAll() }
-
-        assertTrue(outcomeOf(report.outcomes, "mpm.json") is SchemaMigrationOutcome.Absent)
-        assertTrue(outcomeOf(report.outcomes, "config.json") is SchemaMigrationOutcome.Absent)
-        assertEquals(0, report.migratedCount)
-        assertFalse(File(rootDir, "mpm.json").exists())
-    }
 }

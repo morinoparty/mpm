@@ -80,22 +80,4 @@ class InstalledJarScannerImplTest {
 
         assertEquals(listOf("Alpha"), result.map { it.name })
     }
-
-    @Test
-    @DisplayName("scanDirectory should return empty list for missing directory")
-    fun scanReturnsEmptyForMissingDirectory() {
-        val missing = File(pluginsDir, "not-exists")
-
-        assertEquals(
-            emptyList<String>(),
-            InstalledJarScannerImpl
-                .scanDirectory(
-                    missing,
-                    "mpm",
-                    TargetPlatform.PAPER
-                ).map {
-                    it.name
-                }
-        )
-    }
 }

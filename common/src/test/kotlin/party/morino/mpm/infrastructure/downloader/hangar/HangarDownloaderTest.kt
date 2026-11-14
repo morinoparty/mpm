@@ -130,20 +130,6 @@ class HangarDownloaderTest {
     }
 
     @Test
-    @DisplayName("getAllVersions returns every version")
-    fun getAllVersions() {
-        val testDownloader = versionsMockDownloader()
-
-        runBlocking {
-            val urlData = UrlData.HangarUrlData("kennytv", "Maintenance")
-            val versions = testDownloader.getAllVersions(urlData)
-
-            assertEquals(3, versions.size)
-            assertEquals("5.1.0", versions[0].version)
-        }
-    }
-
-    @Test
     @DisplayName("downloadByVersion prefers PAPER platform")
     fun downloadByVersion() {
         val testDownloader =

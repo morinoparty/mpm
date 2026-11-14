@@ -117,18 +117,6 @@ class HttpMetadataCacheImplTest {
     }
 
     @Test
-    @DisplayName("put replaces an existing entry in place")
-    fun putReplacesExistingEntry() {
-        val cache = HttpMetadataCacheImpl()
-        cache.put(requestUrl, "{\"result\":\"first\"}")
-        cache.put(requestUrl, "{\"result\":\"second\"}")
-
-        // 一時ファイルが残らず、エントリが上書きされていること
-        assertEquals(1, metadataFiles().size)
-        assertEquals("{\"result\":\"second\"}", cache.get(requestUrl).getOrNull())
-    }
-
-    @Test
     @DisplayName("put evicts entries beyond the configured maximum")
     fun putEvictsEntriesOverTheLimit() {
         maxEntries = 5

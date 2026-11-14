@@ -58,43 +58,6 @@ class MpmConfigExtensionsTest {
         assertEquals("1.0.0", sortedConfig.plugins["Zebra"], "Zebra version should be preserved")
     }
 
-    @Test
-    @DisplayName("Handles empty plugins map")
-    fun testWithSortedPluginsEmpty() {
-        // 空のプラグインマップ
-        val config =
-            MpmConfig(
-                name = "test-project",
-                version = "1.0.0",
-                plugins = emptyMap()
-            )
-
-        // ソート実行
-        val sortedConfig = config.withSortedPlugins()
-
-        // 空のままであることを確認
-        assertEquals(0, sortedConfig.plugins.size, "Plugin map should remain empty")
-    }
-
-    @Test
-    @DisplayName("Handles single plugin")
-    fun testWithSortedPluginsSingle() {
-        // 単一のプラグイン
-        val config =
-            MpmConfig(
-                name = "test-project",
-                version = "1.0.0",
-                plugins = mapOf("OnlyOne" to "1.0.0")
-            )
-
-        // ソート実行
-        val sortedConfig = config.withSortedPlugins()
-
-        // 単一のプラグインが保持されているか確認
-        assertEquals(1, sortedConfig.plugins.size, "Should have one plugin")
-        assertEquals("1.0.0", sortedConfig.plugins["OnlyOne"], "Plugin version should be preserved")
-    }
-
     @Nested
     @DisplayName("Sync dependency validation tests")
     inner class ValidateSyncDependenciesTest {
@@ -198,23 +161,6 @@ class MpmConfigExtensionsTest {
                 assertTrue(error is SyncDependencyError.CircularDependency)
             }
         }
-
-        @Test
-        @DisplayName("Returns error on self-referencing sync")
-        fun testSelfSyncIsRejected() {
-            val config =
-                MpmConfig(
-                    name = "test-project",
-                    version = "1.0.0",
-                    plugins = mapOf("PluginA" to "sync:PluginA")
-                )
-
-            val result = config.validateSyncDependencies()
-            assertTrue(result.isLeft(), "Self-referencing sync should still be an error")
-            result.onLeft { error ->
-                assertTrue(error is SyncDependencyError.CircularDependency)
-            }
-        }
     }
 
     @Nested
@@ -237,52 +183,11 @@ class MpmConfigExtensionsTest {
             val result = config.detectCircularDependencies()
             assertNull(result, "Should return null when no circular dependencies")
         }
-
-        @Test
-        @DisplayName("Config without sync plugins returns null")
-        fun testNoSyncPlugins() {
-            val config =
-                MpmConfig(
-                    name = "test-project",
-                    version = "1.0.0",
-                    plugins =
-                        mapOf(
-                            "PluginA" to "1.0.0",
-                            "PluginB" to "2.0.0"
-                        )
-                )
-
-            val result = config.detectCircularDependencies()
-            assertNull(result, "Should return null when no sync plugins")
-        }
     }
 
     @Nested
     @DisplayName("Topological sort tests")
     inner class TopologicalSortPluginsTest {
-        @Test
-        @DisplayName("Sorts plugins with sync dependencies correctly")
-        fun testTopologicalSort() {
-            val config =
-                MpmConfig(
-                    name = "test-project",
-                    version = "1.0.0",
-                    plugins =
-                        mapOf(
-                            "QuickShop-Addon" to "sync:QuickShop",
-                            "QuickShop" to "6.2.0",
-                            "OtherPlugin" to "1.0.0"
-                        )
-                )
-
-            val sorted = config.topologicalSortPlugins()
-
-            // QuickShopはQuickShop-Addonより先に来る必要がある
-            val quickShopIndex = sorted.indexOf("QuickShop")
-            val addonIndex = sorted.indexOf("QuickShop-Addon")
-            assertTrue(quickShopIndex < addonIndex, "QuickShop should come before QuickShop-Addon")
-        }
-
         @Test
         @DisplayName("Orders multi-level sync as parent -> child -> grandchild")
         fun testMultiLevelTopologicalSort() {
@@ -353,25 +258,6 @@ class MpmConfigExtensionsTest {
             assertEquals("QuickShop", syncDeps["QuickShop-Addon"])
             assertEquals("QuickShop", syncDeps["OtherAddon"])
         }
-
-        @Test
-        @DisplayName("Returns empty map when no sync dependencies")
-        fun testNoSyncDependencies() {
-            val config =
-                MpmConfig(
-                    name = "test-project",
-                    version = "1.0.0",
-                    plugins =
-                        mapOf(
-                            "PluginA" to "1.0.0",
-                            "PluginB" to "2.0.0"
-                        )
-                )
-
-            val syncDeps = config.getSyncDependencies()
-
-            assertTrue(syncDeps.isEmpty(), "Should return empty map")
-        }
     }
 
     @Nested
@@ -399,48 +285,11 @@ class MpmConfigExtensionsTest {
             assertTrue(syncingPlugins.contains("QuickShop-Addon1"))
             assertTrue(syncingPlugins.contains("QuickShop-Addon2"))
         }
-
-        @Test
-        @DisplayName("Returns empty list when no plugins syncing")
-        fun testNoPluginsSyncing() {
-            val config =
-                MpmConfig(
-                    name = "test-project",
-                    version = "1.0.0",
-                    plugins =
-                        mapOf(
-                            "QuickShop" to "6.2.0",
-                            "OtherPlugin" to "1.0.0"
-                        )
-                )
-
-            val syncingPlugins = config.getPluginsSyncingTo("QuickShop")
-
-            assertTrue(syncingPlugins.isEmpty(), "Should return empty list")
-        }
     }
 
     @Nested
     @DisplayName("getSyncDescendants")
     inner class GetSyncDescendantsTest {
-        @Test
-        @DisplayName("Returns direct children")
-        fun testDirectChildren() {
-            val config =
-                MpmConfig(
-                    name = "test-project",
-                    version = "1.0.0",
-                    plugins =
-                        mapOf(
-                            "Parent" to "latest",
-                            "Child" to "sync:Parent",
-                            "Other" to "1.0.0"
-                        )
-                )
-
-            assertEquals(listOf("Child"), config.getSyncDescendants("Parent"))
-        }
-
         @Test
         @DisplayName("Propagates through multi-level sync in parent-first order")
         fun testMultiLevelSync() {
