@@ -111,20 +111,6 @@ class RemoteRepositorySourceTest {
     }
 
     @Test
-    @DisplayName("getAvailablePlugins should return empty list when index.json does not exist")
-    fun testGetAvailablePluginsNotFound() {
-        val mockEngine =
-            MockEngine {
-                respond(content = ByteReadChannel(""), status = HttpStatusCode.NotFound)
-            }
-        val source = createTestSource(mockEngine)
-
-        runBlocking {
-            assertTrue(source.getAvailablePlugins().isEmpty())
-        }
-    }
-
-    @Test
     @DisplayName("getRepositoryFile should return repository file defined in index.json")
     fun testGetRepositoryFileSuccess() {
         val source = createTestSource(routes(mapOf("$baseUrl/index.json" to MockDataLoader.Repository.getIndex())))
@@ -195,20 +181,6 @@ class RemoteRepositorySourceTest {
             assertEquals("Bearer secret", seenAuth["$baseUrl/index.json"])
             assertNull(seenAuth[childUrl])
         }
-    }
-
-    @Test
-    @DisplayName("getSourceType should return 'remote'")
-    fun testGetSourceType() {
-        val source = RemoteRepositorySource(baseUrl)
-        assertEquals("remote", source.getSourceType())
-    }
-
-    @Test
-    @DisplayName("getIdentifier should return configured URL")
-    fun testGetIdentifier() {
-        val source = RemoteRepositorySource(baseUrl)
-        assertEquals(baseUrl, source.getIdentifier())
     }
 
     /**

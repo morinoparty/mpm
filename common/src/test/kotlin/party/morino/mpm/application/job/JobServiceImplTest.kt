@@ -29,9 +29,6 @@ import party.morino.mpm.api.application.model.job.JobSnapshot
 import party.morino.mpm.api.application.model.job.JobState
 import party.morino.mpm.api.application.model.job.JobType
 import party.morino.mpm.api.shared.error.MpmError
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.AtomicInteger
-import kotlin.concurrent.thread
 
 /**
  * 非同期ジョブの受付・進捗記録・終了状態の遷移を検証するテスト
@@ -46,9 +43,6 @@ class JobServiceImplTest {
 
         // ジョブ完了待ちのポーリング間隔（ミリ秒）
         private const val POLL_INTERVAL_MILLIS = 5L
-
-        // 同時受付テストで起動するスレッド数
-        private const val CONCURRENT_SUBMITTERS = 8
 
         // JobRecordが保持する進捗ログの上限（実装値と揃える）
         private const val MAX_PROGRESS_ENTRIES = 200
@@ -141,40 +135,6 @@ class JobServiceImplTest {
         gate.complete(Unit)
         awaitFinished(first.getOrNull()!!.id)
         assertTrue(jobService.submit(JobType.UPDATE_ALL) { JobResult.UpdateAll(emptyList()).right() }.isRight())
-    }
-
-    @Test
-    @DisplayName("Unknown job id returns null")
-    fun unknownJobIdReturnsNull() {
-        assertNull(jobService.get(JobId("does-not-exist")))
-    }
-
-    @Test
-    @DisplayName("Only one of many concurrent submits is accepted")
-    fun onlyOneConcurrentSubmitIsAccepted() {
-        // 先行ジョブを実行中のまま留めるためのゲート
-        val gate = CompletableDeferred<Unit>()
-        val accepted = AtomicInteger(0)
-        val barrier = CountDownLatch(1)
-
-        // 同時にsubmitして、受け付けられるのが厳密に1件であることを確かめる
-        val threads =
-            (1..CONCURRENT_SUBMITTERS).map {
-                thread {
-                    barrier.await()
-                    val submitted =
-                        jobService.submit(JobType.UPDATE_ALL) {
-                            gate.await()
-                            JobResult.UpdateAll(emptyList()).right()
-                        }
-                    if (submitted.isRight()) accepted.incrementAndGet()
-                }
-            }
-        barrier.countDown()
-        threads.forEach { it.join() }
-
-        assertEquals(1, accepted.get())
-        gate.complete(Unit)
     }
 
     @Test

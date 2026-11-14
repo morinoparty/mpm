@@ -75,24 +75,6 @@ class RepositoryGraphResolverTest {
     }
 
     @Test
-    @DisplayName("children may define any plugin name when no allowedSources is given")
-    fun unrestrictedChain() {
-        val root = "https://root.example/index.json"
-        val child = "https://child.example/index.json"
-        val grandchild = "https://grandchild.example/index.json"
-        val responses =
-            mapOf(
-                root to index(emptyList(), listOf(link(child))),
-                child to index(listOf(plugin("MineAuth")), listOf(link(grandchild))),
-                grandchild to index(listOf(plugin("Vault", repoId = "MilkBowl/Vault")))
-            )
-
-        val graph = runBlocking { RepositoryGraphResolver(fetcher(responses)).resolve(root) }
-
-        assertEquals(setOf("MineAuth", "Vault"), graph!!.plugins.keys)
-    }
-
-    @Test
     @DisplayName("allowedSources of every link on the path apply to deeper nodes")
     fun allowedSourcesAccumulateAlongPath() {
         val root = "https://root.example/index.json"

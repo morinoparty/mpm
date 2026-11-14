@@ -63,11 +63,6 @@ object MockDataLoader {
      */
     object Modrinth {
         /**
-         * https://api.modrinth.com/v2/project/plasmo-voice のレスポンスを取得
-         */
-        fun getProjectDetails(): String = loadMockData("mock/http/modrinth/project-info.json")
-
-        /**
          * https://api.modrinth.com/v2/project/plasmo-voice/?loaders=%5B%22paper%22%2C+%22spigot%22%5D のレスポンスを取得
          */
         fun getProjectVersions(): String = loadMockData("mock/http/modrinth/version.json")

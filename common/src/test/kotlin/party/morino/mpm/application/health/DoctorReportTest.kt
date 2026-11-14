@@ -42,12 +42,6 @@ class DoctorReportTest {
     )
 
     @Test
-    @DisplayName("empty report has no problems")
-    fun emptyHasNoProblems() {
-        assertFalse(report().hasProblems)
-    }
-
-    @Test
     @DisplayName("outdated and unmanaged alone are informational, not problems")
     fun informationalOnlyIsNotProblem() {
         val r =

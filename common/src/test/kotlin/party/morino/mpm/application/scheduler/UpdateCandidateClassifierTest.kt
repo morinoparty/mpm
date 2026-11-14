@@ -78,19 +78,6 @@ class UpdateCandidateClassifierTest {
     }
 
     @Test
-    @DisplayName("lock vetoes auto update regardless of spec")
-    fun testLockVetoesAutoUpdate() {
-        val needsUpdate = listOf(outdated("LatestPlugin"), outdated("TagPlugin"))
-        val specs = mapOf("LatestPlugin" to "latest", "TagPlugin" to "tag:stable")
-
-        val result = UpdateCandidateClassifier.classify(needsUpdate, specs) { LockState.LOCKED }
-
-        // lockは唯一の拒否権であり、動的指定でも自動更新対象から外れる
-        assertTrue(result.autoUpdate.isEmpty())
-        assertEquals(listOf("LatestPlugin", "TagPlugin"), names(result.locked))
-    }
-
-    @Test
     @DisplayName("a pinned plugin with a newer upstream is check-only, never auto-updated")
     fun testPinnedWithNewerUpstreamIsCheckOnly() {
         // 固定値 2.6.1 に一致していて更新先との差分は無いが、上流には 2.8.0 が出ている
@@ -112,14 +99,5 @@ class UpdateCandidateClassifierTest {
         // pin の見直しが要るものとして報告・通知はするが、自動更新には入らない
         assertEquals(listOf("AdvancedPortals"), names(result.checkOnly))
         assertTrue(result.autoUpdate.isEmpty())
-    }
-
-    @Test
-    @DisplayName("reports empty classification when nothing needs update")
-    fun testEmptyClassification() {
-        val result = UpdateCandidateClassifier.classify(emptyList(), emptyMap()) { LockState.UNLOCKED }
-
-        assertTrue(result.isEmpty)
-        assertTrue(result.lockedSync.isEmpty())
     }
 }

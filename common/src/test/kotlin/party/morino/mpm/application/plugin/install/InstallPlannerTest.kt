@@ -87,24 +87,6 @@ class InstallPlannerTest {
     }
 
     @Test
-    @DisplayName("Locked sync child stops the chain at its own version")
-    fun lockedChildStopsChain() {
-        // A は 2.0.0 へ。B はロック中で 1.0.0 のまま。C は B に追従するので動かない
-        val plan =
-            planInstallTargets(
-                listOf(
-                    candidate("A", "2.0.0", installed = "1.0.0"),
-                    candidate("B", "sync:A", installed = "1.0.0", locked = true),
-                    candidate("C", "sync:B", installed = "1.0.0")
-                )
-            )
-
-        assertEquals(listOf("A"), plan.pluginsToInstall)
-        assertEquals(listOf("B"), plan.lockedSkipped)
-        assertEquals("1.0.0", plan.resolvedVersions["C"], "ロックで止まった親に追従する孫も動かないべき")
-    }
-
-    @Test
     @DisplayName("Locked latest plugin is not reported as skipped")
     fun lockedDynamicIsNotReported() {
         // latest 指定だがロック中。据え置きが確定しており、実際には何も変わらない

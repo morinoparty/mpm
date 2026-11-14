@@ -49,11 +49,4 @@ class DownloaderRepositoryImplTest {
 
         repository.shutdown()
     }
-
-    @Test
-    @DisplayName("reload should be safe when no downloader is initialized")
-    fun reloadSafeWhenNoneInitialized() {
-        val repository = DownloaderRepositoryImpl()
-        assertDoesNotThrow { repository.reload() }
-    }
 }

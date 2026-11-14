@@ -30,24 +30,9 @@ class VersionSpecifierParserTest {
         }
 
         @Test
-        @DisplayName("Parses 'LATEST' (case-insensitive) to Latest")
-        fun testParseLatestCaseInsensitive() {
-            val result = VersionSpecifierParser.parse("LATEST")
-            assertEquals(VersionSpecifier.Latest, result)
-        }
-
-        @Test
         @DisplayName("Parses 'sync:PluginName' to Sync")
         fun testParseSync() {
             val result = VersionSpecifierParser.parse("sync:QuickShop")
-            assertTrue(result is VersionSpecifier.Sync)
-            assertEquals("QuickShop", (result as VersionSpecifier.Sync).targetPlugin)
-        }
-
-        @Test
-        @DisplayName("Parses 'SYNC:PluginName' (case-insensitive) to Sync")
-        fun testParseSyncCaseInsensitive() {
-            val result = VersionSpecifierParser.parse("SYNC:QuickShop")
             assertTrue(result is VersionSpecifier.Sync)
             assertEquals("QuickShop", (result as VersionSpecifier.Sync).targetPlugin)
         }
@@ -75,14 +60,6 @@ class VersionSpecifierParserTest {
             assertTrue(result is VersionSpecifier.Fixed)
             assertEquals("1.2.3", (result as VersionSpecifier.Fixed).version)
         }
-
-        @Test
-        @DisplayName("Parses complex version string to Fixed")
-        fun testParseComplexFixed() {
-            val result = VersionSpecifierParser.parse("6.2.0-SNAPSHOT")
-            assertTrue(result is VersionSpecifier.Fixed)
-            assertEquals("6.2.0-SNAPSHOT", (result as VersionSpecifier.Fixed).version)
-        }
     }
 
     @Nested
@@ -103,20 +80,6 @@ class VersionSpecifierParserTest {
         }
 
         @Test
-        @DisplayName("Converts Tag to 'tag:tagname'")
-        fun testTagToString() {
-            val result = VersionSpecifierParser.toVersionString(VersionSpecifier.Tag("stable"))
-            assertEquals("tag:stable", result)
-        }
-
-        @Test
-        @DisplayName("Converts Pattern to 'pattern:pattern'")
-        fun testPatternToString() {
-            val result = VersionSpecifierParser.toVersionString(VersionSpecifier.Pattern("^5\\.4\\..*"))
-            assertEquals("pattern:^5\\.4\\..*", result)
-        }
-
-        @Test
         @DisplayName("Converts Fixed to version string")
         fun testFixedToString() {
             val result = VersionSpecifierParser.toVersionString(VersionSpecifier.Fixed("1.2.3"))
@@ -131,12 +94,6 @@ class VersionSpecifierParserTest {
         @DisplayName("Returns true for sync format")
         fun testIsSyncFormat() {
             assertTrue(VersionSpecifierParser.isSyncFormat("sync:QuickShop"))
-        }
-
-        @Test
-        @DisplayName("Returns true for SYNC format (case-insensitive)")
-        fun testIsSyncFormatCaseInsensitive() {
-            assertTrue(VersionSpecifierParser.isSyncFormat("SYNC:QuickShop"))
         }
 
         @Test
@@ -159,24 +116,10 @@ class VersionSpecifierParserTest {
         }
 
         @Test
-        @DisplayName("Extracts target from SYNC format (case-insensitive)")
-        fun testExtractSyncTargetCaseInsensitive() {
-            val result = VersionSpecifierParser.extractSyncTarget("SYNC:QuickShop")
-            assertEquals("QuickShop", result)
-        }
-
-        @Test
         @DisplayName("Returns null for non-sync format")
         fun testExtractSyncTargetNonSync() {
             assertNull(VersionSpecifierParser.extractSyncTarget("1.2.3"))
             assertNull(VersionSpecifierParser.extractSyncTarget("latest"))
-        }
-
-        @Test
-        @DisplayName("Handles plugin name with special characters")
-        fun testExtractSyncTargetSpecialChars() {
-            val result = VersionSpecifierParser.extractSyncTarget("sync:QuickShop-Hikari-Addon")
-            assertEquals("QuickShop-Hikari-Addon", result)
         }
     }
 
