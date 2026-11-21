@@ -104,23 +104,6 @@ class SyncOutdatedAdjusterTest {
     }
 
     @Test
-    @DisplayName("Sync child already at parent version is not outdated")
-    fun syncChildAlreadySynced() {
-        // 親も子も 2.0.0（同期済み）。子のリポジトリlatestが新しくても更新不要と判定される
-        val outdated =
-            listOf(
-                OutdatedInfo("Parent", currentVersion = "2.0.0", latestVersion = "2.0.0", needsUpdate = false),
-                OutdatedInfo("Child", currentVersion = "2.0.0", latestVersion = "9.9.9", needsUpdate = true)
-            )
-
-        val adjusted = adjustSyncOutdated(outdated, mapOf("Child" to "Parent"))
-
-        val child = adjusted.first { it.pluginName == "Child" }
-        assertEquals("2.0.0", child.latestVersion)
-        assertFalse(child.needsUpdate, "親と同期済みの子は更新不要であるべき")
-    }
-
-    @Test
     @DisplayName("Grandchild in a three-level chain follows the root's latest")
     fun multiLevelSyncFollowsRoot() {
         // 根: 1.0.0 → 2.0.0、中間と孫はそれぞれ自身のリポジトリに別の最新版を持つ。

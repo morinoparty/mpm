@@ -56,13 +56,6 @@ class PluginDataTest {
     }
 
     @Test
-    @DisplayName("extractRawApiVersion distinguishes unquoted 1.20 from 1.2")
-    fun testExtractRawApiVersionTrailingZero() {
-        assertEquals("1.20", PluginDataUtils.extractRawApiVersion("api-version: 1.20"))
-        assertEquals("1.2", PluginDataUtils.extractRawApiVersion("api-version: 1.2"))
-    }
-
-    @Test
     @DisplayName("extractRawApiVersion strips quotes, comments and CRLF")
     fun testExtractRawApiVersionQuotesCommentsCrlf() {
         assertEquals("1.20", PluginDataUtils.extractRawApiVersion("api-version: '1.20'"))

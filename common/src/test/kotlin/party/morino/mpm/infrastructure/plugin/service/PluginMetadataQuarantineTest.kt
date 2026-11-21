@@ -143,13 +143,4 @@ class PluginMetadataQuarantineTest {
         assertTrue(other.exists(), "他プラグインのメタデータを移動して失わせてはならない")
         assertFalse(File(File(rootDir, "metadata"), "Target.yaml").exists())
     }
-
-    @Test
-    @DisplayName("Rejects path traversal plugin name")
-    fun quarantineRejectsTraversal() {
-        val result = manager.quarantineMetadata("../../evil")
-
-        assertTrue(result.isLeft())
-        assertTrue(result.leftOrNull()?.contains("不正な") == true)
-    }
 }

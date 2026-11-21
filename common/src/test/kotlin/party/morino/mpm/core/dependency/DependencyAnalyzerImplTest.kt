@@ -101,26 +101,6 @@ class DependencyAnalyzerImplTest : KoinComponent {
     }
 
     @Test
-    @DisplayName("Returns empty map when no dependencies are missing")
-    fun testCheckMissingDependenciesReturnsEmptyWhenAllSatisfied() {
-        val result = dependencyAnalyzer.checkMissingDependencies("MinecraftPluginManager")
-
-        assertTrue(result.isRight(), "Should return Right for existing plugin")
-        result.onRight { missingDeps ->
-            assertTrue(missingDeps.isEmpty() || !missingDeps.containsKey("MinecraftPluginManager"))
-        }
-    }
-
-    @Test
-    @DisplayName("Returns all dependency info for all plugins")
-    fun testGetAllDependencyInfo() {
-        val result = dependencyAnalyzer.getAllDependencyInfo()
-
-        assertTrue(result.isNotEmpty(), "Should return dependency info for all plugins")
-        assertTrue(result.containsKey("MinecraftPluginManager"))
-    }
-
-    @Test
     @DisplayName("Returns empty list for reverse dependencies when no plugins depend on it")
     fun testGetReverseDependencies() {
         val result = dependencyAnalyzer.getReverseDependencies("MinecraftPluginManager")

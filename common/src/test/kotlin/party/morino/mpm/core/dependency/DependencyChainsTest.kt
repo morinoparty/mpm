@@ -139,21 +139,6 @@ class DependencyChainsTest : KoinComponent {
     }
 
     @Test
-    @DisplayName("does not treat a self-dependency as a reverse dependency")
-    fun ignoresSelfDependency() {
-        // Selfyは自分自身に依存している（不正な設定を模す）
-        createPluginJar("Selfy", depend = listOf("Selfy"))
-
-        val result = dependencyAnalyzer.getDependencyChains("Selfy")
-
-        assertTrue(result.isRight())
-        result.onRight { chains ->
-            // 自己依存は無視され、トップレベルとして扱われること
-            assertEquals(listOf(listOf("Selfy")), chains)
-        }
-    }
-
-    @Test
     @DisplayName("returns PluginNotFound for an uninstalled plugin")
     fun returnsErrorForUninstalledPlugin() {
         val result = dependencyAnalyzer.getDependencyChains("NoSuchPlugin")

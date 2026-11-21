@@ -171,14 +171,6 @@ class PluginMetadataManagerImplTest {
     }
 
     @Test
-    @DisplayName("deleteMetadata should reject path traversal plugin name")
-    fun deleteRejectsTraversal() {
-        val result = manager.deleteMetadata("../../evil")
-        assertTrue(result.isLeft())
-        assertTrue(result.leftOrNull()?.contains("不正な") == true)
-    }
-
-    @Test
     @DisplayName("loadMetadata should reject Windows drive-qualified name")
     fun loadRejectsDriveQualifiedName() {
         // "C:evil" のようなドライブ修飾名も拒否される

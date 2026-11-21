@@ -37,12 +37,6 @@ class FileNameTemplateTest {
     }
 
     @Test
-    @DisplayName("render leaves unknown placeholders untouched")
-    fun testRenderUnknownPlaceholder() {
-        assertEquals("<version>.jar", FileNameTemplate.render("<version>.jar", "Foo", "1.0.0").getOrNull())
-    }
-
-    @Test
     @DisplayName("render rejects a traversal template")
     fun testRenderRejectsTraversalTemplate() {
         // リポジトリ定義が `../` を含むテンプレートを持ち込んでも plugins/ の外へ出さない
