@@ -33,7 +33,7 @@ import java.io.File
 import java.util.stream.Stream
 
 /**
- * repo/public/paper/plugins/ 配下の全プラグインJSONに対して、
+ * docs/public/paper/channel/grid/plugins/ 配下のプラグインJSONに対して、
  * 各リポジトリの `getAllVersions` が正常に動作することを検証するインテグレーションテスト。
  *
  * 実際のAPIにリクエストを送信するため、ネットワーク接続が必要。
@@ -97,8 +97,8 @@ class PluginRepositoryIntegrationTest {
         private fun resolvePluginDir(): File {
             val candidates =
                 listOf(
-                    File("repo/public/paper/plugins"),
-                    File("../repo/public/paper/plugins")
+                    File("docs/public/paper/channel/grid/plugins"),
+                    File("../docs/public/paper/channel/grid/plugins")
                 )
             return candidates.firstOrNull { it.exists() && it.isDirectory }
                 ?: throw IllegalStateException(
