@@ -53,27 +53,11 @@ jobs:
         working-directory: repo
         run: pnpm run build
 
-      # デプロイ用の認証情報は BSM morinoparty プロジェクトから取得する
-      # （他リポジトリの Worker デプロイと同じ方式）
-      - name: Get deploy credentials from Bitwarden Secrets Manager
-        uses: bitwarden/sm-action@v3.0.1
-        with:
-          access_token: ${{ secrets.NIKOMARU_BITWARDEN_SECRET_MANAGER_ACCESS_TOKEN }}
-          secrets: |
-            d1a5c5d9-41cc-48f0-9035-b49901583491 > CLOUDFLARE_API_TOKEN
-            030fee6d-fdc5-4434-9d3d-b4c30037356a > CLOUDFLARE_ACCOUNT_ID
-
-      # sm-action は env にしか出さないため、wrangler-action の with: から参照できるよう output 化
-      - name: Expose deploy credentials as step outputs
-        id: bws-deploy
-        run: |
-          echo "cloudflare_api_token=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_OUTPUT"
-          echo "cloudflare_account_id=$CLOUDFLARE_ACCOUNT_ID" >> "$GITHUB_OUTPUT"
-
+      # デプロイ用の認証情報は GitHub Actions の組織シークレットから取得する
       - name: Deploy
         uses: cloudflare/wrangler-action@v4
         with:
-          apiToken: ${{ steps.bws-deploy.outputs.cloudflare_api_token }}
-          accountId: ${{ steps.bws-deploy.outputs.cloudflare_account_id }}
+          apiToken: ${{ secrets.OWNER_CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.OWNER_CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: repo
           command: deploy
