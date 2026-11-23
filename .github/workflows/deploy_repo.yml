@@ -53,11 +53,11 @@ jobs:
         working-directory: repo
         run: pnpm run build
 
-      # デプロイ用の認証情報は GitHub Actions の組織シークレットから取得する
+      # デプロイ用の認証情報は GitHub Actions のリポジトリシークレットから取得する
       - name: Deploy
         uses: cloudflare/wrangler-action@v4
         with:
-          apiToken: ${{ secrets.OWNER_CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.OWNER_CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: repo
           command: deploy
