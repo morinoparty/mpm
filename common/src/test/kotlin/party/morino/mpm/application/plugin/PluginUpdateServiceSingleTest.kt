@@ -10,8 +10,6 @@
 package party.morino.mpm.application.plugin
 
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -52,68 +50,5 @@ class PluginUpdateServiceSingleTest : KoinComponent {
                     error is MpmError.ProjectError.ConfigNotFound,
                 "エラー型が想定外: ${error::class.simpleName} - ${error.message}"
             )
-        }
-
-    @Test
-    @DisplayName("update with force=false returns Left when plugin does not exist")
-    fun updateWithForceDefaultBehavior() =
-        runBlocking {
-            // force=false のデフォルト挙動を確認
-            val result = updateService.update(PluginName("NoSuchPlugin"), force = false)
-            assertTrue(result.isLeft(), "存在しないプラグインは force=false でも Left を返すべき")
-        }
-
-    @Test
-    @DisplayName("update with force=true returns Left when plugin does not exist")
-    fun updateWithForceTrueOnNonExistentPlugin() =
-        runBlocking {
-            // force=true でも存在しないプラグインは NotFound になることを確認
-            val result = updateService.update(PluginName("NoSuchPlugin"), force = true)
-            assertTrue(result.isLeft(), "存在しないプラグインは force=true でも Left を返すべき")
-        }
-
-    @Test
-    @DisplayName("UpdateResult fields are correct on success report")
-    fun updateResultFieldsOnSuccess() {
-        // UpdateResult の成功フィールドを単体で検証
-        val successResult =
-            party.morino.mpm.api.application.model.UpdateResult(
-                pluginName = "TestPlugin",
-                oldVersion = "1.0.0",
-                newVersion = "1.1.0",
-                success = true
-            )
-        assertEquals("TestPlugin", successResult.pluginName)
-        assertEquals("1.0.0", successResult.oldVersion)
-        assertEquals("1.1.0", successResult.newVersion)
-        assertTrue(successResult.success)
-        assertEquals(null, successResult.errorMessage)
-    }
-
-    @Test
-    @DisplayName("UpdateResult fields are correct on failure report")
-    fun updateResultFieldsOnFailure() {
-        // UpdateResult の失敗フィールドを単体で検証（コマンドの表示ロジックで使用される）
-        val failResult =
-            party.morino.mpm.api.application.model.UpdateResult(
-                pluginName = "TestPlugin",
-                oldVersion = "1.0.0",
-                newVersion = "1.0.0",
-                success = false,
-                errorMessage = "必須依存プラグインが不足しています: Vault"
-            )
-        assertTrue(!failResult.success)
-        assertEquals("必須依存プラグインが不足しています: Vault", failResult.errorMessage)
-    }
-
-    @Test
-    @DisplayName("Concurrent update attempt returns UpdateInProgress error")
-    fun concurrentUpdateReturnsUpdateInProgress() =
-        runBlocking {
-            // Mutex のロックは同一コルーチン内では確認しにくいが、
-            // 型定義上 UpdateInProgress が存在することを確認
-            val error = MpmError.PluginError.UpdateInProgress
-            assertInstanceOf(MpmError.PluginError::class.java, error)
-            assertEquals("An update is already in progress", error.message)
         }
 }

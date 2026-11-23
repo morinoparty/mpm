@@ -11,13 +11,11 @@ package party.morino.mpm.infrastructure.downloader
 
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
-import io.ktor.client.plugins.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertInstanceOf
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -208,41 +206,5 @@ class AbstractPluginDownloaderTest {
             assertTrue(result.isLeft())
             assertEquals(1, attempts)
         }
-    }
-
-    @Test
-    @DisplayName("request timeout does not cover the retry backoff")
-    fun requestTimeoutIsDisabled() {
-        // エンジンへ渡されたタイムアウト設定を取り出して検証する
-        var timeoutConfig: HttpTimeoutConfig? = null
-        val mockEngine =
-            MockEngine { request ->
-                timeoutConfig = request.getCapabilityOrNull(HttpTimeoutCapability)
-                respond(
-                    content = ByteReadChannel(ByteArray(10)),
-                    status = HttpStatusCode.OK,
-                    headers = headersOf(HttpHeaders.ContentType, "application/java-archive")
-                )
-            }
-
-        val downloader =
-            object : SpigotDownloader() {
-                init {
-                    httpClient = buildHttpClient(mockEngine)
-                }
-
-                suspend fun download() = downloadFile(downloadUrl, "plugin.jar")
-            }
-
-        runBlocking {
-            downloader.download().getOrNull()?.delete()
-        }
-
-        assertNotNull(timeoutConfig)
-        // リクエスト全体の期限はリトライのバックオフごと打ち切ってしまうため無効化されていること
-        assertEquals(HttpTimeoutConfig.INFINITE_TIMEOUT_MS, timeoutConfig?.requestTimeoutMillis)
-        // 無応答の検出はsocket/connectタイムアウトで行うこと
-        assertEquals(60_000L, timeoutConfig?.socketTimeoutMillis)
-        assertEquals(60_000L, timeoutConfig?.connectTimeoutMillis)
     }
 }

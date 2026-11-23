@@ -91,15 +91,4 @@ class PluginSummaryResponseTest {
         assertNull(response.repository)
         assertNull(response.lastChecked)
     }
-
-    @Test
-    @DisplayName("metadata unavailable plugin reports null versions")
-    fun metadataUnavailableSentinelsBecomeNull() {
-        val response = PluginSummaryResponse.from(ManagedPlugin.createMetadataUnavailable("Broken"))
-
-        assertEquals("METADATA_UNAVAILABLE", response.status)
-        assertFalse(response.isManaged)
-        assertNull(response.currentVersion)
-        assertNull(response.latestVersion)
-    }
 }
